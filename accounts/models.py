@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -18,7 +20,11 @@ class User(AbstractUser):
         blank=True,
         null=True,
     )
-    age = models.PositiveIntegerField(blank=True, null=True)
+    date_of_birth = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Used to calculate age automatically.",
+    )
     instrument = models.CharField(
         max_length=20,
         choices=Instrument.choices,
@@ -30,6 +36,20 @@ class User(AbstractUser):
     )
     favourite_genre = models.CharField(max_length=100, blank=True)
     bio = models.TextField(blank=True)
+
+    @property
+    def age(self):
+        if self.date_of_birth is None:
+            return None
+
+        today = date.today()
+        years = today.year - self.date_of_birth.year
+        if (today.month, today.day) < (
+            self.date_of_birth.month,
+            self.date_of_birth.day,
+        ):
+            years -= 1
+        return years
 
     def clean(self):
         super().clean()
