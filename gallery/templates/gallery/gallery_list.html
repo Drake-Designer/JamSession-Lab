@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Gallery{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'gallery/css/gallery.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="mx-auto max-w-3xl text-center" data-aos="fade-up">
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    Gallery
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    Photos and videos from our jam sessions, shared by the community.
+                </p>
+            </div>
+
+            <div class="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row" data-aos="fade-up" data-aos-delay="100">
+                {% if user.is_authenticated %}
+                <a
+                    href="{% url 'gallery:upload' %}"
+                    class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black shadow-lg shadow-jam-red/20 transition hover:bg-jam-red-hover sm:w-auto"
+                >
+                    Upload Photo or Video
+                </a>
+                <a
+                    href="{% url 'gallery:my_uploads' %}"
+                    class="inline-flex w-full items-center justify-center rounded-xl border border-jam-grey-light bg-jam-grey px-8 py-3.5 text-base font-semibold text-jam-white transition hover:border-jam-red hover:text-jam-red sm:w-auto"
+                >
+                    My Uploads
+                </a>
+                {% else %}
+                <p class="text-center text-jam-muted">
+                    <a href="#" class="font-semibold text-jam-red transition hover:text-jam-red-hover">Sign in</a>
+                    to share your own photos and videos from jam sessions.
+                </p>
+                {% endif %}
+            </div>
+
+            {% if gallery_items %}
+            <div class="gallery-grid mt-14" data-aos="fade-up" data-aos-delay="150">
+                {% for item in gallery_items %}
+                <article class="gallery-item">
+                    <div class="gallery-item__media">
+                        {% if item.is_video %}
+                        <video controls preload="metadata" playsinline>
+                            <source src="{{ item.file.url }}">
+                        </video>
+                        {% else %}
+                        <img
+                            src="{{ item.file.url }}"
+                            alt="{{ item.title|default:'Gallery image' }}"
+                            loading="lazy"
+                        >
+                        {% endif %}
+                        <span class="gallery-item__credit">@{{ item.uploaded_by.username }}</span>
+                    </div>
+                    {% if item.title or item.caption %}
+                    <div class="gallery-item__body">
+                        {% if item.title %}
+                        <h2 class="text-base font-semibold text-jam-white">{{ item.title }}</h2>
+                        {% endif %}
+                        {% if item.caption %}
+                        <p class="mt-2 text-sm text-jam-muted">{{ item.caption }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="gallery-empty mt-14" data-aos="fade-up" data-aos-delay="150">
+                <p>No approved gallery items yet. Check back soon.</p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+{% endblock %}

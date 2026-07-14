@@ -1,0 +1,4 @@
+/* Hide Alpine-controlled elements until JS is ready */
+[x-cloak] {
+    display: none !important;
+}

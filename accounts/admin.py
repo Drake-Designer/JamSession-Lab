@@ -115,10 +115,18 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
     class Media:
         js = ("accounts/js/instrument_toggle.js",)
 
+    @staticmethod
+    def _user_initials(user):
+        if user.first_name and user.last_name:
+            return f"{user.first_name[0]}{user.last_name[0]}".upper()
+        if user.username:
+            return user.username[:2].upper()
+        return "?"
+
     @display(description=_("Photo"), header=True)
     def profile_picture_thumbnail(self, obj):
         if obj.profile_picture:
-            return [
+            return (
                 None,
                 None,
                 None,
@@ -128,8 +136,9 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                     "width": 38,
                     "height": 38,
                 },
-            ]
-        return None
+            )
+        # header=True always requires a list/tuple — use initials when no photo
+        return (None, None, self._user_initials(obj), None)
 
     @display(description=_("Age"))
     def display_age(self, obj):

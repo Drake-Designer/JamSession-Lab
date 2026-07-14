@@ -10,10 +10,18 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
+
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -38,18 +46,77 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "cloudinary_storage",
     "django.contrib.staticfiles",
+    "cloudinary",
+    "adminsortable2",
     "accounts",
+    "pages",
+    "gallery",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
+
+# Temporary until public Register/Login pages are built.
+LOGIN_URL = "/admin/login/"
+
+
+def gallery_pending_admin_link(request):
+    from django.urls import reverse
+
+    return reverse("admin:gallery_galleryitem_changelist") + "?status__exact=pending"
+
 
 UNFOLD = {
     "SITE_TITLE": "JamSession Lab Admin",
     "SITE_HEADER": "JamSession Lab",
     "SITE_SYMBOL": "music_note",
-    # Omit THEME to use "auto" — dark/light follows the system preference
-    # and staff can still switch themes in the admin UI.
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": _("Home"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("Carousel slides"),
+                        "icon": "view_carousel",
+                        "link": reverse_lazy(
+                            "admin:pages_homecarouselslide_changelist"
+                        ),
+                    },
+                ],
+            },
+            {
+                "title": _("Gallery"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("All media"),
+                        "icon": "photo_library",
+                        "link": reverse_lazy("admin:gallery_galleryitem_changelist"),
+                    },
+                    {
+                        "title": _("Pending approval"),
+                        "icon": "pending",
+                        "link": gallery_pending_admin_link,
+                    },
+                ],
+            },
+            {
+                "title": _("Users"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("Users"),
+                        "icon": "people",
+                        "link": reverse_lazy("admin:accounts_user_changelist"),
+                    },
+                ],
+            },
+        ],
+    },
 }
 
 MIDDLEWARE = [
@@ -129,5 +196,40 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
-MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+STATICFILES_DIRS = [
+    BASE_DIR / "jamsession" / "static",
+]
+
+# User-uploaded media (profile pictures, gallery, etc.) — stored on Cloudinary
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": os.environ.get("CLOUD_NAME"),
+    "API_KEY": os.environ.get("API_KEY"),
+    "API_SECRET": os.environ.get("API_SECRET"),
+    "PREFIX": "",
+}
+
+# CloudinaryField uses the Cloudinary SDK directly (not django-cloudinary-storage).
+# Ensure credentials are configured at startup, same as for ImageField uploads.
+import cloudinary
+
+cloudinary.config(
+    cloud_name=CLOUDINARY_STORAGE["CLOUD_NAME"],
+    api_key=CLOUDINARY_STORAGE["API_KEY"],
+    api_secret=CLOUDINARY_STORAGE["API_SECRET"],
+    secure=True,
+)
+
+# TODO: remove this debug print once Cloudinary credentials are confirmed in the terminal
+print("DEBUG CLOUD_NAME from .env:", os.environ.get("CLOUD_NAME"))
+
+
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+MEDIA_URL = "/media/"

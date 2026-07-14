@@ -4,6 +4,8 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from .upload_paths import profile_picture_upload_path
+
 
 class Instrument(models.TextChoices):
     GUITAR = "guitar", "Guitar"
@@ -16,7 +18,7 @@ class Instrument(models.TextChoices):
 
 class User(AbstractUser):
     profile_picture = models.ImageField(
-        upload_to="profile_pictures/",
+        upload_to=profile_picture_upload_path,
         blank=True,
         null=True,
     )

@@ -1,0 +1,59 @@
+/* Lightweight SVG noise grain — echoes the logo's distressed texture */
+.hero-grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 128px 128px;
+}
+
+/* Swiper carousel — explicit min-height prevents collapse before images load */
+.jam-carousel {
+    min-height: 14rem;
+}
+
+@media (min-width: 640px) {
+    .jam-carousel {
+        min-height: 18rem;
+    }
+}
+
+@media (min-width: 768px) {
+    .jam-carousel {
+        min-height: 24rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .jam-carousel {
+        min-height: 28rem;
+    }
+}
+
+.jam-carousel .swiper-slide img {
+    display: block;
+    width: 100%;
+}
+
+/* Swiper controls styled to match brand palette */
+.jam-carousel .swiper-pagination-bullet {
+    background: #737373;
+    opacity: 1;
+}
+
+.jam-carousel .swiper-pagination-bullet-active {
+    background: #E63946;
+}
+
+.jam-carousel .swiper-button-prev,
+.jam-carousel .swiper-button-next {
+    color: #E63946;
+}
+
+.jam-carousel .swiper-button-prev:hover,
+.jam-carousel .swiper-button-next:hover {
+    color: #FF4D5A;
+}

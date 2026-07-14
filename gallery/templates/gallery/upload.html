@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Upload to Gallery{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'gallery/css/gallery.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <div class="text-center" data-aos="fade-up">
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    Upload to Gallery
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    Share a photo or video from a jam session. Your upload will be reviewed before it appears publicly.
+                </p>
+            </div>
+
+            <form method="post" enctype="multipart/form-data" class="gallery-form mt-10 rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up" data-aos-delay="100">
+                {% csrf_token %}
+
+                {% for field in form %}
+                <div class="gallery-form__field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}
+                    <p class="mt-2 text-sm text-jam-muted-dark">{{ field.help_text }}</p>
+                    {% endif %}
+                    {{ field.errors }}
+                </div>
+                {% endfor %}
+
+                <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <button
+                        type="submit"
+                        class="inline-flex items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black transition hover:bg-jam-red-hover"
+                    >
+                        Submit for Approval
+                    </button>
+                    <a href="{% url 'gallery:list' %}" class="text-center text-sm font-medium text-jam-muted transition hover:text-jam-red">
+                        Back to Gallery
+                    </a>
+                </div>
+            </form>
+        </div>
+    </section>
+{% endblock %}

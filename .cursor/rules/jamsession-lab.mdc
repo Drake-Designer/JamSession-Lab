@@ -9,28 +9,38 @@ Project Context
 - Purpose: manage Jam Session music events in Ireland, including event listings, registrations, a community forum, and a photo/video gallery.
 - Tech stack: Python 3.14.6, Django 6.0.7. Always use the latest stable, officially released versions of every technology used in this project. Never use beta, alpha, or release-candidate versions.
 - Repository: GitHub "JamSession-Lab" (private), connected via Cursor.
+- Brand identity: black (#000000), bold red (#E63946), and white, matching the official JamSession Lab logo. The public site is always brand-dark (not system-preference driven); the admin panel (django-unfold) follows system dark/light preference.
 
 Site Structure (Frontend Pages)
 - Home: modern navbar, image carousel, short explanation of what JamSession Lab is, preview of the next upcoming event with a clear registration button (e.g. "Join the Next Jam").
 - About: who we are, what we do, the events we organize.
 - Gallery: photos and videos from past events.
 - Community: a forum/blog area where users can start discussions, comment, and upload photos/videos. All user-uploaded media and posts must go through an admin approval queue before becoming publicly visible.
-- Profile: personal user page showing name (mandatory), profile picture, age (optional), instrument played (mandatory), favorite music genre (optional), bio (optional), and other fields to be defined as the project evolves.
+- Profile: personal user page showing name (mandatory), profile picture, age (computed automatically from date_of_birth), instrument played (mandatory, with a free-text "instrument_other" field shown only when "Other" is selected), favorite music genre (optional), bio (optional), and other fields to be defined as the project evolves.
 - Register / Login: account creation and authentication pages.
 
 Apps Architecture
 - accounts: Custom User Model and profile management.
+- pages: static/informational pages such as Home and About.
 - events: Event model and event listing/detail logic.
 - registrations: user sign-ups for specific events, including attendance tracking to reduce no-shows.
 - community: forum posts, comments, and media uploads with moderation workflow.
 - gallery: approved photos/videos linked to specific past events.
-- pages: static pages such as About and Contact.
 
 Custom User Model
-- Must be created at the very start of the project, before any other migration, extending Django's AbstractUser.
-- Required fields: username/email (default), instrument (mandatory, choice field).
-- Optional fields: profile_picture, age, favorite_genre, bio.
+- Created at the very start of the project, before any other migration, extending Django's AbstractUser.
+- Required fields: username/email (default), instrument (mandatory, choice field, with instrument_other as a conditional free-text field required only when instrument="other").
+- Optional fields: profile_picture, date_of_birth (age is computed dynamically as a read-only property, never stored as a static number), favorite_genre, bio.
 - Set as AUTH_USER_MODEL in settings.py from the first migration onward.
+
+Code Organisation — No Inline Styles or Scripts
+- Never write inline CSS (no `style="..."` attributes) or inline JavaScript (no inline `onclick="..."`, `onchange="..."`, or large `<script>` blocks embedded directly in HTML templates) except for the strict minimum required by third-party CDN libraries that have no alternative.
+- All custom CSS must live in dedicated `.css` files under each app's `static/<app_name>/css/` folder (e.g. `pages/static/pages/css/home.css`), never inside `<style>` tags in templates.
+- All custom JavaScript must live in dedicated `.js` files under each app's `static/<app_name>/js/` folder (e.g. `pages/static/pages/js/navbar.js`), never inline in templates.
+- Organise static files logically: one CSS file and one JS file per page or per reusable component (e.g. `navbar.css`, `navbar.js`, `hero.css`, `carousel.js`), rather than one giant file per app. Shared/global styles go in a `base.css` file.
+- Tailwind configuration (the `tailwind.config` object) should also be extracted into its own JS file (e.g. `static/js/tailwind-config.js`) rather than inline in `<script>` tags inside `base.html`, once the project moves beyond the very first prototyping stage.
+- Templates should only contain HTML structure and Django template tags/logic — no embedded styling or scripting logic beyond loading the relevant static files with `{% static %}`.
+- This rule applies retroactively: whenever inline CSS/JS is found in existing templates, it must be refactored into proper static files before adding new features on top of it.
 
 Key Principles
 - Write clear, technical responses with precise Django examples, and explain concepts simply since the user is a beginner developer.
@@ -61,6 +71,10 @@ Dependencies
 - PostgreSQL as the production database once the site is deployed with a custom domain
 - Pillow (for handling profile pictures and gallery image uploads)
 - WhiteNoise (for serving static files in production)
+- django-unfold (modern admin theme)
+- Tailwind CSS (via CDN during early development; migrate to django-tailwind or a compiled CLI build before production deployment)
+- Alpine.js (lightweight interactivity, e.g. navbar toggles, scroll effects)
+- AOS (Animate On Scroll) and Swiper.js (frontend animation/carousel libraries, loaded via CDN)
 
 Django-Specific Guidelines
 - Use Django templates for rendering HTML.
@@ -87,6 +101,7 @@ Code Quality Standards
 - Always write simple, clean, and readable code. Avoid overly clever or condensed one-liners when a clearer multi-line approach improves understanding.
 - Avoid unnecessary complexity or premature optimization; prioritize code that a beginner developer can read and maintain.
 - Double-check that every piece of code follows Django and PEP 8 conventions before presenting it as final.
+- No inline CSS or JavaScript in templates (see "Code Organisation" section above) — this is a strict, non-negotiable rule across the entire project.
 
 Language and Localization
 - The final website's public-facing language is English (UK), since JamSession Lab is based in Ireland and all visitors/users interact with the site in English.

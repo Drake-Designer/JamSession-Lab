@@ -1,0 +1,167 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en-GB" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="JamSession Lab — organise and join jam session music events across Dublin.">
+    <meta name="theme-color" content="#000000">
+    <title>{% block title %}JamSession Lab{% endblock %}</title>
+
+    {# Favicons and PWA manifest #}
+    <link rel="icon" href="{% static 'images/favicon/favicon.ico' %}" sizes="any">
+    <link rel="icon" href="{% static 'images/favicon/favicon.svg' %}" type="image/svg+xml">
+    <link rel="icon" href="{% static 'images/favicon/favicon-96x96.png' %}" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="{% static 'images/favicon/apple-touch-icon.png' %}">
+    <link rel="manifest" href="{% static 'images/favicon/site.webmanifest' %}">
+
+    {# Tailwind CSS Play CDN + brand config (config must load immediately after Tailwind) #}
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{% static 'pages/js/tailwind-config.js' %}"></script>
+
+    {# Site-wide styles #}
+    <link rel="stylesheet" href="{% static 'pages/css/base.css' %}">
+
+    {# Inter font — clean, modern typeface used across the public site #}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    {# AOS — scroll-reveal animations #}
+    <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
+
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body class="min-h-screen bg-jam-black text-jam-white antialiased">
+
+    {# Sticky navbar — Alpine.js component registered in navbar.js #}
+    <header
+        x-data="navbar()"
+        class="fixed inset-x-0 top-0 z-50 transition-all duration-300"
+        :class="headerClass"
+    >
+        <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Main navigation">
+
+            {# Brand logo image #}
+            <a href="{% url 'pages:home' %}" class="shrink-0 transition opacity-90 hover:opacity-100">
+                <img
+                    src="{% static 'images/jamsession-lab-logo.jpg' %}"
+                    alt="JamSession Lab logo"
+                    class="h-10 w-auto sm:h-12"
+                    width="180"
+                    height="48"
+                >
+            </a>
+
+            {# Desktop navigation links #}
+            <ul class="hidden items-center gap-1 md:flex lg:gap-2">
+                <li><a href="{% url 'pages:home' %}" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">Home</a></li>
+                <li><a href="#" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">About</a></li>
+                <li><a href="{% url 'gallery:list' %}" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">Gallery</a></li>
+                <li><a href="#" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">Community</a></li>
+                <li><a href="#" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">Profile</a></li>
+            </ul>
+
+            {# Desktop auth buttons #}
+            <div class="hidden items-center gap-2 md:flex">
+                <a href="#" class="rounded-lg px-4 py-2 text-sm font-medium text-jam-muted transition hover:text-jam-red">Login</a>
+                <a href="#" class="rounded-lg bg-jam-red px-4 py-2 text-sm font-semibold text-jam-black shadow-sm transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-black">Register</a>
+            </div>
+
+            {# Mobile hamburger button #}
+            <button
+                type="button"
+                class="inline-flex items-center justify-center rounded-lg p-2 text-jam-muted transition hover:bg-jam-grey hover:text-jam-red focus:outline-none focus:ring-2 focus:ring-jam-red md:hidden"
+                @click="toggleMobile()"
+                :aria-expanded="mobileOpen.toString()"
+                aria-controls="mobile-menu"
+                aria-label="Toggle navigation menu"
+            >
+                <svg x-show="!mobileOpen" x-transition class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+                <svg x-show="mobileOpen" x-transition x-cloak class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </nav>
+
+        {# Mobile dropdown menu #}
+        <div
+            id="mobile-menu"
+            x-show="mobileOpen"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 -translate-y-2"
+            x-transition:enter-end="opacity-100 translate-y-0"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100 translate-y-0"
+            x-transition:leave-end="opacity-0 -translate-y-2"
+            x-cloak
+            @click.outside="closeMobile()"
+            class="border-b border-jam-grey-light bg-jam-black/95 backdrop-blur-md md:hidden"
+        >
+            <ul class="space-y-1 px-4 py-4">
+                <li><a href="{% url 'pages:home' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Home</a></li>
+                <li><a href="#" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">About</a></li>
+                <li><a href="{% url 'gallery:list' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Gallery</a></li>
+                <li><a href="#" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Community</a></li>
+                <li><a href="#" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Profile</a></li>
+                <li class="border-t border-jam-grey-light pt-3">
+                    <div class="flex flex-col gap-2">
+                        <a href="#" class="block rounded-lg px-3 py-2.5 text-center text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Login</a>
+                        <a href="#" class="block rounded-lg bg-jam-red px-3 py-2.5 text-center text-sm font-semibold text-jam-black hover:bg-jam-red-hover" @click="closeMobile()">Register</a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </header>
+
+    <main class="pt-[4.5rem] sm:pt-20">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="border-t border-jam-grey-light bg-jam-black">
+        <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+            <div class="flex flex-col items-center justify-between gap-6 sm:flex-row">
+                <div class="text-center sm:text-left">
+                    <p class="text-sm text-jam-muted">
+                        &copy; {% now "Y" %} JamSession Lab. All rights reserved.
+                    </p>
+                    <p class="mt-1 text-sm text-jam-muted-dark">
+                        Made with &#9835; in Ireland
+                    </p>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <a href="#" class="text-jam-muted transition hover:text-jam-red" aria-label="Follow us on Instagram">
+                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                        </svg>
+                    </a>
+                    <a href="#" class="text-jam-muted transition hover:text-jam-red" aria-label="Follow us on Facebook">
+                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                        </svg>
+                    </a>
+                    <a href="#" class="text-jam-muted transition hover:text-jam-red" aria-label="Follow us on YouTube">
+                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    {# Alpine navbar component — must register before Alpine initialises #}
+    <script src="{% static 'pages/js/navbar.js' %}"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+
+    {# AOS scroll-reveal #}
+    <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+    <script src="{% static 'pages/js/aos-init.js' %}"></script>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
