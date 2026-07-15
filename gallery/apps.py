@@ -7,4 +7,7 @@ class GalleryConfig(AppConfig):
     verbose_name = "Gallery"
 
     def ready(self):
+        from jamsession.image_formats import register_heif_opener
+
+        register_heif_opener()
         import gallery.signals  # noqa: F401

@@ -5,7 +5,7 @@ from .models import HomeCarouselSlide
 
 def home(request):
     """Render the public home page."""
-    carousel_slides = HomeCarouselSlide.objects.filter(is_active=True)
+    carousel_slides = HomeCarouselSlide.objects.filter(is_active=True).order_by("order")
     return render(
         request,
         "pages/home.html",

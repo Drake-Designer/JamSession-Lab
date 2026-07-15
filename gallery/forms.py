@@ -1,18 +1,165 @@
 from django import forms
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from .models import ApprovalStatus, GalleryItem
+from .models import GalleryItem
+from .validators import (
+    gallery_file_rejection_reason,
+    validate_gallery_file_size,
+    validate_gallery_file_type,
+)
 
 
-class GalleryUploadForm(forms.ModelForm):
+class GalleryFileValidationMixin:
+    def clean_file(self):
+        file = self.cleaned_data.get("file")
+        validate_gallery_file_size(file)
+        validate_gallery_file_type(file)
+        return file
+
+
+class GalleryItemSaveMixin:
+    """Shared save logic for public and admin gallery forms."""
+
+    def _save_gallery_item(self, instance, *, commit):
+        is_new = instance.pk is None
+
+        if is_new and not instance.uploaded_by_id and self.user:
+            instance.uploaded_by = self.user
+
+        if is_new and self.user:
+            instance.apply_initial_moderation(self.user)
+
+        if commit:
+            instance.save()
+
+        return instance
+
+
+class MultipleGalleryFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+    def value_from_datadict(self, data, files, name):
+        if hasattr(files, "getlist"):
+            upload_list = files.getlist(name)
+            if upload_list:
+                return upload_list
+        return files.get(name)
+
+
+class MultipleGalleryFileField(forms.FileField):
+    widget = MultipleGalleryFileInput
+
+    def clean(self, data, initial=None):
+        if data in self.empty_values:
+            if self.required:
+                raise ValidationError(
+                    self.error_messages["required"],
+                    code="required",
+                )
+            return []
+
+        if not isinstance(data, (list, tuple)):
+            data = [data]
+
+        cleaned_files = []
+        for uploaded_file in data:
+            if uploaded_file in self.empty_values:
+                continue
+            cleaned_files.append(
+                forms.FileField.clean(self, uploaded_file, initial)
+            )
+
+        if self.required and not cleaned_files:
+            raise ValidationError(
+                self.error_messages["required"],
+                code="required",
+            )
+
+        return cleaned_files
+
+
+class GalleryBatchUploadForm(forms.Form):
+    """Upload one or more gallery files in a single submission."""
+
+    files = MultipleGalleryFileField(
+        label=_("Photos or videos"),
+        widget=MultipleGalleryFileInput(
+            attrs={"accept": "image/*,video/*"},
+        ),
+        help_text=_(
+            "Select one or more photos and/or videos. Each file becomes a separate "
+            "gallery item. Maximum 100 MB per file."
+        ),
+    )
+    title = forms.CharField(
+        label=_("Title (optional)"),
+        max_length=120,
+        required=False,
+    )
+    caption = forms.CharField(
+        label=_("Caption (optional)"),
+        widget=forms.Textarea(attrs={"rows": 4}),
+        required=False,
+    )
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_files(self):
+        files = self.cleaned_data.get("files") or []
+        if not files:
+            raise ValidationError(_("Please select at least one photo or video."))
+        return files
+
+    def process_uploads(self):
+        """
+        Validate and save each uploaded file independently.
+
+        Returns (success_count, failures) where failures is a list of
+        (filename, reason) tuples for files that could not be saved.
+        """
+        if not self.is_valid():
+            raise ValueError("Form must be valid before processing uploads.")
+
+        title = self.cleaned_data.get("title", "")
+        caption = self.cleaned_data.get("caption", "")
+        files = self.cleaned_data["files"]
+
+        success_count = 0
+        failures = []
+
+        for uploaded_file in files:
+            rejection_reason = gallery_file_rejection_reason(uploaded_file)
+            if rejection_reason:
+                failures.append((uploaded_file.name, rejection_reason))
+                continue
+
+            try:
+                item = GalleryItem(
+                    uploaded_by=self.user,
+                    file=uploaded_file,
+                    title=title,
+                    caption=caption,
+                )
+                item.apply_initial_moderation(self.user)
+                item.save()
+                success_count += 1
+            except Exception:
+                failures.append(
+                    (uploaded_file.name, "upload failed — please try again")
+                )
+
+        return success_count, failures
+
+
+class GalleryItemAdminForm(
+    GalleryFileValidationMixin, GalleryItemSaveMixin, forms.ModelForm
+):
     class Meta:
         model = GalleryItem
-        fields = ("file", "title", "caption")
-        labels = {
-            "file": _("Photo or video"),
-            "title": _("Title (optional)"),
-            "caption": _("Caption (optional)"),
-        }
+        fields = "__all__"
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
@@ -20,8 +167,4 @@ class GalleryUploadForm(forms.ModelForm):
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        instance.uploaded_by = self.user
-        instance.status = ApprovalStatus.PENDING
-        if commit:
-            instance.save()
-        return instance
+        return self._save_gallery_item(instance, commit=commit)

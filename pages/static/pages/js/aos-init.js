@@ -4,5 +4,6 @@ document.addEventListener("DOMContentLoaded", () => {
         easing: "ease-out-cubic",
         once: true,
         offset: 80,
+        disable: () => window.matchMedia("(max-width: 767px)").matches,
     });
 });

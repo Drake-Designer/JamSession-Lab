@@ -1,10 +1,12 @@
 from django.contrib import admin
 from django.contrib import messages
-from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from unfold.admin import ModelAdmin
 from unfold.decorators import display
 
+from jamsession.cloudinary_delivery import web_image_url
+
+from .forms import GalleryItemAdminForm
 from .models import ApprovalStatus, GalleryItem
 
 
@@ -36,6 +38,7 @@ def reject_gallery_items(modeladmin, request, queryset):
 
 @admin.register(GalleryItem)
 class GalleryItemAdmin(ModelAdmin):
+    form = GalleryItemAdminForm
     list_display = (
         "media_thumbnail",
         "display_uploaded_by",
@@ -91,27 +94,34 @@ class GalleryItemAdmin(ModelAdmin):
         ),
     )
 
-    def save_model(self, request, obj, form, change):
-        if not change:
-            if not obj.uploaded_by_id:
-                obj.uploaded_by = request.user
-            if request.user.is_staff and obj.status == ApprovalStatus.PENDING:
-                obj.status = ApprovalStatus.APPROVED
-                obj.approved_by = request.user
-                obj.approved_at = timezone.now()
-        super().save_model(request, obj, form, change)
+    def get_form_kwargs(self, request, obj=None):
+        kwargs = super().get_form_kwargs(request, obj)
+        kwargs["user"] = request.user
+        return kwargs
 
     @display(description=_("Preview"), header=True)
     def media_thumbnail(self, obj):
         if not obj.file:
             return (None, None, "—", None)
 
+        if obj.is_video:
+            return (
+                None,
+                None,
+                None,
+                {
+                    "path": obj.display_image_url,
+                    "width": 48,
+                    "height": 48,
+                },
+            )
+
         return (
             None,
             None,
             None,
             {
-                "path": obj.file.url,
+                "path": web_image_url(obj.file, width=96, height=96, crop="fill"),
                 "width": 48,
                 "height": 48,
             },

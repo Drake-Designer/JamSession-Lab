@@ -1,0 +1,47 @@
+{% load static %}
+
+<article
+    class="gallery-item"
+    data-aos="fade-up"
+    data-aos-delay="{% widthratio forloop.counter0 1 80 %}"
+>
+    <button
+        type="button"
+        class="gallery-item__trigger{% if item.is_video %} gallery-item__trigger--video{% endif %}"
+        data-gallery-group="{{ gallery_group }}"
+        data-gallery-type="{% if item.is_video %}video{% else %}image{% endif %}"
+        data-gallery-src="{{ item.display_media_url }}"
+        data-gallery-fallback="{% if item.is_video %}{{ item.display_media_fallback_url }}{% endif %}"
+        data-gallery-poster="{{ item.display_image_url }}"
+        data-gallery-title="{{ item.title|default:'' }}"
+        data-gallery-caption="{{ item.caption|default:'' }}"
+        data-gallery-credit="@{{ item.uploaded_by.username }}"
+        aria-label="{% if item.is_video %}Play video{% else %}View photo{% endif %}{% if item.title %}: {{ item.title }}{% endif %}"
+    >
+        <span class="gallery-item__media">
+            <img
+                src="{{ item.display_image_url }}"
+                alt="{{ item.title|default:'Gallery media' }}"
+                loading="lazy"
+            >
+            {% if item.is_video %}
+            <span class="gallery-item__play" aria-hidden="true">
+                <span class="gallery-item__play-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M8 5v14l11-7z"/>
+                    </svg>
+                </span>
+            </span>
+            {% endif %}
+            <span class="gallery-item__overlay">
+                {% if item.title %}
+                <span class="gallery-item__title">{{ item.title }}</span>
+                {% endif %}
+                {% if item.caption %}
+                <span class="gallery-item__caption">{{ item.caption }}</span>
+                {% endif %}
+                <span class="gallery-item__credit">@{{ item.uploaded_by.username }}</span>
+            </span>
+        </span>
+    </button>
+</article>

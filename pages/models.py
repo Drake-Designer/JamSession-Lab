@@ -1,18 +1,17 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from jamsession.cloudinary_delivery import web_image_url
+
 from .upload_paths import home_carousel_upload_path
-
-
-class SlideType(models.TextChoices):
-    EVENT_HIGHLIGHT = "event_highlight", _("Event highlight")
-    GENERIC = "generic", _("Generic")
+from .validators import validate_carousel_image
 
 
 class HomeCarouselSlide(models.Model):
     image = models.ImageField(
         upload_to=home_carousel_upload_path,
         help_text=_("Displayed in the home page carousel."),
+        validators=[validate_carousel_image],
     )
     alt_text = models.CharField(
         max_length=255,
@@ -22,12 +21,6 @@ class HomeCarouselSlide(models.Model):
         max_length=255,
         blank=True,
         help_text=_("Optional short text shown over the slide."),
-    )
-    slide_type = models.CharField(
-        max_length=20,
-        choices=SlideType.choices,
-        default=SlideType.GENERIC,
-        help_text=_("Helps you organise slides in the admin panel."),
     )
     order = models.PositiveIntegerField(
         _("order"),
@@ -48,3 +41,8 @@ class HomeCarouselSlide(models.Model):
 
     def __str__(self):
         return self.alt_text
+
+    @property
+    def display_image_url(self):
+        """Browser-friendly carousel image URL (converts HEIC on delivery)."""
+        return web_image_url(self.image)

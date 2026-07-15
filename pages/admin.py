@@ -1,24 +1,38 @@
+from django import forms
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from unfold.admin import ModelAdmin
 from unfold.decorators import display
 
 from jamsession.admin_mixins import UnfoldSortableAdminMixin
+from jamsession.cloudinary_delivery import web_image_url
 
 from .models import HomeCarouselSlide
+from .validators import validate_carousel_image_upload
+
+
+class HomeCarouselSlideAdminForm(forms.ModelForm):
+    class Meta:
+        model = HomeCarouselSlide
+        fields = "__all__"
+
+    def clean_image(self):
+        image = self.cleaned_data.get("image")
+        validate_carousel_image_upload(image)
+        return image
 
 
 @admin.register(HomeCarouselSlide)
 class HomeCarouselSlideAdmin(UnfoldSortableAdminMixin, ModelAdmin):
+    form = HomeCarouselSlideAdminForm
     list_display = (
         "_reorder_",
         "image_thumbnail",
         "alt_text",
-        "display_slide_type",
         "display_is_active",
         "updated_at",
     )
-    list_filter = ("slide_type", "is_active")
+    list_filter = ("is_active",)
     search_fields = ("alt_text", "caption")
     readonly_fields = ("created_at", "updated_at")
 
@@ -31,7 +45,6 @@ class HomeCarouselSlideAdmin(UnfoldSortableAdminMixin, ModelAdmin):
                     "image",
                     "alt_text",
                     "caption",
-                    "slide_type",
                     "is_active",
                 ),
             },
@@ -53,16 +66,12 @@ class HomeCarouselSlideAdmin(UnfoldSortableAdminMixin, ModelAdmin):
                 None,
                 None,
                 {
-                    "path": obj.image.url,
+                    "path": web_image_url(obj.image, width=160, height=80, crop="fill"),
                     "width": 80,
                     "height": 40,
                 },
             )
         return (None, None, "—", None)
-
-    @display(description=_("Type"), ordering="slide_type")
-    def display_slide_type(self, obj):
-        return obj.get_slide_type_display()
 
     @display(description=_("Active"), boolean=True, ordering="is_active")
     def display_is_active(self, obj):

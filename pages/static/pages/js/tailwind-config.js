@@ -11,8 +11,9 @@ tailwind.config = {
                     white: "#FFFFFF",
                     grey: "#1A1A1A", // Card/section backgrounds
                     "grey-light": "#262626", // Subtle elevation, borders
-                    muted: "#A3A3A3", // Body copy on dark backgrounds (~7.5:1 on black)
-                    "muted-dark": "#737373", // Labels, captions (~4.6:1 on black)
+                    muted: "#A3A3A3", // Body copy on black backgrounds (~7.5:1 on black)
+                    "muted-on-grey": "#B8B8B8", // Body copy on grey backgrounds (~6.3:1 on #1A1A1A)
+                    "muted-dark": "#737373", // Decorative captions only (~4.6:1 on black)
                 },
             },
             fontFamily: {
