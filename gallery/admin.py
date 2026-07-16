@@ -129,7 +129,9 @@ class GalleryItemAdmin(ModelAdmin):
 
     @display(description=_("Uploaded by"), ordering="uploaded_by__username")
     def display_uploaded_by(self, obj):
-        return obj.uploaded_by.username
+        if obj.uploaded_by:
+            return obj.uploaded_by.username
+        return _("(deleted account)")
 
     @display(description=_("Type"), ordering="media_type")
     def display_media_type(self, obj):

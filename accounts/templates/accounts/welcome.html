@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Welcome{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
+            <div data-aos="fade-up">
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    Welcome to JamSession Lab, {{ user.display_name }}!
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    Your account has been created. You can now register for events and
+                    share your photos and videos in the gallery.
+                </p>
+            </div>
+
+            <div
+                class="mt-10 rounded-2xl border border-jam-grey-light bg-jam-grey p-6 text-left sm:p-8"
+                data-aos="fade-up"
+                data-aos-delay="100"
+            >
+                <h2 class="text-lg font-semibold text-jam-white">Verify your email</h2>
+                <p class="mt-2 text-sm leading-relaxed text-jam-muted">
+                    We have sent a verification link to <strong class="text-jam-white">{{ user.email }}</strong>.
+                    Please check your inbox and click the link to confirm your address.
+                    You can keep using the site in the meantime.
+                </p>
+            </div>
+
+            <div
+                class="mt-6 rounded-2xl border border-jam-grey-light bg-jam-grey p-6 text-left sm:p-8"
+                data-aos="fade-up"
+                data-aos-delay="150"
+            >
+                <h2 class="text-lg font-semibold text-jam-white">Join the community on WhatsApp</h2>
+                <p class="mt-2 text-sm leading-relaxed text-jam-muted">
+                    Announcements, session line-ups, and community chat all happen in our
+                    WhatsApp group. Tap below to join.
+                </p>
+                <a
+                    href="{{ whatsapp_link }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black shadow-md transition hover:bg-jam-red-hover sm:w-auto"
+                >
+                    Join the WhatsApp Group
+                </a>
+            </div>
+
+            <a
+                href="{% url 'pages:home' %}"
+                class="mt-10 inline-block text-sm font-medium text-jam-muted transition hover:text-jam-red"
+                data-aos="fade-up"
+                data-aos-delay="200"
+            >
+                &larr; Back to the home page
+            </a>
+        </div>
+    </section>
+{% endblock %}

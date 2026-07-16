@@ -128,3 +128,40 @@ def verify_image_upload(uploaded_file) -> bool:
         return False
     finally:
         uploaded_file.seek(position)
+
+
+def convert_heic_upload_to_jpeg(uploaded_file, *, field_name="image"):
+    """
+    Convert HEIC/HEIF uploads to JPEG so Cloudinary and browsers handle them
+    reliably. Non-HEIC files are returned unchanged.
+    """
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import InMemoryUploadedFile, UploadedFile
+    from PIL import Image
+
+    if uploaded_file is None or not isinstance(uploaded_file, UploadedFile):
+        return uploaded_file
+
+    if not is_heic_upload(uploaded_file):
+        return uploaded_file
+
+    register_heif_opener()
+    uploaded_file.seek(0)
+    with Image.open(uploaded_file) as image:
+        rgb_image = image.convert("RGB")
+        buffer = BytesIO()
+        rgb_image.save(buffer, format="JPEG", quality=90)
+        buffer.seek(0)
+
+    original_name = getattr(uploaded_file, "name", "") or "photo.heic"
+    jpeg_name = f"{os.path.splitext(os.path.basename(original_name))[0]}.jpg"
+
+    return InMemoryUploadedFile(
+        file=buffer,
+        field_name=field_name,
+        name=jpeg_name,
+        content_type="image/jpeg",
+        size=buffer.getbuffer().nbytes,
+        charset=None,
+    )

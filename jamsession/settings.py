@@ -11,8 +11,10 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
+import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
@@ -56,15 +58,17 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "cloudinary",
     "adminsortable2",
-    "accounts",
+    "accounts.apps.AccountsConfig",
     "pages",
     "gallery",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
 
-# Temporary until public Register/Login pages are built.
-LOGIN_URL = "/admin/login/"
+# Public authentication pages (accounts app).
+LOGIN_URL = "/accounts/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/"
 
 
 def gallery_pending_admin_link(request):
@@ -140,7 +144,7 @@ ROOT_URLCONF = "jamsession.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -155,14 +159,34 @@ TEMPLATES = [
 WSGI_APPLICATION = "jamsession.wsgi.application"
 
 
-# Database
+# Database — PostgreSQL (Neon), configured via DATABASE_URL in .env.
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+if not os.environ.get("DATABASE_URL"):
+    raise ImproperlyConfigured(
+        "DATABASE_URL is not set. Configure it in your .env file."
+    )
+
+TESTING = "test" in sys.argv
+
+_database_url = os.environ["DATABASE_URL"]
+if TESTING:
+    # The test runner drops the test database at teardown, which fails through
+    # Neon's connection pooler (PgBouncer keeps a server session open). Tests
+    # therefore use the direct endpoint (same host without "-pooler") and no
+    # persistent connections.
+    _database_url = _database_url.replace("-pooler", "", 1)
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": dj_database_url.parse(
+        _database_url,
+        # Reuse connections for 10 minutes instead of opening a new one per
+        # request — important with a remote database.
+        conn_max_age=0 if TESTING else 600,
+        # Verify reused connections are still alive (Neon suspends idle
+        # compute, which can drop connections).
+        conn_health_checks=True,
+    )
 }
 
 
@@ -225,8 +249,15 @@ cloudinary.config(
     secure=True,
 )
 
-# TODO: remove this debug print once Cloudinary credentials are confirmed in the terminal
-print("DEBUG CLOUD_NAME from .env:", os.environ.get("CLOUD_NAME"))
+# Email — verification links are printed to the runserver terminal for now.
+# TODO: switch to real SMTP backend (SendGrid/Mailgun) once domain and email
+# service are set up.
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "JamSession Lab <noreply@jamsessionlab.ie>"
+
+# Invitation link to the community WhatsApp group, shown after registration
+# and included in the welcome email. Replace with the real group link.
+WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/REPLACE-WITH-REAL-INVITE"
 
 
 STORAGES = {

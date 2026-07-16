@@ -58,7 +58,7 @@
                         Join the Next Jam
                     </a>
                     <a
-                        href="#about"
+                        href="{% url 'pages:about' %}"
                         class="inline-flex w-full items-center justify-center rounded-xl border border-jam-grey-light bg-jam-grey px-8 py-3.5 text-base font-semibold text-jam-white transition hover:border-jam-red hover:text-jam-red sm:w-auto"
                     >
                         Learn More
@@ -71,7 +71,7 @@
 
     {# Image carousel — only rendered when active slides exist #}
     {% if carousel_slides %}
-    <section class="bg-jam-black pb-12 pt-8 sm:pb-24 sm:pt-12" aria-label="Moments from past jams">
+    <section class="bg-jam-black pb-4 pt-8 sm:pb-6 sm:pt-12" aria-label="Moments from past jams">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="mx-auto max-w-3xl text-center" data-aos="fade-up">
                 <h2 class="text-2xl font-bold tracking-tight text-jam-red sm:text-3xl md:text-4xl">
@@ -126,7 +126,7 @@
     {% endif %}
 
 
-    <section id="about" class="bg-jam-black py-16 sm:py-24">
+    <section id="about" class="bg-jam-black pb-16 pt-8 sm:pb-24 sm:pt-10">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="mx-auto max-w-3xl text-center" data-aos="fade-up">
                 <h2 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
@@ -139,7 +139,7 @@
                 </p>
             </div>
 
-            <div class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
+            <div class="mt-16 grid gap-6 sm:mt-20 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
                 <div class="rounded-2xl border border-jam-grey-light bg-jam-grey p-6 transition hover:border-jam-red-muted/50" data-aos="fade-up" data-aos-delay="100">
                     <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-jam-red-muted/30 bg-jam-black text-jam-red">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
@@ -185,10 +185,10 @@
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="mx-auto max-w-3xl text-center" data-aos="fade-up">
                 <h2 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
-                    Next Upcoming Event
+                    Upcoming Events
                 </h2>
                 <p class="mt-4 text-lg text-jam-muted-on-grey">
-                    Do not miss our next session — register early to secure your spot.
+                    Do not miss our next session. Register early to secure your spot!
                 </p>
             </div>
 

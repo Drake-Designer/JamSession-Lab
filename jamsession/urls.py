@@ -19,8 +19,14 @@ from django.urls import include, path
 
 urlpatterns = [
     path("", include("pages.urls")),
+    path("accounts/", include("accounts.urls")),
     path("gallery/", include("gallery.urls")),
     path("admin/", admin.site.urls),
 ]
+
+handler400 = "pages.views.bad_request"
+handler403 = "pages.views.permission_denied"
+handler404 = "pages.views.page_not_found"
+handler500 = "pages.views.server_error"
 
 # Media files are served from Cloudinary CDN — no local MEDIA_ROOT serving needed.

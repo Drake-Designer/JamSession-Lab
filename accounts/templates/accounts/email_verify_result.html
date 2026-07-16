@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}JamSession Lab — Email Verification{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8" data-aos="fade-up">
+            {% if verified %}
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    Email verified
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    Thank you — your email address has been confirmed successfully.
+                </p>
+            {% elif already_verified %}
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    Already verified
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    This email address has already been confirmed. No further action is needed.
+                </p>
+            {% else %}
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    Invalid verification link
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    This verification link is not valid or has expired.
+                    Please contact us if you keep having trouble verifying your email.
+                </p>
+            {% endif %}
+
+            <a
+                href="{% url 'pages:home' %}"
+                class="mt-10 inline-block text-sm font-medium text-jam-muted transition hover:text-jam-red"
+            >
+                &larr; Back to the home page
+            </a>
+        </div>
+    </section>
+{% endblock %}

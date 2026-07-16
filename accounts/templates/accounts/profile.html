@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — {{ profile_user.display_name|default:profile_user.username }}{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+
+            <header
+                class="flex flex-col items-center gap-5 rounded-2xl border border-jam-grey-light bg-jam-grey p-8 text-center sm:flex-row sm:items-start sm:text-left sm:p-10"
+                data-aos="fade-up"
+            >
+                {% if profile_user.display_profile_picture_url %}
+                <img
+                    src="{{ profile_user.display_profile_picture_url }}"
+                    alt="Profile picture of {{ profile_user.display_name|default:profile_user.username }}"
+                    class="h-28 w-28 shrink-0 rounded-full border-2 border-jam-grey-light object-cover"
+                    width="112"
+                    height="112"
+                >
+                {% else %}
+                <div
+                    class="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-2 border-jam-grey-light bg-jam-black text-4xl font-extrabold text-jam-red"
+                    aria-hidden="true"
+                >
+                    {{ profile_user.display_name|default:profile_user.username|slice:":1"|upper }}
+                </div>
+                {% endif %}
+
+                <div class="min-w-0 flex-1">
+                    <h1 class="break-words text-3xl font-extrabold tracking-tight text-jam-white">
+                        {{ profile_user.display_name|default:profile_user.username }}
+                    </h1>
+
+                    <p class="mt-2 text-sm text-jam-muted-on-grey">
+                        {% if profile_user.town_city and profile_user.county %}
+                        {{ profile_user.town_city }}, Co. {{ profile_user.get_county_display }} &middot;
+                        {% elif profile_user.county %}
+                        Co. {{ profile_user.get_county_display }} &middot;
+                        {% endif %}
+                        Member since {{ profile_user.date_joined|date:"F Y" }}
+                    </p>
+
+                    {% if is_owner %}
+                    <div class="mt-4 flex flex-wrap justify-center gap-3 sm:justify-start">
+                        <a
+                            href="{% url 'accounts:profile_edit' %}"
+                            class="inline-flex items-center justify-center rounded-xl bg-jam-red px-6 py-2.5 text-sm font-bold text-jam-black transition hover:bg-jam-red-hover"
+                        >
+                            Edit Profile
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </header>
+
+            {% if instrument_labels %}
+            <div class="mt-6 rounded-2xl border border-jam-grey-light bg-jam-grey p-7 sm:p-8" data-aos="fade-up" data-aos-delay="50">
+                <h2 class="mb-4 text-lg font-bold text-jam-white">Instruments played</h2>
+                <div class="flex flex-wrap gap-2">
+                    {% for label in instrument_labels %}
+                    <span class="inline-flex items-center rounded-full border border-jam-red-muted/50 bg-jam-black px-3.5 py-1.5 text-xs font-semibold text-jam-red">{{ label }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if genre_labels %}
+            <div class="mt-6 rounded-2xl border border-jam-grey-light bg-jam-grey p-7 sm:p-8" data-aos="fade-up" data-aos-delay="100">
+                <h2 class="mb-4 text-lg font-bold text-jam-white">Preferred music genres</h2>
+                <div class="flex flex-wrap gap-2">
+                    {% for label in genre_labels %}
+                    <span class="inline-flex items-center rounded-full border border-jam-grey-light bg-jam-black px-3.5 py-1.5 text-xs font-semibold text-jam-muted">{{ label }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if profile_user.bio %}
+            <div class="mt-6 rounded-2xl border border-jam-grey-light bg-jam-grey p-7 sm:p-8" data-aos="fade-up" data-aos-delay="150">
+                <h2 class="mb-4 text-lg font-bold text-jam-white">About</h2>
+                <p class="whitespace-pre-line text-sm leading-relaxed text-jam-muted-on-grey">{{ profile_user.bio }}</p>
+            </div>
+            {% endif %}
+
+        </div>
+    </section>
+{% endblock %}

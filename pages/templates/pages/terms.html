@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}JamSession Lab — Terms of Service{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+            <div data-aos="fade-up">
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    Terms of Service
+                </h1>
+                <p class="mt-4 text-sm text-jam-muted-dark">
+                    Last updated: 15 July 2026
+                </p>
+            </div>
+
+            <div class="mt-10 space-y-10 text-jam-muted" data-aos="fade-up" data-aos-delay="100">
+
+                <div>
+                    <h2 class="text-xl font-semibold text-jam-white">1. About JamSession Lab</h2>
+                    <p class="mt-3 leading-relaxed">
+                        JamSession Lab organises jam session music events in Ireland and provides
+                        this website so members can register for events, share photos and videos,
+                        and take part in the community. By creating an account you agree to these
+                        Terms of Service.
+                    </p>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-semibold text-jam-white">2. Minimum age</h2>
+                    <p class="mt-3 leading-relaxed">
+                        You must be at least <strong class="text-jam-white">18 years old</strong> to
+                        create an account. Your age is self-certified through the date of birth you
+                        provide at registration. We reserve the right to suspend or remove accounts
+                        that we reasonably believe belong to people under 18.
+                    </p>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-semibold text-jam-white">3. Your personal data</h2>
+                    <p class="mt-3 leading-relaxed">
+                        At registration we collect your name, display name, email address, phone
+                        number, date of birth, location (county and town), and the instruments you
+                        play. We use this information to:
+                    </p>
+                    <ul class="mt-3 list-disc space-y-2 pl-6 leading-relaxed">
+                        <li>manage your account and event registrations;</li>
+                        <li>contact you about events you have signed up for;</li>
+                        <li>
+                            send you an invitation to the JamSession Lab community
+                            <strong class="text-jam-white">WhatsApp group</strong> — this is the
+                            specific purpose for which we collect your phone number;
+                        </li>
+                        <li>display your public profile (display name, instruments, and any
+                            optional details you choose to add).</li>
+                    </ul>
+                    <p class="mt-3 leading-relaxed">
+                        Full details of how we process and protect your data are set out in our
+                        <a href="{% url 'pages:privacy' %}" class="text-jam-red underline hover:text-jam-red-hover">Privacy Policy</a>.
+                    </p>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-semibold text-jam-white">4. Content you upload</h2>
+                    <p class="mt-3 leading-relaxed">
+                        Photos, videos, and posts you submit to the Gallery or the community forum
+                        are reviewed by our moderators before they become publicly visible. By
+                        uploading content you confirm that:
+                    </p>
+                    <ul class="mt-3 list-disc space-y-2 pl-6 leading-relaxed">
+                        <li>you own the content or have permission to share it;</li>
+                        <li>it does not contain unlawful, offensive, or discriminatory material;</li>
+                        <li>people who appear in it have not objected to it being shared;</li>
+                        <li>it is relevant to JamSession Lab events and the music community.</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-semibold text-jam-white">5. Content removal</h2>
+                    <p class="mt-3 leading-relaxed">
+                        We may remove any uploaded content at any time,
+                        <strong class="text-jam-white">including content that has already been
+                        approved and published</strong>, if we believe it breaches these terms,
+                        infringes someone's rights, or is otherwise inappropriate. You may also
+                        request the removal of your own content at any time by contacting us.
+                    </p>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-semibold text-jam-white">6. Changes to these terms</h2>
+                    <p class="mt-3 leading-relaxed">
+                        We may update these Terms of Service from time to time. When we make
+                        significant changes, we will notify registered users by email or through a
+                        notice on the website. Continuing to use the site after changes take effect
+                        means you accept the updated terms.
+                    </p>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-semibold text-jam-white">7. Contact</h2>
+                    <p class="mt-3 leading-relaxed">
+                        If you have questions about these terms or want to request content or
+                        account removal, please get in touch with the JamSession Lab team.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </section>
+{% endblock %}

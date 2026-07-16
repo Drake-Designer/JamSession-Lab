@@ -20,18 +20,12 @@
             </div>
 
             {% if user.is_authenticated %}
-            <div class="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row" data-aos="fade-up" data-aos-delay="100">
+            <div class="mt-10 flex justify-center" data-aos="fade-up" data-aos-delay="100">
                 <a
                     href="{% url 'gallery:upload' %}"
                     class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black shadow-lg shadow-jam-red/20 transition hover:bg-jam-red-hover sm:w-auto"
                 >
                     Upload Photo or Video
-                </a>
-                <a
-                    href="{% url 'gallery:my_uploads' %}"
-                    class="inline-flex w-full items-center justify-center rounded-xl border border-jam-grey-light bg-jam-grey px-8 py-3.5 text-base font-semibold text-jam-white transition hover:border-jam-red hover:text-jam-red sm:w-auto"
-                >
-                    My Uploads
                 </a>
             </div>
             {% endif %}

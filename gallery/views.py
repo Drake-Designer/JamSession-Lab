@@ -99,21 +99,10 @@ def gallery_upload(request):
 
             if success_count:
                 messages.success(request, summary)
-                return redirect("gallery:my_uploads")
+                return redirect("gallery:list")
 
             messages.error(request, summary)
     else:
         form = GalleryBatchUploadForm(user=request.user)
 
     return render(request, "gallery/upload.html", {"form": form})
-
-
-@login_required
-def my_uploads(request):
-    """Show the current user's gallery uploads and their approval status."""
-    items = GalleryItem.objects.filter(uploaded_by=request.user)
-    return render(
-        request,
-        "gallery/my_uploads.html",
-        {"gallery_items": items},
-    )

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Register{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'accounts/css/forms.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <div class="text-center" data-aos="fade-up">
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    Join JamSession Lab
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    Create your free account to register for jam sessions, share photos
+                    and videos, and connect with musicians across Ireland.
+                </p>
+            </div>
+
+            <form
+                method="post"
+                id="registration-form"
+                class="jam-form mt-10 space-y-6 rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8"
+                data-aos="fade-up"
+                data-aos-delay="100"
+                novalidate
+            >
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="rounded-xl border border-jam-red/50 bg-jam-black px-4 py-3">
+                    {% for error in form.non_field_errors %}
+                    <p class="form-field__error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="grid gap-6 sm:grid-cols-2">
+                    {% include "accounts/_form_field.html" with field=form.first_name %}
+                    {% include "accounts/_form_field.html" with field=form.last_name %}
+                </div>
+
+                {% include "accounts/_form_field.html" with field=form.display_name %}
+                {% include "accounts/_form_field.html" with field=form.email %}
+                {% include "accounts/_form_field.html" with field=form.phone_number %}
+
+                <div class="grid gap-6 sm:grid-cols-2">
+                    {% include "accounts/_form_field.html" with field=form.password1 %}
+                    {% include "accounts/_form_field.html" with field=form.password2 %}
+                </div>
+
+                {% include "accounts/_form_field.html" with field=form.date_of_birth %}
+
+                <div class="grid gap-6 sm:grid-cols-2">
+                    {% include "accounts/_form_field.html" with field=form.county %}
+                    {% include "accounts/_form_field.html" with field=form.town_city %}
+                </div>
+
+                <fieldset class="form-field">
+                    <legend class="mb-1.5 block text-sm font-semibold text-jam-white">
+                        {{ form.instruments.label }} <span class="text-jam-red" aria-hidden="true">*</span>
+                    </legend>
+                    <p class="mb-3 text-xs text-jam-muted">Select at least one instrument.</p>
+                    <div class="instruments-grid">
+                        {{ form.instruments }}
+                    </div>
+                    {% for error in form.instruments.errors %}
+                    <p class="form-field__error">{{ error }}</p>
+                    {% endfor %}
+                </fieldset>
+
+                <div id="other-instrument-field">
+                    {% include "accounts/_form_field.html" with field=form.other_instrument %}
+                </div>
+
+                <div class="form-field border-t border-jam-grey-light pt-6">
+                    <label class="flex items-start gap-3 text-sm text-jam-muted">
+                        {{ form.accept_terms }}
+                        <span>{{ form.accept_terms.label }}</span>
+                    </label>
+                    {% for error in form.accept_terms.errors %}
+                    <p class="form-field__error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+
+                <button
+                    type="submit"
+                    class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black shadow-lg shadow-jam-red/20 transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-grey"
+                >
+                    Create My Account
+                </button>
+            </form>
+        </div>
+    </section>
+
+    {{ towns_by_county|json_script:"towns-by-county" }}
+    {{ selected_town|json_script:"selected-town" }}
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'accounts/js/register.js' %}"></script>
+{% endblock %}

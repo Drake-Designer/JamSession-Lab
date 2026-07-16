@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Login{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'accounts/css/forms.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-md px-4 sm:px-6 lg:px-8">
+            <div class="rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up">
+                <h1 class="text-center text-3xl font-bold tracking-tight text-jam-red">
+                    Welcome back
+                </h1>
+                <p class="mt-3 mb-8 text-center text-sm leading-relaxed text-jam-muted-on-grey">
+                    Sign in to register for jam sessions and share your photos and videos.
+                </p>
+
+                <form method="post" class="jam-form" novalidate>
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                    <div class="mb-6 rounded-xl border border-jam-red/50 bg-jam-black px-4 py-3">
+                        {% for error in form.non_field_errors %}
+                        <p class="form-field__error">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-6">
+                        <label for="{{ form.username.id_for_label }}" class="mb-1.5 block text-sm font-semibold text-jam-white">
+                            {{ form.username.label }}
+                        </label>
+                        {{ form.username }}
+                        {% for error in form.username.errors %}
+                        <p class="form-field__error">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-2">
+                        <label for="{{ form.password.id_for_label }}" class="mb-1.5 block text-sm font-semibold text-jam-white">
+                            {{ form.password.label }}
+                        </label>
+                        {{ form.password }}
+                        {% for error in form.password.errors %}
+                        <p class="form-field__error">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+
+                    {# Placeholder — password reset flow will be added later. #}
+                    <a href="#" class="mb-6 block text-right text-xs text-jam-muted transition hover:text-jam-red">Forgot password?</a>
+
+                    {% if next %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                    {% endif %}
+
+                    <button
+                        type="submit"
+                        class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black shadow-lg shadow-jam-red/20 transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-grey"
+                    >
+                        Sign In
+                    </button>
+                </form>
+
+                <p class="mt-7 border-t border-jam-grey-light pt-6 text-center text-sm text-jam-muted-on-grey">
+                    Don't have an account yet?
+                    <a href="{% url 'accounts:register' %}" class="font-semibold text-jam-red transition hover:text-jam-red-hover hover:underline">Register here</a>
+                </p>
+            </div>
+        </div>
+    </section>
+{% endblock %}

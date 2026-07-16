@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.translation import gettext_lazy as _
@@ -5,12 +6,30 @@ from unfold.admin import ModelAdmin
 from unfold.decorators import display
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
+from .constants import Instrument, MusicGenre
 from .models import User
+
+
+class AdminUserChangeForm(UserChangeForm):
+    """Renders the instruments/genres JSON lists as friendly checkbox groups."""
+
+    instruments = forms.MultipleChoiceField(
+        label=_("Instruments played"),
+        choices=Instrument.choices,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+    preferred_genres = forms.MultipleChoiceField(
+        label=_("Preferred music genres"),
+        choices=MusicGenre.choices,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
 
 
 @admin.register(User)
 class CustomUserAdmin(ModelAdmin, UserAdmin):
-    form = UserChangeForm
+    form = AdminUserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
 
@@ -21,8 +40,11 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                 "classes": ["tab"],
                 "fields": (
                     "username",
+                    "display_name",
                     "password",
                     "email",
+                    "is_email_verified",
+                    "phone_number",
                 ),
             },
         ),
@@ -36,9 +58,10 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                 "fields": (
                     "profile_picture",
                     ("date_of_birth", "display_age"),
-                    "instrument",
-                    "instrument_other",
-                    "favourite_genre",
+                    ("county", "town_city"),
+                    "instruments",
+                    "other_instrument",
+                    "preferred_genres",
                     "bio",
                 ),
             },
@@ -61,7 +84,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
             _("Important dates"),
             {
                 "classes": ["tab", "collapse"],
-                "fields": ("last_login", "date_joined"),
+                "fields": ("last_login", "date_joined", "terms_accepted_at"),
             },
         ),
     )
@@ -76,22 +99,6 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                     "password1",
                     "password2",
                     "email",
-                    ("instrument", "instrument_other"),
-                ),
-            },
-        ),
-        (
-            _("Profile"),
-            {
-                "classes": ["tab", "collapse"],
-                "description": _(
-                    "Optional — the musician can complete these details after signing in."
-                ),
-                "fields": (
-                    "profile_picture",
-                    "date_of_birth",
-                    "favourite_genre",
-                    "bio",
                 ),
             },
         ),
@@ -99,16 +106,22 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
 
     list_display = (
         "profile_picture_thumbnail",
-        "username",
+        "display_name",
         "email",
         "display_age",
-        "display_instrument",
+        "display_instruments",
+        "display_is_verified",
         "display_is_staff",
         "display_is_active",
     )
-    list_filter = ("instrument", "is_staff", "is_active", "is_superuser")
-    search_fields = ("username", "email", "first_name", "last_name")
-    readonly_fields = ("last_login", "date_joined", "display_age")
+    list_filter = ("county", "is_email_verified", "is_staff", "is_active", "is_superuser")
+    search_fields = ("username", "display_name", "email", "first_name", "last_name")
+    readonly_fields = (
+        "last_login",
+        "date_joined",
+        "display_age",
+        "terms_accepted_at",
+    )
     filter_horizontal = ("groups", "user_permissions")
     ordering = ("username",)
 
@@ -125,13 +138,14 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
 
     @display(description=_("Photo"), header=True)
     def profile_picture_thumbnail(self, obj):
-        if obj.profile_picture:
+        picture_url = obj.display_profile_picture_url
+        if picture_url:
             return (
                 None,
                 None,
                 None,
                 {
-                    "path": obj.profile_picture.url,
+                    "path": picture_url,
                     "squared": True,
                     "width": 38,
                     "height": 38,
@@ -147,9 +161,13 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
             return "—"
         return f"{age} years old"
 
-    @display(description=_("Instrument"), ordering="instrument")
-    def display_instrument(self, obj):
-        return obj.get_instrument_display_full()
+    @display(description=_("Instruments"))
+    def display_instruments(self, obj):
+        return obj.get_instruments_display() or "—"
+
+    @display(description=_("Email verified"), boolean=True, ordering="is_email_verified")
+    def display_is_verified(self, obj):
+        return obj.is_email_verified
 
     @display(description=_("Staff"), boolean=True, ordering="is_staff")
     def display_is_staff(self, obj):

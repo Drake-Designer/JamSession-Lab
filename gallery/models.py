@@ -20,9 +20,13 @@ class ApprovalStatus(models.TextChoices):
 
 
 class GalleryItem(models.Model):
+    # SET_NULL keeps the media publicly visible (without an author) when the
+    # uploader permanently deletes their account.
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="gallery_items",
     )
     file = DynamicCloudinaryField(
@@ -61,7 +65,9 @@ class GalleryItem(models.Model):
 
     def __str__(self):
         label = self.title or self.get_media_type_display()
-        return f"{label} — @{self.uploaded_by.username}"
+        if self.uploaded_by:
+            return f"{label} — @{self.uploaded_by.username}"
+        return f"{label} — (deleted account)"
 
     def upload_options(self):
         """

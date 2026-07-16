@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Edit Profile{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'accounts/css/forms.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <div class="rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up">
+                <h1 class="mb-8 text-center text-3xl font-bold tracking-tight text-jam-red">
+                    Edit Profile
+                </h1>
+
+                <form method="post" enctype="multipart/form-data" class="jam-form space-y-6" novalidate>
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                    <div class="rounded-xl border border-jam-red/50 bg-jam-black px-4 py-3">
+                        {% for error in form.non_field_errors %}
+                        <p class="form-field__error">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% include "accounts/_form_field.html" with field=form.profile_picture %}
+                    {% include "accounts/_form_field.html" with field=form.display_name %}
+                    {% include "accounts/_form_field.html" with field=form.phone_number %}
+
+                    <div class="grid gap-6 sm:grid-cols-2">
+                        {% include "accounts/_form_field.html" with field=form.county %}
+                        {% include "accounts/_form_field.html" with field=form.town_city %}
+                    </div>
+
+                    <fieldset>
+                        <legend class="mb-1.5 block text-sm font-semibold text-jam-white">
+                            {{ form.instruments.label }} <span class="text-jam-red" aria-hidden="true">*</span>
+                        </legend>
+                        <p class="mb-3 text-xs text-jam-muted">Select at least one instrument.</p>
+                        <div class="instruments-grid">
+                            {{ form.instruments }}
+                        </div>
+                        {% for error in form.instruments.errors %}
+                        <p class="form-field__error">{{ error }}</p>
+                        {% endfor %}
+                    </fieldset>
+
+                    <div id="other-instrument-field">
+                        {% include "accounts/_form_field.html" with field=form.other_instrument %}
+                    </div>
+
+                    <fieldset>
+                        <legend class="mb-1.5 block text-sm font-semibold text-jam-white">
+                            {{ form.preferred_genres.label }}
+                        </legend>
+                        <p class="mb-3 text-xs text-jam-muted">Optional — pick as many as you like.</p>
+                        <div class="genres-grid">
+                            {{ form.preferred_genres }}
+                        </div>
+                        {% for error in form.preferred_genres.errors %}
+                        <p class="form-field__error">{{ error }}</p>
+                        {% endfor %}
+                    </fieldset>
+
+                    {% include "accounts/_form_field.html" with field=form.bio %}
+
+                    <button
+                        type="submit"
+                        class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black shadow-lg shadow-jam-red/20 transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-grey"
+                    >
+                        Save Changes
+                    </button>
+                </form>
+
+                <div class="mt-6 rounded-xl border border-dashed border-jam-grey-light bg-jam-black px-5 py-4 text-xs leading-relaxed text-jam-muted-dark">
+                    Email address, password, and date of birth can't be changed here.
+                    They will be managed in a separate <strong class="text-jam-muted">Account Settings</strong>
+                    section, coming soon.
+                </div>
+
+                <a
+                    href="{% url 'accounts:profile' %}"
+                    class="mt-5 block text-center text-sm text-jam-muted transition hover:text-jam-red"
+                >
+                    Cancel and go back to my profile
+                </a>
+            </div>
+
+            {# Danger zone — permanent account deletion with explicit confirmation #}
+            <div
+                x-data="{ open: false }"
+                class="mt-8 rounded-2xl border border-jam-red/40 bg-jam-grey p-6 sm:p-8"
+                data-aos="fade-up"
+                data-aos-delay="100"
+            >
+                <h2 class="text-lg font-bold text-jam-red">Delete Account</h2>
+                <p class="mt-2 text-sm leading-relaxed text-jam-muted-on-grey">
+                    Permanently delete your account and all data linked to it.
+                    Photos and videos you uploaded to the gallery will remain
+                    visible, but without your name attached.
+                    <strong class="text-jam-white">This cannot be undone.</strong>
+                </p>
+
+                <button
+                    type="button"
+                    x-show="!open"
+                    @click="open = true"
+                    class="mt-4 inline-flex items-center justify-center rounded-xl border border-jam-red px-6 py-2.5 text-sm font-bold text-jam-red transition hover:bg-jam-red hover:text-jam-black"
+                >
+                    Delete my account
+                </button>
+
+                <form
+                    method="post"
+                    action="{% url 'accounts:account_delete' %}"
+                    x-show="open"
+                    x-cloak
+                    class="jam-form mt-5 space-y-5 border-t border-jam-grey-light pt-5"
+                >
+                    {% csrf_token %}
+
+                    <label class="flex items-start gap-3 text-sm text-jam-muted-on-grey">
+                        {{ delete_form.confirm }}
+                        <span>{{ delete_form.confirm.label }}</span>
+                    </label>
+
+                    <div>
+                        <label for="{{ delete_form.password.id_for_label }}" class="mb-1.5 block text-sm font-semibold text-jam-white">
+                            {{ delete_form.password.label }}
+                        </label>
+                        {{ delete_form.password }}
+                    </div>
+
+                    <div class="flex flex-col gap-3 sm:flex-row">
+                        <button
+                            type="submit"
+                            class="inline-flex items-center justify-center rounded-xl bg-jam-red px-6 py-2.5 text-sm font-bold text-jam-black transition hover:bg-jam-red-hover"
+                        >
+                            Permanently delete my account
+                        </button>
+                        <button
+                            type="button"
+                            @click="open = false"
+                            class="inline-flex items-center justify-center rounded-xl border border-jam-grey-light px-6 py-2.5 text-sm font-medium text-jam-muted transition hover:border-jam-red hover:text-jam-red"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    {{ towns_by_county|json_script:"towns-by-county" }}
+    {{ selected_town|json_script:"selected-town" }}
+{% endblock %}
+
+{% block extra_scripts %}
+    {# Reused from the registration page: dependent County/Town dropdown and
+       the "Other" instrument toggle target the same element IDs. #}
+    <script src="{% static 'accounts/js/register.js' %}"></script>
+{% endblock %}
