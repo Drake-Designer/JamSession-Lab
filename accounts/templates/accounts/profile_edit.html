@@ -118,7 +118,10 @@
                     action="{% url 'accounts:account_delete' %}"
                     x-show="open"
                     x-cloak
-                    class="jam-form mt-5 space-y-5 border-t border-jam-grey-light pt-5"
+                    class="jam-form mt-5 space-y-5 border-t border-jam-grey-light pt-5 js-confirm-delete"
+                    data-confirm-message="Permanently delete your account? This cannot be undone."
+                    data-confirm-label="Delete account"
+                    data-cancel-label="Keep my account"
                 >
                     {% csrf_token %}
 

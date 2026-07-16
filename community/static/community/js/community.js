@@ -1,12 +1,6 @@
-document.addEventListener("DOMContentLoaded", () => {
-    const deleteForms = document.querySelectorAll(".js-confirm-delete");
-
-    deleteForms.forEach((form) => {
-        form.addEventListener("submit", (event) => {
-            const message = form.dataset.confirmMessage || "Are you sure?";
-            if (!window.confirm(message)) {
-                event.preventDefault();
-            }
-        });
-    });
-});
+/**
+ * Community page scripts.
+ *
+ * Destructive-action confirmation is handled site-wide by
+ * pages/js/confirm-modal.js (forms with class js-confirm-delete).
+ */
