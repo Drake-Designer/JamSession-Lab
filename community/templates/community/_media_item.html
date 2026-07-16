@@ -1,0 +1,8 @@
+{# Single media attachment (image or video). Expects: media. #}
+<div class="community-media-item">
+    {% if media.media_type == "video" %}
+    <video src="{{ media.display_url }}" controls playsinline preload="metadata" class="community-media-item__video"></video>
+    {% else %}
+    <img src="{{ media.display_url }}" alt="" loading="lazy" class="community-media-item__image">
+    {% endif %}
+</div>

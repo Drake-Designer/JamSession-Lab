@@ -1,0 +1,155 @@
+/* Moderation queue — staff/superuser only page */
+.moderation-section__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.moderation-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.moderation-item {
+    border-radius: 1rem;
+    border: 1px solid #262626;
+    background-color: #1a1a1a;
+    padding: 1.5rem 1.75rem;
+}
+
+.moderation-item__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: #a3a3a3;
+}
+
+.moderation-item__post-link {
+    color: #e63946;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+.moderation-item__post-link:hover {
+    color: #ff4d5a;
+}
+
+.moderation-item__title {
+    margin-top: 0.5rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.moderation-item__body {
+    margin-top: 0.5rem;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: #d1d1d1;
+}
+
+/* Full-width media review — unlike the compact grid on the public pages,
+   moderators need to see every attachment at a size that lets them judge it
+   properly before approving or rejecting. */
+.moderation-media-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.moderation-media-item {
+    overflow: hidden;
+    border-radius: 0.75rem;
+    border: 1px solid #262626;
+    background-color: #000000;
+}
+
+.moderation-media-item__image,
+.moderation-media-item__video {
+    display: block;
+    width: 100%;
+    max-height: 32rem;
+    object-fit: contain;
+}
+
+.moderation-item__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.875rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #262626;
+}
+
+.moderation-reject-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.625rem;
+}
+
+.moderation-reject-form__label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #a3a3a3;
+}
+
+.moderation-reject-form__input {
+    min-width: 14rem;
+    border-radius: 0.625rem;
+    border: 1px solid #262626;
+    background-color: #000000;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: #ffffff;
+}
+
+.moderation-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.625rem;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.moderation-button--approve {
+    background-color: #2e7d32;
+    color: #ffffff;
+}
+
+.moderation-button--approve:hover {
+    background-color: #388e3c;
+}
+
+.moderation-button--reject {
+    background-color: transparent;
+    border-color: #e63946;
+    color: #ff4d5a;
+}
+
+.moderation-button--reject:hover {
+    background-color: rgba(230, 57, 70, 0.15);
+}
+
+.moderation-button--delete {
+    background-color: transparent;
+    border-color: #262626;
+    color: #a3a3a3;
+}
+
+.moderation-button--delete:hover {
+    border-color: #ff4d5a;
+    color: #ff4d5a;
+}

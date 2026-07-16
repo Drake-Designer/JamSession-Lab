@@ -1,0 +1,39 @@
+{% comment %}
+Single comment card. Expects: comment, user.
+Optional: show_delete (default false) — only post_detail passes True so the
+delete control never appears if this partial is reused elsewhere.
+{% endcomment %}
+<article class="community-comment">
+    <div class="community-comment__meta">
+        <span class="community-comment__author">
+            {% if comment.author %}@{{ comment.author.display_name|default:comment.author.username }}{% else %}Deleted account{% endif %}
+        </span>
+        <span class="community-card__dot" aria-hidden="true">&middot;</span>
+        <time datetime="{{ comment.created_at|date:'c' }}">{{ comment.created_at|date:"j M Y, H:i" }}</time>
+    </div>
+
+    <p class="community-comment__body">{{ comment.body|linebreaksbr }}</p>
+
+    {% if comment.media.all %}
+    <div class="community-media-grid community-media-grid--compact">
+        {% for media in comment.media.all %}
+            {% include "community/_media_item.html" with media=media %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# UX-only: the real permission check lives in comment_delete() server-side. #}
+    {% if show_delete and user.is_authenticated %}
+    {% if user.is_staff or user.is_superuser or comment.author_id == user.id %}
+    <form
+        method="post"
+        action="{% url 'community:comment_delete' comment.pk %}"
+        class="community-comment__delete js-confirm-delete"
+        data-confirm-message="Delete this comment?"
+    >
+        {% csrf_token %}
+        <button type="submit" class="community-link-button community-link-button--danger">Delete</button>
+    </form>
+    {% endif %}
+    {% endif %}
+</article>

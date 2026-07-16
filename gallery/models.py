@@ -1,9 +1,9 @@
 from django.conf import settings
 from django.db import models
-from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from jamsession.cloudinary_delivery import web_image_url
+from jamsession.moderation import ApprovalStatus, ModeratedContent
 
 from .fields import DynamicCloudinaryField
 
@@ -13,13 +13,7 @@ class MediaType(models.TextChoices):
     VIDEO = "video", _("Video")
 
 
-class ApprovalStatus(models.TextChoices):
-    PENDING = "pending", _("Pending approval")
-    APPROVED = "approved", _("Approved")
-    REJECTED = "rejected", _("Rejected")
-
-
-class GalleryItem(models.Model):
+class GalleryItem(ModeratedContent):
     # SET_NULL keeps the media publicly visible (without an author) when the
     # uploader permanently deletes their account.
     uploaded_by = models.ForeignKey(
@@ -40,12 +34,9 @@ class GalleryItem(models.Model):
     )
     title = models.CharField(max_length=120, blank=True)
     caption = models.TextField(blank=True)
-    status = models.CharField(
-        max_length=10,
-        choices=ApprovalStatus.choices,
-        default=ApprovalStatus.PENDING,
-        db_index=True,
-    )
+    # Override ModeratedContent's generic related_name to keep the exact
+    # reverse accessor already used in production (and in the initial
+    # migration): status/approved_at/rejection_reason are inherited as-is.
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -53,8 +44,6 @@ class GalleryItem(models.Model):
         blank=True,
         related_name="approved_gallery_items",
     )
-    approved_at = models.DateTimeField(null=True, blank=True)
-    rejection_reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -88,23 +77,6 @@ class GalleryItem(models.Model):
             "use_filename": True,
             "unique_filename": True,
         }
-
-    def apply_initial_moderation(self, uploader):
-        """
-        Set approval status for a newly created item based on uploader role.
-
-        Staff and superusers are auto-approved; everyone else starts as pending.
-        Call this before the first save — used by both public and admin uploads.
-        """
-        if uploader.is_staff or uploader.is_superuser:
-            self.status = ApprovalStatus.APPROVED
-            self.approved_by = uploader
-            self.approved_at = timezone.now()
-            self.rejection_reason = ""
-        else:
-            self.status = ApprovalStatus.PENDING
-            self.approved_by = None
-            self.approved_at = None
 
     @property
     def is_video(self):
@@ -161,36 +133,6 @@ class GalleryItem(models.Model):
             transformation=[
                 {"fetch_format": "mp4", "quality": "auto"},
             ],
-        )
-
-    def approve(self, reviewer):
-        self.status = ApprovalStatus.APPROVED
-        self.approved_by = reviewer
-        self.approved_at = timezone.now()
-        self.rejection_reason = ""
-        self.save(
-            update_fields=[
-                "status",
-                "approved_by",
-                "approved_at",
-                "rejection_reason",
-                "updated_at",
-            ]
-        )
-
-    def reject(self, reviewer, reason=""):
-        self.status = ApprovalStatus.REJECTED
-        self.approved_by = reviewer
-        self.approved_at = timezone.now()
-        self.rejection_reason = reason
-        self.save(
-            update_fields=[
-                "status",
-                "approved_by",
-                "approved_at",
-                "rejection_reason",
-                "updated_at",
-            ]
         )
 
     def save(self, *args, **kwargs):

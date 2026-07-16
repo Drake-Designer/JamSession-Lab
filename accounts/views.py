@@ -9,6 +9,10 @@ from django.views.decorators.http import require_http_methods
 
 import cloudinary.exceptions
 
+from community.models import CommunityComment, CommunityPost
+from gallery.models import GalleryItem
+from jamsession.moderation import ApprovalStatus
+
 from .constants import TOWNS_BY_COUNTY, Instrument, MusicGenre
 from .emails import send_verification_email
 from .forms import (
@@ -102,6 +106,28 @@ def profile_detail(request, username):
 
     is_owner = request.user.is_authenticated and request.user == profile_user
 
+    # Owner-only: every post they authored (pending/approved/rejected), newest
+    # first. Comments are intentionally excluded — this is "My posts", not a
+    # full activity feed. Delete buttons reuse community:post_delete.
+    my_posts = []
+    if is_owner:
+        my_posts = list(
+            CommunityPost.objects.filter(author=profile_user).order_by("-created_at")
+        )
+
+    # Staff/superuser owners see a "Review Items" entry on their own profile.
+    # No dedicated context processor exists for badge counts yet, so the
+    # pending total is computed here and passed to the template.
+    show_review_items = False
+    pending_review_count = 0
+    if is_owner and (request.user.is_staff or request.user.is_superuser):
+        show_review_items = True
+        pending_review_count = (
+            CommunityPost.objects.filter(status=ApprovalStatus.PENDING).count()
+            + CommunityComment.objects.filter(status=ApprovalStatus.PENDING).count()
+            + GalleryItem.objects.filter(status=ApprovalStatus.PENDING).count()
+        )
+
     return render(
         request,
         "accounts/profile.html",
@@ -110,6 +136,9 @@ def profile_detail(request, username):
             "instrument_labels": _instrument_labels(profile_user),
             "genre_labels": _genre_labels(profile_user),
             "is_owner": is_owner,
+            "my_posts": my_posts,
+            "show_review_items": show_review_items,
+            "pending_review_count": pending_review_count,
         },
     )
 

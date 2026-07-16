@@ -1,0 +1,2073 @@
+"""
+Tests for the community app.
+
+Model scope (Phase 4, first sub-block): creation, relations, on_delete
+behaviour, unique constraints, moderation and slug generation.
+
+View/permission scope (Phase 4, second sub-block): list/detail visibility,
+login-gated creation with role-based moderation, like toggling, and — most
+importantly — deletion permission rules enforced in the view itself (a normal
+user must not be able to delete another user's post or comment even by POSTing
+directly to the URL, without going through any template button).
+
+Real Cloudinary uploads are never made: cloudinary.uploader.upload_resource is
+patched with the same fake used by the gallery tests. Views are exercised
+against the real community templates (Phase 4, template sub-block), the same
+way gallery's own view tests exercise gallery_list.html/upload.html.
+"""
+
+from io import BytesIO
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+
+import cloudinary
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import IntegrityError, transaction
+from django.test import TestCase
+from django.urls import reverse
+from django.utils import timezone
+from PIL import Image
+
+from gallery.models import GalleryItem, MediaType
+from gallery.validators import detect_gallery_media_kind
+from jamsession.moderation import ApprovalStatus
+
+from .admin import (
+    CommunityCommentAdmin,
+    CommunityPostAdmin,
+    _media_preview,
+    _resolve_media_url,
+    approve_comments,
+    approve_posts,
+    reject_comments,
+    reject_posts,
+)
+from .forms import CommunityPostForm
+from .models import (
+    CommunityComment,
+    CommunityCommentMedia,
+    CommunityLike,
+    CommunityPost,
+    CommunityPostMedia,
+)
+
+User = get_user_model()
+
+
+def _make_user(username, *, is_staff=False, is_superuser=False):
+    """Create a minimal but valid user for community tests."""
+    return User.objects.create_user(
+        username=username,
+        email=f"{username}@example.com",
+        password="jam-session-test-pass1",
+        display_name=username,
+        is_staff=is_staff,
+        is_superuser=is_superuser,
+    )
+
+
+def _make_image_file(name="photo.jpg", size=(20, 20), colour=(230, 57, 70)):
+    """Build a small, genuinely valid in-memory JPEG for upload tests."""
+    buffer = BytesIO()
+    Image.new("RGB", size, color=colour).save(buffer, format="JPEG")
+    buffer.seek(0)
+    return SimpleUploadedFile(name, buffer.read(), content_type="image/jpeg")
+
+
+def _make_invalid_file(name="notes.txt"):
+    """Build a file that is neither a real image nor a recognised video."""
+    return SimpleUploadedFile(
+        name,
+        b"This is plain text, not a real photo or video.",
+        content_type="text/plain",
+    )
+
+
+def _make_minimal_mp4(name="clip.mp4"):
+    """
+    Tiny bytes that pass the gallery video magic-byte check (ftyp/isom).
+
+    Used only to assert cover_image rejects videos (covers are photos only).
+    """
+    return SimpleUploadedFile(
+        name,
+        b"\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isomiso2mp41",
+        content_type="video/mp4",
+    )
+
+
+def _attach_cover(post, public_id="image/upload/v1/cover.jpg"):
+    """Set a stored Cloudinary path as cover and reload for display URLs."""
+    post.cover_image = public_id
+    post.save(update_fields=["cover_image"])
+    post.refresh_from_db()
+    return post
+
+
+def _fake_upload_resource(file, **options):
+    """Stand-in for cloudinary.uploader.upload_resource (mirrors gallery tests)."""
+    kind = detect_gallery_media_kind(file) or "image"
+    resource_type = "video" if kind == "video" else "image"
+    if hasattr(file, "seek"):
+        file.seek(0)
+    return cloudinary.CloudinaryResource(
+        f"jamsession-lab-tests/{getattr(file, 'name', 'upload')}",
+        version="1",
+        format="mp4" if resource_type == "video" else "jpg",
+        type="upload",
+        resource_type=resource_type,
+    )
+
+
+def _make_post(author, **overrides):
+    """
+    Create a post without an explicit slug, letting CommunityPost.save()
+    auto-generate one — this is how posts will actually be created once the
+    creation view/form exists.
+    """
+    defaults = {
+        "author": author,
+        "title": "Test post",
+        "body": "Test body",
+    }
+    defaults.update(overrides)
+    return CommunityPost.objects.create(**defaults)
+
+
+class CommunityPostModelTests(TestCase):
+    def setUp(self):
+        self.author = _make_user("post_author")
+
+    def test_create_post_with_required_fields(self):
+        post = _make_post(self.author)
+
+        self.assertEqual(post.author, self.author)
+        self.assertEqual(post.title, "Test post")
+        self.assertEqual(post.status, ApprovalStatus.PENDING)
+        self.assertIsNotNone(post.created_at)
+        self.assertIsNotNone(post.updated_at)
+
+    def test_slug_must_be_unique(self):
+        """
+        Guards the underlying database constraint directly, bypassing the
+        auto-generation in save() by assigning the same slug to both posts
+        explicitly (still possible, since the field is not read-only).
+        """
+        _make_post(self.author, slug="same-slug")
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                _make_post(self.author, slug="same-slug", title="Another title")
+
+    def test_slug_is_generated_automatically_from_the_title(self):
+        post = _make_post(self.author, title="My First Jam Session Story")
+
+        self.assertEqual(post.slug, "my-first-jam-session-story")
+
+    def test_posts_with_the_same_title_get_a_unique_slug_suffix(self):
+        first = _make_post(self.author, title="Great Gig Last Night")
+        second = _make_post(self.author, title="Great Gig Last Night")
+
+        self.assertEqual(first.slug, "great-gig-last-night")
+        self.assertEqual(second.slug, "great-gig-last-night-2")
+
+    def test_explicit_slug_is_not_overwritten(self):
+        post = _make_post(
+            self.author, title="Custom Slug Post", slug="my-custom-slug"
+        )
+
+        self.assertEqual(post.slug, "my-custom-slug")
+
+    def test_editing_title_after_creation_does_not_change_existing_slug(self):
+        post = _make_post(self.author, title="Original Title")
+        original_slug = post.slug
+
+        post.title = "Completely Different Title"
+        post.save()
+
+        self.assertEqual(post.slug, original_slug)
+
+    def test_deleting_author_sets_null_and_keeps_post_public(self):
+        post = _make_post(self.author)
+
+        self.author.delete()
+        post.refresh_from_db()
+
+        self.assertIsNone(post.author)
+        self.assertEqual(CommunityPost.objects.count(), 1)
+
+    def test_apply_initial_moderation_reused_from_gallery(self):
+        """Same ModeratedContent behaviour already proven for GalleryItem."""
+        staff = _make_user("post_staff", is_staff=True)
+        regular = _make_user("post_regular")
+
+        staff_post = CommunityPost(author=staff, title="Staff post", body="body")
+        staff_post.apply_initial_moderation(staff)
+        staff_post.save()
+
+        regular_post = CommunityPost(author=regular, title="Regular post", body="body")
+        regular_post.apply_initial_moderation(regular)
+        regular_post.save()
+
+        self.assertEqual(staff_post.status, ApprovalStatus.APPROVED)
+        self.assertEqual(staff_post.approved_by, staff)
+        self.assertEqual(regular_post.status, ApprovalStatus.PENDING)
+        self.assertIsNone(regular_post.approved_by)
+
+    def test_approve_and_reject_update_expected_fields(self):
+        moderator = _make_user("post_moderator", is_staff=True)
+        post = _make_post(self.author)
+
+        post.approve(moderator)
+        self.assertEqual(post.status, ApprovalStatus.APPROVED)
+        self.assertEqual(post.approved_by, moderator)
+        self.assertIsNotNone(post.approved_at)
+
+        post.reject(moderator, reason="Not relevant to jam sessions")
+        self.assertEqual(post.status, ApprovalStatus.REJECTED)
+        self.assertEqual(post.approved_by, moderator)
+        self.assertEqual(post.rejection_reason, "Not relevant to jam sessions")
+
+
+class CommunityPostMediaModelTests(TestCase):
+    def setUp(self):
+        self.author = _make_user("media_author")
+        self.post = _make_post(self.author)
+
+    def test_create_media_linked_to_post(self):
+        media = CommunityPostMedia.objects.create(
+            post=self.post,
+            file="image/upload/v1/photo_id.jpg",
+            media_type=MediaType.IMAGE,
+        )
+
+        self.assertEqual(media.post, self.post)
+        self.assertIn(media, self.post.media.all())
+
+    def test_display_url_uses_web_friendly_image_delivery(self):
+        media = CommunityPostMedia.objects.create(
+            post=self.post,
+            file="image/upload/v1/photo_id.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        media.refresh_from_db()
+
+        self.assertIn("photo_id", media.display_url)
+        self.assertIn("f_auto", media.display_url)
+
+    def test_deleting_post_cascades_to_its_media(self):
+        media = CommunityPostMedia.objects.create(
+            post=self.post,
+            file="image/upload/v1/photo_id.jpg",
+            media_type=MediaType.IMAGE,
+        )
+
+        with patch("jamsession.cloudinary_cleanup.destroy"):
+            self.post.delete()
+
+        self.assertFalse(CommunityPostMedia.objects.filter(pk=media.pk).exists())
+
+
+class CommunityCommentModelTests(TestCase):
+    def setUp(self):
+        self.post_author = _make_user("comment_post_author")
+        self.commenter = _make_user("commenter")
+        self.post = _make_post(self.post_author)
+
+    def test_create_comment_linked_to_post_and_author(self):
+        comment = CommunityComment.objects.create(
+            post=self.post, author=self.commenter, body="Nice jam!"
+        )
+
+        self.assertEqual(comment.post, self.post)
+        self.assertEqual(comment.author, self.commenter)
+        self.assertIn(comment, self.post.comments.all())
+        self.assertEqual(comment.status, ApprovalStatus.PENDING)
+
+    def test_deleting_commenter_sets_null_and_keeps_comment_public(self):
+        comment = CommunityComment.objects.create(
+            post=self.post, author=self.commenter, body="Nice jam!"
+        )
+
+        self.commenter.delete()
+        comment.refresh_from_db()
+
+        self.assertIsNone(comment.author)
+        self.assertEqual(CommunityComment.objects.count(), 1)
+
+    def test_deleting_post_cascades_to_its_comments(self):
+        comment = CommunityComment.objects.create(
+            post=self.post, author=self.commenter, body="Nice jam!"
+        )
+
+        self.post.delete()
+
+        self.assertFalse(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+
+class CommunityCommentMediaModelTests(TestCase):
+    def setUp(self):
+        self.author = _make_user("comment_media_author")
+        self.post = _make_post(self.author)
+        self.comment = CommunityComment.objects.create(
+            post=self.post, author=self.author, body="Check this out"
+        )
+
+    def test_create_media_linked_to_comment(self):
+        media = CommunityCommentMedia.objects.create(
+            comment=self.comment,
+            file="video/upload/v1/clip_id.mp4",
+            media_type=MediaType.VIDEO,
+        )
+
+        self.assertEqual(media.comment, self.comment)
+        self.assertIn(media, self.comment.media.all())
+
+    def test_deleting_comment_cascades_to_its_media(self):
+        media = CommunityCommentMedia.objects.create(
+            comment=self.comment,
+            file="video/upload/v1/clip_id.mp4",
+            media_type=MediaType.VIDEO,
+        )
+
+        with patch("jamsession.cloudinary_cleanup.destroy"):
+            self.comment.delete()
+
+        self.assertFalse(CommunityCommentMedia.objects.filter(pk=media.pk).exists())
+
+
+class CommunityLikeModelTests(TestCase):
+    def setUp(self):
+        self.post_author = _make_user("like_post_author")
+        self.liker = _make_user("liker")
+        self.post = _make_post(self.post_author)
+
+    def test_create_like_linked_to_post_and_user(self):
+        like = CommunityLike.objects.create(post=self.post, user=self.liker)
+
+        self.assertEqual(like.post, self.post)
+        self.assertEqual(like.user, self.liker)
+        self.assertIn(like, self.post.likes.all())
+        self.assertIsNotNone(like.created_at)
+
+    def test_duplicate_like_from_same_user_is_rejected(self):
+        CommunityLike.objects.create(post=self.post, user=self.liker)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                CommunityLike.objects.create(post=self.post, user=self.liker)
+
+    def test_deleting_post_cascades_to_its_likes(self):
+        like = CommunityLike.objects.create(post=self.post, user=self.liker)
+
+        self.post.delete()
+
+        self.assertFalse(CommunityLike.objects.filter(pk=like.pk).exists())
+
+    def test_deleting_liking_user_cascades_to_the_like(self):
+        like = CommunityLike.objects.create(post=self.post, user=self.liker)
+
+        self.liker.delete()
+
+        self.assertFalse(CommunityLike.objects.filter(pk=like.pk).exists())
+
+
+class CommunityPostListViewTests(TestCase):
+    def setUp(self):
+        self.author = _make_user("list_author")
+
+    def test_only_approved_posts_are_listed(self):
+        approved = _make_post(
+            self.author, title="Approved", status=ApprovalStatus.APPROVED
+        )
+        _make_post(self.author, title="Pending", status=ApprovalStatus.PENDING)
+        _make_post(self.author, title="Rejected", status=ApprovalStatus.REJECTED)
+
+        response = self.client.get(reverse("community:list"))
+
+        self.assertEqual(response.status_code, 200)
+        listed = list(response.context["page_obj"].object_list)
+        self.assertEqual(listed, [approved])
+
+    def test_list_is_paginated(self):
+        for index in range(12):
+            _make_post(
+                self.author,
+                title=f"Post {index}",
+                status=ApprovalStatus.APPROVED,
+            )
+
+        first_page = self.client.get(reverse("community:list"))
+        second_page = self.client.get(reverse("community:list"), {"page": 2})
+
+        self.assertEqual(len(first_page.context["page_obj"].object_list), 10)
+        self.assertEqual(len(second_page.context["page_obj"].object_list), 2)
+
+    def test_list_page_renders_the_post_title_as_a_link_to_its_detail_page(self):
+        post = _make_post(
+            self.author, title="A Great Session", status=ApprovalStatus.APPROVED
+        )
+
+        response = self.client.get(reverse("community:list"))
+
+        self.assertContains(response, "A Great Session")
+        self.assertContains(
+            response, reverse("community:post_detail", args=[post.slug])
+        )
+
+    def test_empty_list_shows_the_empty_state_message(self):
+        response = self.client.get(reverse("community:list"))
+
+        self.assertContains(response, "No community posts yet")
+
+    def test_list_shows_cover_image_url_when_present(self):
+        post = _make_post(
+            self.author, title="Covered", status=ApprovalStatus.APPROVED
+        )
+        _attach_cover(post)
+        expected_url = post.cover_display_url
+
+        response = self.client.get(reverse("community:list"))
+
+        self.assertTrue(expected_url)
+        self.assertContains(response, expected_url)
+        self.assertContains(response, 'src="%s"' % expected_url)
+        self.assertContains(response, "community-card__cover-image")
+        self.assertNotContains(response, "community-card__cover--fallback")
+
+    def test_list_shows_cover_fallback_when_absent(self):
+        _make_post(self.author, title="No cover", status=ApprovalStatus.APPROVED)
+
+        response = self.client.get(reverse("community:list"))
+
+        self.assertContains(response, "community-card__cover--fallback")
+        self.assertNotContains(response, "community-card__cover-image")
+
+
+class CommunityPostDetailViewTests(TestCase):
+    def setUp(self):
+        self.author = _make_user("detail_author")
+        self.other = _make_user("detail_other")
+
+    def test_approved_post_is_public(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["is_pending_preview"])
+
+    def test_detail_shows_cover_image_url_when_present(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        _attach_cover(post)
+        expected_url = post.cover_detail_url
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertTrue(expected_url)
+        self.assertContains(response, expected_url)
+        self.assertContains(response, f'src="{expected_url}"')
+        self.assertContains(response, "community-post__cover-image")
+        self.assertNotContains(response, "community-post__cover--fallback")
+
+    def test_detail_shows_cover_fallback_when_absent(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertContains(response, "community-post__cover--fallback")
+        self.assertNotContains(response, "community-post__cover-image")
+
+    def test_author_can_preview_own_pending_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.author)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["is_pending_preview"])
+
+    def test_other_user_cannot_see_pending_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.other)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_anonymous_cannot_see_pending_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_author_cannot_open_own_rejected_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.REJECTED)
+        self.client.force_login(self.author)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_other_user_cannot_open_rejected_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.REJECTED)
+        self.client.force_login(self.other)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_anonymous_cannot_open_rejected_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.REJECTED)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_pending_badge_is_shown_to_the_author_previewing_their_own_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.author)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertContains(response, "Pending approval")
+
+    def test_approved_post_page_does_not_show_pending_badge(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertNotContains(response, "Pending approval")
+
+    def test_detail_page_renders_attached_media(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        CommunityPostMedia.objects.create(
+            post=post,
+            file="image/upload/v1/photo_id.jpg",
+            media_type=MediaType.IMAGE,
+        )
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertContains(response, "community-media-item__image")
+
+    def test_author_sees_the_delete_button_on_their_own_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.author)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertContains(response, "Delete post")
+
+    def test_other_user_does_not_see_the_delete_button(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.other)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertNotContains(response, "Delete post")
+
+    def test_like_button_reflects_whether_the_current_user_already_liked_the_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        CommunityLike.objects.create(post=post, user=self.other)
+        self.client.force_login(self.other)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertTrue(response.context["user_has_liked"])
+        self.assertContains(response, "Liked")
+
+
+class CommunityPostCreateViewTests(TestCase):
+    def setUp(self):
+        self.user = _make_user("creator")
+        self.staff = _make_user("creator_staff", is_staff=True)
+
+    def test_create_requires_login(self):
+        response = self.client.get(reverse("community:post_create"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+
+    def test_regular_user_post_is_pending(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("community:post_create"),
+            data={"title": "My jam", "body": "Great night"},
+        )
+
+        post = CommunityPost.objects.get()
+        self.assertRedirects(
+            response,
+            reverse("community:post_detail", args=[post.slug]),
+        )
+        self.assertEqual(post.author, self.user)
+        self.assertEqual(post.status, ApprovalStatus.PENDING)
+
+    def test_staff_post_is_auto_approved(self):
+        self.client.force_login(self.staff)
+
+        self.client.post(
+            reverse("community:post_create"),
+            data={"title": "Staff jam", "body": "Published now"},
+        )
+
+        post = CommunityPost.objects.get()
+        self.assertEqual(post.status, ApprovalStatus.APPROVED)
+        self.assertEqual(post.approved_by, self.staff)
+
+    def test_post_with_media_creates_attachments(self):
+        self.client.force_login(self.user)
+
+        with patch(
+            "cloudinary.uploader.upload_resource", side_effect=_fake_upload_resource
+        ):
+            self.client.post(
+                reverse("community:post_create"),
+                data={
+                    "title": "With photo",
+                    "body": "See attached",
+                    "files": [_make_image_file()],
+                },
+            )
+
+        post = CommunityPost.objects.get()
+        self.assertEqual(post.media.count(), 1)
+        self.assertEqual(post.media.first().media_type, MediaType.IMAGE)
+
+    def test_post_with_invalid_media_is_rejected_and_saves_nothing(self):
+        self.client.force_login(self.user)
+
+        with patch(
+            "cloudinary.uploader.upload_resource", side_effect=_fake_upload_resource
+        ):
+            response = self.client.post(
+                reverse("community:post_create"),
+                data={
+                    "title": "Bad file",
+                    "body": "Should fail",
+                    "files": [_make_invalid_file()],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(CommunityPost.objects.count(), 0)
+        self.assertEqual(CommunityPostMedia.objects.count(), 0)
+
+    def test_post_with_valid_cover_image_is_saved(self):
+        self.client.force_login(self.user)
+
+        with patch(
+            "cloudinary.uploader.upload_resource", side_effect=_fake_upload_resource
+        ):
+            self.client.post(
+                reverse("community:post_create"),
+                data={
+                    "title": "With cover",
+                    "body": "Header photo",
+                    "cover_image": _make_image_file(name="cover.jpg"),
+                },
+            )
+
+        post = CommunityPost.objects.get()
+        self.assertTrue(post.cover_image)
+        self.assertTrue(post.cover_display_url)
+
+    def test_post_with_invalid_cover_image_is_rejected_and_saves_nothing(self):
+        self.client.force_login(self.user)
+
+        with patch(
+            "cloudinary.uploader.upload_resource", side_effect=_fake_upload_resource
+        ):
+            response = self.client.post(
+                reverse("community:post_create"),
+                data={
+                    "title": "Bad cover",
+                    "body": "Should fail",
+                    "cover_image": _make_invalid_file(),
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(CommunityPost.objects.count(), 0)
+
+
+class CommunityPostCoverFormTests(TestCase):
+    """Unit tests for optional cover_image validation on CommunityPostForm."""
+
+    def setUp(self):
+        self.user = _make_user("cover_form_user")
+
+    def test_form_accepts_a_valid_cover_image(self):
+        form = CommunityPostForm(
+            data={"title": "Covered jam", "body": "Body"},
+            files={"cover_image": _make_image_file(name="hero.jpg")},
+            user=self.user,
+        )
+
+        self.assertTrue(form.is_valid(), msg=form.errors.as_json())
+
+        with patch(
+            "cloudinary.uploader.upload_resource", side_effect=_fake_upload_resource
+        ):
+            post = form.save()
+
+        self.assertTrue(post.cover_image)
+        self.assertEqual(post.author, self.user)
+
+    def test_form_rejects_an_invalid_cover_image(self):
+        form = CommunityPostForm(
+            data={"title": "Bad cover", "body": "Body"},
+            files={"cover_image": _make_invalid_file()},
+            user=self.user,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("cover_image", form.errors)
+
+    def test_form_rejects_a_video_as_cover_image(self):
+        form = CommunityPostForm(
+            data={"title": "Video cover", "body": "Body"},
+            files={"cover_image": _make_minimal_mp4()},
+            user=self.user,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("cover_image", form.errors)
+        self.assertIn("photo", form.errors["cover_image"][0].lower())
+
+    def test_form_allows_omitting_cover_image(self):
+        form = CommunityPostForm(
+            data={"title": "No cover", "body": "Body"},
+            user=self.user,
+        )
+
+        self.assertTrue(form.is_valid(), msg=form.errors.as_json())
+
+        with patch(
+            "cloudinary.uploader.upload_resource", side_effect=_fake_upload_resource
+        ):
+            post = form.save()
+
+        self.assertFalse(bool(post.cover_image))
+
+
+class CommunityCommentCreateViewTests(TestCase):
+    def setUp(self):
+        self.author = _make_user("cmt_author")
+        self.commenter = _make_user("cmt_commenter")
+        self.staff = _make_user("cmt_staff", is_staff=True)
+        self.post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+
+    def test_comment_requires_login(self):
+        response = self.client.post(
+            reverse("community:comment_add", args=[self.post.slug]),
+            data={"body": "Nice!"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+        self.assertEqual(CommunityComment.objects.count(), 0)
+
+    def test_regular_user_comment_is_pending(self):
+        self.client.force_login(self.commenter)
+
+        response = self.client.post(
+            reverse("community:comment_add", args=[self.post.slug]),
+            data={"body": "Great jam!"},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("community:post_detail", args=[self.post.slug]),
+        )
+        comment = CommunityComment.objects.get()
+        self.assertEqual(comment.author, self.commenter)
+        self.assertEqual(comment.post, self.post)
+        self.assertEqual(comment.status, ApprovalStatus.PENDING)
+
+    def test_staff_comment_is_auto_approved(self):
+        self.client.force_login(self.staff)
+
+        self.client.post(
+            reverse("community:comment_add", args=[self.post.slug]),
+            data={"body": "Approved instantly"},
+        )
+
+        comment = CommunityComment.objects.get()
+        self.assertEqual(comment.status, ApprovalStatus.APPROVED)
+        self.assertEqual(comment.approved_by, self.staff)
+
+    def test_comment_with_media_creates_attachments(self):
+        self.client.force_login(self.commenter)
+
+        with patch(
+            "cloudinary.uploader.upload_resource", side_effect=_fake_upload_resource
+        ):
+            self.client.post(
+                reverse("community:comment_add", args=[self.post.slug]),
+                data={"body": "Look", "files": [_make_image_file()]},
+            )
+
+        comment = CommunityComment.objects.get()
+        self.assertEqual(comment.media.count(), 1)
+        self.assertEqual(CommunityCommentMedia.objects.count(), 1)
+
+    def test_comment_author_sees_the_delete_button_on_their_own_comment(self):
+        comment = CommunityComment.objects.create(
+            post=self.post,
+            author=self.commenter,
+            body="A published comment",
+            status=ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(self.commenter)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[self.post.slug])
+        )
+        delete_url = reverse("community:comment_delete", args=[comment.pk])
+
+        self.assertContains(response, comment.body)
+        self.assertContains(response, f'action="{delete_url}"')
+
+    def test_other_user_does_not_see_the_comment_delete_button(self):
+        comment = CommunityComment.objects.create(
+            post=self.post,
+            author=self.commenter,
+            body="A published comment",
+            status=ApprovalStatus.APPROVED,
+        )
+        other = _make_user("cmt_other")
+        self.client.force_login(other)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[self.post.slug])
+        )
+        delete_url = reverse("community:comment_delete", args=[comment.pk])
+
+        self.assertNotContains(response, f'action="{delete_url}"')
+
+    def test_comment_card_template_comment_does_not_leak_into_html(self):
+        """
+        Multi-line {# ... #} comments are not stripped by Django's lexer, so
+        the partial must use {% comment %} / {% endcomment %} instead.
+        """
+        CommunityComment.objects.create(
+            post=self.post,
+            author=self.commenter,
+            body="Wo wo wo!",
+            status=ApprovalStatus.APPROVED,
+        )
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[self.post.slug])
+        )
+
+        self.assertContains(response, "Wo wo wo!")
+        self.assertNotContains(response, "Single comment card")
+        self.assertNotContains(response, "{#")
+        self.assertNotContains(response, "#}")
+
+    def test_comment_form_textarea_starts_compact(self):
+        self.client.force_login(self.commenter)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[self.post.slug])
+        )
+
+        self.assertContains(response, 'rows="3"')
+        self.assertContains(response, "Add a comment")
+
+
+class CommunityUiPermissionConsistencyTests(TestCase):
+    """
+    UI placement rules for delete/like controls:
+
+    - Comment delete and like toggle: only on community:post_detail
+    - Post delete: on community:post_detail and the owner's profile "My posts"
+    """
+
+    def setUp(self):
+        self.author = _make_user("ui_perm_author")
+        self.commenter = _make_user("ui_perm_commenter")
+        self.post = _make_post(
+            self.author,
+            title="Permission UI post",
+            status=ApprovalStatus.APPROVED,
+        )
+        self.comment = CommunityComment.objects.create(
+            post=self.post,
+            author=self.commenter,
+            body="Permission UI comment",
+            status=ApprovalStatus.APPROVED,
+        )
+        self.comment_delete_url = reverse(
+            "community:comment_delete", args=[self.comment.pk]
+        )
+        self.post_delete_url = reverse(
+            "community:post_delete", args=[self.post.slug]
+        )
+        self.like_url = reverse("community:like_toggle", args=[self.post.slug])
+
+    def test_post_detail_shows_comment_delete_like_and_post_delete(self):
+        self.client.force_login(self.author)
+        # Author owns the post; staff-or-owner can also delete others' comments
+        # only when staff — so log in as commenter for comment delete, author
+        # for post delete. Cover both roles across two requests.
+        author_response = self.client.get(
+            reverse("community:post_detail", args=[self.post.slug])
+        )
+        self.assertContains(author_response, f'action="{self.post_delete_url}"')
+        self.assertContains(author_response, f'action="{self.like_url}"')
+
+        self.client.force_login(self.commenter)
+        commenter_response = self.client.get(
+            reverse("community:post_detail", args=[self.post.slug])
+        )
+        self.assertContains(
+            commenter_response, f'action="{self.comment_delete_url}"'
+        )
+        self.assertContains(commenter_response, f'action="{self.like_url}"')
+        self.assertNotContains(
+            commenter_response, f'action="{self.post_delete_url}"'
+        )
+
+    def test_post_list_has_no_comment_delete_like_toggle_or_post_delete(self):
+        self.client.force_login(self.author)
+
+        response = self.client.get(reverse("community:list"))
+
+        self.assertContains(response, self.post.title)
+        self.assertNotContains(response, f'action="{self.comment_delete_url}"')
+        self.assertNotContains(response, f'action="{self.post_delete_url}"')
+        self.assertNotContains(response, f'action="{self.like_url}"')
+        self.assertNotContains(response, "community:comment_delete")
+        self.assertNotContains(response, "community:like_toggle")
+
+    def test_owner_profile_has_post_delete_but_not_comment_delete_or_like(self):
+        self.client.force_login(self.author)
+
+        response = self.client.get(
+            reverse(
+                "accounts:profile_detail", kwargs={"username": self.author.username}
+            )
+        )
+
+        self.assertContains(response, "My posts")
+        self.assertContains(response, f'action="{self.post_delete_url}"')
+        self.assertNotContains(response, f'action="{self.comment_delete_url}"')
+        self.assertNotContains(response, f'action="{self.like_url}"')
+
+
+class CommunityLikeToggleViewTests(TestCase):
+    def setUp(self):
+        self.author = _make_user("like_view_author")
+        self.liker = _make_user("like_view_liker")
+        self.post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+
+    def test_like_requires_login(self):
+        response = self.client.post(
+            reverse("community:like_toggle", args=[self.post.slug])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+        self.assertEqual(CommunityLike.objects.count(), 0)
+
+    def test_like_only_accepts_post_requests(self):
+        self.client.force_login(self.liker)
+
+        response = self.client.get(
+            reverse("community:like_toggle", args=[self.post.slug])
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_like_on_pending_post_returns_404(self):
+        pending = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.liker)
+
+        response = self.client.post(
+            reverse("community:like_toggle", args=[pending.slug])
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(CommunityLike.objects.count(), 0)
+
+    def test_toggle_adds_then_removes_the_like(self):
+        self.client.force_login(self.liker)
+        url = reverse("community:like_toggle", args=[self.post.slug])
+
+        self.client.post(url)
+        self.assertEqual(
+            CommunityLike.objects.filter(post=self.post, user=self.liker).count(),
+            1,
+        )
+
+        self.client.post(url)
+        self.assertEqual(
+            CommunityLike.objects.filter(post=self.post, user=self.liker).count(),
+            0,
+        )
+
+
+class CommunityPostDeletePermissionTests(TestCase):
+    def setUp(self):
+        self.author = _make_user("del_post_author")
+        self.other = _make_user("del_post_other")
+        self.staff = _make_user("del_post_staff", is_staff=True)
+
+    def test_delete_requires_login(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+
+        response = self.client.post(
+            reverse("community:post_delete", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+        self.assertTrue(CommunityPost.objects.filter(pk=post.pk).exists())
+
+    def test_author_can_delete_own_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.author)
+
+        response = self.client.post(
+            reverse("community:post_delete", args=[post.slug])
+        )
+
+        self.assertRedirects(response, reverse("community:list"))
+        self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
+
+    def test_other_user_cannot_delete_another_users_post_even_by_direct_post(self):
+        """A forged direct POST (no template button) must still be refused."""
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.other)
+
+        response = self.client.post(
+            reverse("community:post_delete", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(CommunityPost.objects.filter(pk=post.pk).exists())
+
+    def test_staff_can_delete_another_users_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:post_delete", args=[post.slug])
+        )
+
+        self.assertRedirects(response, reverse("community:list"))
+        self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
+
+
+class CommunityCommentDeletePermissionTests(TestCase):
+    def setUp(self):
+        self.post_author = _make_user("delc_post_author")
+        self.comment_author = _make_user("delc_author")
+        self.other = _make_user("delc_other")
+        self.staff = _make_user("delc_staff", is_staff=True)
+        self.post = _make_post(self.post_author, status=ApprovalStatus.APPROVED)
+
+    def _make_comment(self):
+        return CommunityComment.objects.create(
+            post=self.post,
+            author=self.comment_author,
+            body="A comment",
+            status=ApprovalStatus.APPROVED,
+        )
+
+    def test_delete_requires_login(self):
+        comment = self._make_comment()
+
+        response = self.client.post(
+            reverse("community:comment_delete", args=[comment.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+        self.assertTrue(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+    def test_author_can_delete_own_comment(self):
+        comment = self._make_comment()
+        self.client.force_login(self.comment_author)
+
+        response = self.client.post(
+            reverse("community:comment_delete", args=[comment.pk])
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("community:post_detail", args=[self.post.slug]),
+        )
+        self.assertFalse(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+    def test_other_user_cannot_delete_another_users_comment_even_by_direct_post(self):
+        comment = self._make_comment()
+        self.client.force_login(self.other)
+
+        response = self.client.post(
+            reverse("community:comment_delete", args=[comment.pk])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+    def test_staff_can_delete_another_users_comment(self):
+        comment = self._make_comment()
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:comment_delete", args=[comment.pk])
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("community:post_detail", args=[self.post.slug]),
+        )
+        self.assertFalse(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+
+class CommunityPostAdminActionsTests(TestCase):
+    """Tests for approve_posts / reject_posts (mirrors GalleryAdminActionsTests)."""
+
+    def setUp(self):
+        self.moderator = _make_user("post_mod", is_staff=True)
+        self.author = _make_user("post_admin_author")
+
+    def test_approve_posts_action_approves_only_pending_posts(self):
+        pending = _make_post(
+            self.author, title="Pending", status=ApprovalStatus.PENDING
+        )
+        already_approved = _make_post(
+            self.author, title="Already", status=ApprovalStatus.APPROVED
+        )
+        request = SimpleNamespace(user=self.moderator)
+        modeladmin = Mock()
+
+        approve_posts(modeladmin, request, CommunityPost.objects.all())
+
+        pending.refresh_from_db()
+        already_approved.refresh_from_db()
+        self.assertEqual(pending.status, ApprovalStatus.APPROVED)
+        self.assertEqual(pending.approved_by, self.moderator)
+        self.assertIsNotNone(pending.approved_at)
+        # Untouched: the action only processes items that were pending.
+        self.assertIsNone(already_approved.approved_by)
+        modeladmin.message_user.assert_called_once()
+
+    def test_reject_posts_action_rejects_only_pending_posts(self):
+        pending = _make_post(
+            self.author, title="To reject", status=ApprovalStatus.PENDING
+        )
+        already_rejected = _make_post(
+            self.author, title="Already", status=ApprovalStatus.REJECTED
+        )
+        request = SimpleNamespace(user=self.moderator)
+        modeladmin = Mock()
+
+        reject_posts(modeladmin, request, CommunityPost.objects.all())
+
+        pending.refresh_from_db()
+        already_rejected.refresh_from_db()
+        self.assertEqual(pending.status, ApprovalStatus.REJECTED)
+        self.assertEqual(pending.approved_by, self.moderator)
+        # Untouched: the action only processes items that were pending.
+        self.assertIsNone(already_rejected.approved_by)
+        modeladmin.message_user.assert_called_once()
+
+
+class CommunityCommentAdminActionsTests(TestCase):
+    """Tests for approve_comments / reject_comments (mirrors GalleryAdminActionsTests)."""
+
+    def setUp(self):
+        self.moderator = _make_user("comment_mod", is_staff=True)
+        self.author = _make_user("comment_admin_author")
+        self.post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+
+    def _make_comment(self, status):
+        return CommunityComment.objects.create(
+            post=self.post,
+            author=self.author,
+            body="A comment",
+            status=status,
+        )
+
+    def test_approve_comments_action_approves_only_pending_comments(self):
+        pending = self._make_comment(ApprovalStatus.PENDING)
+        already_approved = self._make_comment(ApprovalStatus.APPROVED)
+        request = SimpleNamespace(user=self.moderator)
+        modeladmin = Mock()
+
+        approve_comments(modeladmin, request, CommunityComment.objects.all())
+
+        pending.refresh_from_db()
+        already_approved.refresh_from_db()
+        self.assertEqual(pending.status, ApprovalStatus.APPROVED)
+        self.assertEqual(pending.approved_by, self.moderator)
+        self.assertIsNotNone(pending.approved_at)
+        self.assertIsNone(already_approved.approved_by)
+        modeladmin.message_user.assert_called_once()
+
+    def test_reject_comments_action_rejects_only_pending_comments(self):
+        pending = self._make_comment(ApprovalStatus.PENDING)
+        already_rejected = self._make_comment(ApprovalStatus.REJECTED)
+        request = SimpleNamespace(user=self.moderator)
+        modeladmin = Mock()
+
+        reject_comments(modeladmin, request, CommunityComment.objects.all())
+
+        pending.refresh_from_db()
+        already_rejected.refresh_from_db()
+        self.assertEqual(pending.status, ApprovalStatus.REJECTED)
+        self.assertEqual(pending.approved_by, self.moderator)
+        self.assertIsNone(already_rejected.approved_by)
+        modeladmin.message_user.assert_called_once()
+
+
+class CommunityAdminMediaPreviewTests(TestCase):
+    """
+    Admin media previews must emit a resolvable file URL in the rendered HTML.
+
+    Images go through web_image_url (f_auto) so HEIC uploads are browser-safe;
+    the change form must include that URL both in the inline column and in the
+    parent Media fieldset gallery.
+    """
+
+    def setUp(self):
+        self.staff = _make_user("admin_preview_staff", is_staff=True, is_superuser=True)
+        self.author = _make_user("admin_preview_author")
+        self.client.force_login(self.staff)
+
+    def test_resolve_media_url_returns_web_friendly_image_url(self):
+        post = _make_post(self.author)
+        media = CommunityPostMedia.objects.create(
+            post=post,
+            file="image/upload/v1/photo_id.jpg",
+            media_type=MediaType.IMAGE,
+        )
+
+        url = _resolve_media_url(media, width=300)
+
+        self.assertTrue(url)
+        self.assertIn("photo_id", url)
+        # f_auto is what makes HEIC/HEIF render in the browser.
+        self.assertIn("f_auto", url)
+
+    def test_media_preview_html_includes_file_url(self):
+        post = _make_post(self.author)
+        media = CommunityPostMedia.objects.create(
+            post=post,
+            file="image/upload/v1/photo_id.jpg",
+            media_type=MediaType.IMAGE,
+        )
+
+        html = str(_media_preview(media, width=300, height=300))
+
+        self.assertIn("<img", html)
+        self.assertIn(_resolve_media_url(media, width=300), html)
+
+    def test_post_change_form_renders_media_preview_url(self):
+        post = _make_post(self.author, title="Post with photo")
+        media = CommunityPostMedia.objects.create(
+            post=post,
+            file="image/upload/v1/photo_id.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        expected_url = _resolve_media_url(media, width=300)
+        self.assertTrue(expected_url)
+
+        response = self.client.get(
+            reverse("admin:community_communitypost_change", args=[post.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn(expected_url, content)
+        self.assertIn(f'src="{expected_url}"', content)
+
+    def test_comment_change_form_renders_media_preview_url(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        comment = CommunityComment.objects.create(
+            post=post, author=self.author, body="With clip"
+        )
+        media = CommunityCommentMedia.objects.create(
+            comment=comment,
+            file="video/upload/v1/clip_id.mp4",
+            media_type=MediaType.VIDEO,
+        )
+        admin = CommunityCommentAdmin(CommunityComment, Mock())
+        expected_url = _resolve_media_url(media)
+
+        response = self.client.get(
+            reverse("admin:community_communitycomment_change", args=[comment.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn(expected_url, content)
+        self.assertIn("<video", content)
+        # Parent gallery preview method also exposes the URL.
+        self.assertIn(expected_url, str(admin.media_gallery(comment)))
+
+    def test_post_admin_media_gallery_includes_attachment_url(self):
+        post = _make_post(self.author)
+        media = CommunityPostMedia.objects.create(
+            post=post,
+            file="image/upload/v1/photo_id.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        admin = CommunityPostAdmin(CommunityPost, Mock())
+
+        html = str(admin.media_gallery(post))
+
+        self.assertIn(_resolve_media_url(media, width=300), html)
+
+
+class CommunityModerationQueueViewTests(TestCase):
+    """
+    Tests for moderation_queue: access control and the pending-only listing.
+
+    Mirrors the permission-testing style of CommunityPostDeletePermissionTests
+    (a forged direct request must be refused, never trusting the template).
+    """
+
+    def setUp(self):
+        self.staff = _make_user("queue_staff", is_staff=True)
+        self.superuser = _make_user(
+            "queue_super", is_staff=True, is_superuser=True
+        )
+        self.regular = _make_user("queue_regular")
+        self.author = _make_user("queue_author")
+
+    def test_queue_requires_login(self):
+        response = self.client.get(reverse("community:moderation_queue"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+
+    def test_regular_user_gets_403(self):
+        self.client.force_login(self.regular)
+
+        response = self.client.get(reverse("community:moderation_queue"))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_user_can_access_the_queue(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get(reverse("community:moderation_queue"))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_superuser_can_access_the_queue(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(reverse("community:moderation_queue"))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_only_pending_posts_and_comments_are_listed(self):
+        pending_post = _make_post(
+            self.author, title="Pending post", status=ApprovalStatus.PENDING
+        )
+        approved_post = _make_post(
+            self.author, title="Approved post", status=ApprovalStatus.APPROVED
+        )
+        _make_post(self.author, title="Rejected post", status=ApprovalStatus.REJECTED)
+
+        approved_post_for_comments = _make_post(
+            self.author, title="Host post", status=ApprovalStatus.APPROVED
+        )
+        pending_comment = CommunityComment.objects.create(
+            post=approved_post_for_comments,
+            author=self.author,
+            body="Pending comment",
+            status=ApprovalStatus.PENDING,
+        )
+        CommunityComment.objects.create(
+            post=approved_post_for_comments,
+            author=self.author,
+            body="Approved comment",
+            status=ApprovalStatus.APPROVED,
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("community:moderation_queue"))
+
+        self.assertEqual(
+            list(response.context["pending_posts"]), [pending_post]
+        )
+        self.assertEqual(
+            list(response.context["pending_comments"]), [pending_comment]
+        )
+        self.assertContains(response, "Pending post")
+        self.assertNotContains(response, "Approved post")
+        self.assertContains(response, "Pending comment")
+        self.assertNotContains(response, "Approved comment")
+
+    def test_only_pending_gallery_items_are_listed(self):
+        pending_item = GalleryItem.objects.create(
+            uploaded_by=self.author,
+            file="image/upload/v1/pending_gallery.jpg",
+            media_type=MediaType.IMAGE,
+            title="Pending gallery shot",
+            status=ApprovalStatus.PENDING,
+        )
+        GalleryItem.objects.create(
+            uploaded_by=self.author,
+            file="image/upload/v1/approved_gallery.jpg",
+            media_type=MediaType.IMAGE,
+            title="Approved gallery shot",
+            status=ApprovalStatus.APPROVED,
+        )
+        GalleryItem.objects.create(
+            uploaded_by=self.author,
+            file="image/upload/v1/rejected_gallery.jpg",
+            media_type=MediaType.IMAGE,
+            title="Rejected gallery shot",
+            status=ApprovalStatus.REJECTED,
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("community:moderation_queue"))
+
+        self.assertEqual(
+            list(response.context["pending_gallery_items"]), [pending_item]
+        )
+        self.assertContains(response, "Gallery submissions")
+        self.assertContains(response, "Pending gallery shot")
+        self.assertNotContains(response, "Approved gallery shot")
+        self.assertNotContains(response, "Rejected gallery shot")
+
+    def test_pending_items_are_ordered_oldest_first(self):
+        older = _make_post(
+            self.author, title="Older", status=ApprovalStatus.PENDING
+        )
+        newer = _make_post(
+            self.author, title="Newer", status=ApprovalStatus.PENDING
+        )
+        # Force a clearly distinguishable order regardless of auto_now_add clock
+        # resolution, the same way other tests in this file avoid timing flakiness.
+        CommunityPost.objects.filter(pk=older.pk).update(
+            created_at=newer.created_at - timezone.timedelta(days=1)
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("community:moderation_queue"))
+
+        self.assertEqual(
+            list(response.context["pending_posts"]), [older, newer]
+        )
+
+    def test_queue_shows_attached_media(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        media = CommunityPostMedia.objects.create(
+            post=post,
+            file="image/upload/v1/photo_id.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        # Reload so CloudinaryField deserialises the stored path into a
+        # CloudinaryResource (same shape the moderation_queue queryset sees).
+        media.refresh_from_db()
+        expected_url = media.display_url
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("community:moderation_queue"))
+
+        self.assertTrue(expected_url)
+        self.assertIn("f_auto", expected_url)
+        self.assertContains(response, expected_url)
+        self.assertContains(response, f'src="{expected_url}"')
+        self.assertContains(response, "moderation-media-item__image")
+
+    def test_queue_shows_gallery_item_media_preview(self):
+        item = GalleryItem.objects.create(
+            uploaded_by=self.author,
+            file="image/upload/v1/gallery_preview.jpg",
+            media_type=MediaType.IMAGE,
+            title="Preview me",
+            status=ApprovalStatus.PENDING,
+        )
+        item.refresh_from_db()
+        expected_url = item.display_media_url
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("community:moderation_queue"))
+
+        self.assertTrue(expected_url)
+        self.assertIn("f_auto", expected_url)
+        self.assertContains(response, expected_url)
+        self.assertContains(response, f'src="{expected_url}"')
+        self.assertContains(response, "moderation-media-item__image")
+
+
+class CommunityModerationPostActionViewTests(TestCase):
+    """Tests for moderation_post_approve/reject/delete."""
+
+    def setUp(self):
+        self.staff = _make_user("mod_post_staff", is_staff=True)
+        self.regular = _make_user("mod_post_regular")
+        self.author = _make_user("mod_post_author")
+
+    def test_approve_requires_login(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+
+        response = self.client.post(
+            reverse("community:moderation_post_approve", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+        post.refresh_from_db()
+        self.assertEqual(post.status, ApprovalStatus.PENDING)
+
+    def test_regular_user_cannot_approve(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.regular)
+
+        response = self.client.post(
+            reverse("community:moderation_post_approve", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        post.refresh_from_db()
+        self.assertEqual(post.status, ApprovalStatus.PENDING)
+
+    def test_approve_only_accepts_post_requests(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.staff)
+
+        response = self.client.get(
+            reverse("community:moderation_post_approve", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_staff_can_approve_a_pending_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_post_approve", args=[post.slug])
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        post.refresh_from_db()
+        self.assertEqual(post.status, ApprovalStatus.APPROVED)
+        self.assertEqual(post.approved_by, self.staff)
+        self.assertIsNotNone(post.approved_at)
+
+    def test_approving_an_already_approved_post_returns_404(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_post_approve", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_staff_can_reject_a_pending_post_with_a_reason(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_post_reject", args=[post.slug]),
+            {"reason": "Not related to jam sessions"},
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        post.refresh_from_db()
+        self.assertEqual(post.status, ApprovalStatus.REJECTED)
+        self.assertEqual(post.approved_by, self.staff)
+        self.assertEqual(post.rejection_reason, "Not related to jam sessions")
+
+    def test_staff_can_reject_a_pending_post_without_a_reason(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_post_reject", args=[post.slug])
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        post.refresh_from_db()
+        self.assertEqual(post.status, ApprovalStatus.REJECTED)
+        self.assertEqual(post.rejection_reason, "")
+
+    def test_regular_user_cannot_reject(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.regular)
+
+        response = self.client.post(
+            reverse("community:moderation_post_reject", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        post.refresh_from_db()
+        self.assertEqual(post.status, ApprovalStatus.PENDING)
+
+    def test_staff_can_delete_a_pending_post(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_post_delete", args=[post.slug])
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
+
+    def test_regular_user_cannot_delete_from_the_queue(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.regular)
+
+        response = self.client.post(
+            reverse("community:moderation_post_delete", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(CommunityPost.objects.filter(pk=post.pk).exists())
+
+    def test_deleting_an_already_approved_post_via_the_queue_returns_404(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_post_delete", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(CommunityPost.objects.filter(pk=post.pk).exists())
+
+
+class CommunityModerationCommentActionViewTests(TestCase):
+    """Tests for moderation_comment_approve/reject/delete."""
+
+    def setUp(self):
+        self.staff = _make_user("mod_comment_staff", is_staff=True)
+        self.regular = _make_user("mod_comment_regular")
+        self.author = _make_user("mod_comment_author")
+        self.post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+
+    def _make_comment(self, status=ApprovalStatus.PENDING):
+        return CommunityComment.objects.create(
+            post=self.post, author=self.author, body="A comment", status=status
+        )
+
+    def test_approve_requires_login(self):
+        comment = self._make_comment()
+
+        response = self.client.post(
+            reverse("community:moderation_comment_approve", args=[comment.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+        comment.refresh_from_db()
+        self.assertEqual(comment.status, ApprovalStatus.PENDING)
+
+    def test_regular_user_cannot_approve(self):
+        comment = self._make_comment()
+        self.client.force_login(self.regular)
+
+        response = self.client.post(
+            reverse("community:moderation_comment_approve", args=[comment.pk])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        comment.refresh_from_db()
+        self.assertEqual(comment.status, ApprovalStatus.PENDING)
+
+    def test_staff_can_approve_a_pending_comment(self):
+        comment = self._make_comment()
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_comment_approve", args=[comment.pk])
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        comment.refresh_from_db()
+        self.assertEqual(comment.status, ApprovalStatus.APPROVED)
+        self.assertEqual(comment.approved_by, self.staff)
+        self.assertIsNotNone(comment.approved_at)
+
+    def test_staff_can_reject_a_pending_comment_with_a_reason(self):
+        comment = self._make_comment()
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_comment_reject", args=[comment.pk]),
+            {"reason": "Off-topic"},
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        comment.refresh_from_db()
+        self.assertEqual(comment.status, ApprovalStatus.REJECTED)
+        self.assertEqual(comment.approved_by, self.staff)
+        self.assertEqual(comment.rejection_reason, "Off-topic")
+
+    def test_regular_user_cannot_reject(self):
+        comment = self._make_comment()
+        self.client.force_login(self.regular)
+
+        response = self.client.post(
+            reverse("community:moderation_comment_reject", args=[comment.pk])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        comment.refresh_from_db()
+        self.assertEqual(comment.status, ApprovalStatus.PENDING)
+
+    def test_staff_can_delete_a_pending_comment(self):
+        comment = self._make_comment()
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_comment_delete", args=[comment.pk])
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertFalse(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+    def test_regular_user_cannot_delete_from_the_queue(self):
+        comment = self._make_comment()
+        self.client.force_login(self.regular)
+
+        response = self.client.post(
+            reverse("community:moderation_comment_delete", args=[comment.pk])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+    def test_deleting_an_already_approved_comment_via_the_queue_returns_404(self):
+        comment = self._make_comment(status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_comment_delete", args=[comment.pk])
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+
+class CommunityModerationGalleryActionViewTests(TestCase):
+    """Tests for moderation_gallery_approve/reject/delete."""
+
+    def setUp(self):
+        self.staff = _make_user("mod_gallery_staff", is_staff=True)
+        self.regular = _make_user("mod_gallery_regular")
+        self.uploader = _make_user("mod_gallery_uploader")
+
+    def _make_item(self, status=ApprovalStatus.PENDING, **overrides):
+        defaults = {
+            "uploaded_by": self.uploader,
+            "file": "image/upload/v1/mod_gallery.jpg",
+            "media_type": MediaType.IMAGE,
+            "title": "Jam night shot",
+            "status": status,
+        }
+        defaults.update(overrides)
+        return GalleryItem.objects.create(**defaults)
+
+    def test_approve_requires_login(self):
+        item = self._make_item()
+
+        response = self.client.post(
+            reverse("community:moderation_gallery_approve", args=[item.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+        item.refresh_from_db()
+        self.assertEqual(item.status, ApprovalStatus.PENDING)
+
+    def test_regular_user_cannot_approve(self):
+        item = self._make_item()
+        self.client.force_login(self.regular)
+
+        response = self.client.post(
+            reverse("community:moderation_gallery_approve", args=[item.pk])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        item.refresh_from_db()
+        self.assertEqual(item.status, ApprovalStatus.PENDING)
+
+    def test_approve_only_accepts_post_requests(self):
+        item = self._make_item()
+        self.client.force_login(self.staff)
+
+        response = self.client.get(
+            reverse("community:moderation_gallery_approve", args=[item.pk])
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_staff_can_approve_a_pending_gallery_item(self):
+        item = self._make_item()
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_gallery_approve", args=[item.pk])
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        item.refresh_from_db()
+        self.assertEqual(item.status, ApprovalStatus.APPROVED)
+        self.assertEqual(item.approved_by, self.staff)
+        self.assertIsNotNone(item.approved_at)
+
+    def test_approving_an_already_approved_gallery_item_returns_404(self):
+        item = self._make_item(status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_gallery_approve", args=[item.pk])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_staff_can_reject_a_pending_gallery_item_with_a_reason(self):
+        item = self._make_item()
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_gallery_reject", args=[item.pk]),
+            {"reason": "Blurry photo"},
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        item.refresh_from_db()
+        self.assertEqual(item.status, ApprovalStatus.REJECTED)
+        self.assertEqual(item.approved_by, self.staff)
+        self.assertEqual(item.rejection_reason, "Blurry photo")
+
+    def test_staff_can_reject_a_pending_gallery_item_without_a_reason(self):
+        item = self._make_item()
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_gallery_reject", args=[item.pk])
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        item.refresh_from_db()
+        self.assertEqual(item.status, ApprovalStatus.REJECTED)
+        self.assertEqual(item.rejection_reason, "")
+
+    def test_regular_user_cannot_reject(self):
+        item = self._make_item()
+        self.client.force_login(self.regular)
+
+        response = self.client.post(
+            reverse("community:moderation_gallery_reject", args=[item.pk])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        item.refresh_from_db()
+        self.assertEqual(item.status, ApprovalStatus.PENDING)
+
+    def test_staff_can_delete_a_pending_gallery_item(self):
+        item = self._make_item()
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_gallery_delete", args=[item.pk])
+        )
+
+        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertFalse(GalleryItem.objects.filter(pk=item.pk).exists())
+
+    def test_regular_user_cannot_delete_from_the_queue(self):
+        item = self._make_item()
+        self.client.force_login(self.regular)
+
+        response = self.client.post(
+            reverse("community:moderation_gallery_delete", args=[item.pk])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(GalleryItem.objects.filter(pk=item.pk).exists())
+
+    def test_deleting_an_already_approved_gallery_item_via_the_queue_returns_404(self):
+        item = self._make_item(status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:moderation_gallery_delete", args=[item.pk])
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(GalleryItem.objects.filter(pk=item.pk).exists())
+
+
+class CommunityCloudinaryCleanupSignalTests(TestCase):
+    """
+    Cloudinary cleanup for community attachments (and cover images).
+
+    Real Cloudinary destroy() is always mocked — these tests only prove the
+    shared jamsession.cloudinary_cleanup helpers are invoked correctly when
+    rows are deleted, including CASCADE from a parent post/comment.
+    """
+
+    def setUp(self):
+        self.author = _make_user("cleanup_author")
+        self.post = _make_post(self.author, title="Cleanup post", body="Body")
+
+    def test_deleting_post_destroys_every_attachment_on_cloudinary(self):
+        CommunityPostMedia.objects.create(
+            post=self.post,
+            file="image/upload/v1/post_media_one.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        CommunityPostMedia.objects.create(
+            post=self.post,
+            file="image/upload/v1/post_media_two.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        CommunityPostMedia.objects.create(
+            post=self.post,
+            file="video/upload/v1/post_media_three.mp4",
+            media_type=MediaType.VIDEO,
+        )
+
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            self.post.delete()
+
+        self.assertEqual(mock_destroy.call_count, 3)
+        destroyed_ids = {call.args[0] for call in mock_destroy.call_args_list}
+        self.assertEqual(
+            destroyed_ids,
+            {"post_media_one", "post_media_two", "post_media_three"},
+        )
+
+    def test_deleting_comment_destroys_its_attachments_on_cloudinary(self):
+        comment = CommunityComment.objects.create(
+            post=self.post, author=self.author, body="With media"
+        )
+        CommunityCommentMedia.objects.create(
+            comment=comment,
+            file="image/upload/v1/comment_media_one.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        CommunityCommentMedia.objects.create(
+            comment=comment,
+            file="video/upload/v1/comment_media_two.mp4",
+            media_type=MediaType.VIDEO,
+        )
+
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            comment.delete()
+
+        self.assertEqual(mock_destroy.call_count, 2)
+        destroyed_ids = {call.args[0] for call in mock_destroy.call_args_list}
+        self.assertEqual(
+            destroyed_ids,
+            {"comment_media_one", "comment_media_two"},
+        )
+
+    def test_deleting_post_with_no_media_does_not_call_destroy(self):
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            self.post.delete()
+
+        mock_destroy.assert_not_called()
+
+    def test_deleting_comment_with_no_media_does_not_call_destroy(self):
+        comment = CommunityComment.objects.create(
+            post=self.post, author=self.author, body="Text only"
+        )
+
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            comment.delete()
+
+        mock_destroy.assert_not_called()
+
+    def test_deleting_a_single_post_media_row_destroys_only_that_file(self):
+        """
+        Mirrors Django admin inline deletion: remove one CommunityPostMedia
+        without deleting the parent CommunityPost.
+
+        refresh_from_db() is required so CloudinaryField deserialises the
+        stored path into a CloudinaryResource (same as gallery cleanup tests);
+        otherwise post_delete sees a bare string and skips destroy().
+        """
+        keep = CommunityPostMedia.objects.create(
+            post=self.post,
+            file="image/upload/v1/keep_me.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        remove = CommunityPostMedia.objects.create(
+            post=self.post,
+            file="image/upload/v1/remove_me.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        remove.refresh_from_db()
+
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            remove.delete()
+
+        mock_destroy.assert_called_once_with(
+            "remove_me", resource_type="image", invalidate=True
+        )
+        self.assertTrue(CommunityPost.objects.filter(pk=self.post.pk).exists())
+        self.assertTrue(CommunityPostMedia.objects.filter(pk=keep.pk).exists())
+        self.assertFalse(CommunityPostMedia.objects.filter(pk=remove.pk).exists())
+
+    def test_deleting_a_single_comment_media_row_destroys_only_that_file(self):
+        comment = CommunityComment.objects.create(
+            post=self.post, author=self.author, body="With one attachment"
+        )
+        media = CommunityCommentMedia.objects.create(
+            comment=comment,
+            file="image/upload/v1/solo_comment_media.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        media.refresh_from_db()
+
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            media.delete()
+
+        mock_destroy.assert_called_once_with(
+            "solo_comment_media", resource_type="image", invalidate=True
+        )
+        self.assertTrue(CommunityComment.objects.filter(pk=comment.pk).exists())

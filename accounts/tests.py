@@ -1,9 +1,19 @@
 from datetime import date
+from unittest.mock import patch
 
 from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+
+from community.models import (
+    CommunityComment,
+    CommunityCommentMedia,
+    CommunityPost,
+    CommunityPostMedia,
+)
+from gallery.models import GalleryItem, MediaType
+from jamsession.moderation import ApprovalStatus
 
 from .forms import RegistrationForm
 from .models import User
@@ -341,6 +351,252 @@ class ProfilePageTests(TestCase):
         self.assertRedirects(response, self.profile_url)
 
 
+class ProfileMyPostsTests(TestCase):
+    """Owner-only 'My posts' section on the profile page."""
+
+    def setUp(self):
+        self.client.post(reverse("accounts:register"), data=valid_registration_data())
+        self.owner = User.objects.get(email="aoife@example.com")
+        self.other = User.objects.create_user(
+            username="other_musician",
+            email="other@example.com",
+            password="jam-session-test-pass1",
+            display_name="Other Musician",
+        )
+        self.profile_url = reverse(
+            "accounts:profile_detail", kwargs={"username": self.owner.username}
+        )
+
+    def test_my_posts_section_only_visible_to_owner(self):
+        CommunityPost.objects.create(
+            author=self.owner,
+            title="Owner pending jam",
+            body="Waiting for approval",
+            status=ApprovalStatus.PENDING,
+        )
+
+        self.client.force_login(self.other)
+        stranger_view = self.client.get(self.profile_url)
+        self.assertNotContains(stranger_view, "My posts")
+        self.assertNotContains(stranger_view, "Owner pending jam")
+
+        self.client.force_login(self.owner)
+        owner_view = self.client.get(self.profile_url)
+        self.assertContains(owner_view, "My posts")
+        self.assertContains(owner_view, "Owner pending jam")
+
+    def test_my_posts_lists_only_own_posts_including_pending(self):
+        own_pending = CommunityPost.objects.create(
+            author=self.owner,
+            title="My pending post",
+            body="Still in the queue",
+            status=ApprovalStatus.PENDING,
+        )
+        own_approved = CommunityPost.objects.create(
+            author=self.owner,
+            title="My approved post",
+            body="Live on the community",
+            status=ApprovalStatus.APPROVED,
+        )
+        CommunityPost.objects.create(
+            author=self.other,
+            title="Someone else post",
+            body="Should not appear",
+            status=ApprovalStatus.APPROVED,
+        )
+        CommunityComment.objects.create(
+            post=own_approved,
+            author=self.owner,
+            body="A comment must not appear in My posts",
+            status=ApprovalStatus.APPROVED,
+        )
+
+        self.client.force_login(self.owner)
+        response = self.client.get(self.profile_url)
+
+        self.assertEqual(list(response.context["my_posts"]), [own_approved, own_pending])
+        self.assertContains(response, "My pending post")
+        self.assertContains(response, "My approved post")
+        self.assertContains(response, "Pending approval")
+        self.assertContains(response, "Approved")
+        self.assertNotContains(response, "Someone else post")
+        self.assertNotContains(response, "A comment must not appear in My posts")
+
+    def test_my_posts_title_links_to_post_detail(self):
+        post = CommunityPost.objects.create(
+            author=self.owner,
+            title="Linkable jam",
+            body="Open me",
+            status=ApprovalStatus.PENDING,
+        )
+
+        self.client.force_login(self.owner)
+        response = self.client.get(self.profile_url)
+
+        detail_url = reverse("community:post_detail", args=[post.slug])
+        self.assertContains(response, f'href="{detail_url}"')
+
+        detail_response = self.client.get(detail_url)
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, "Linkable jam")
+        self.assertContains(detail_response, "Pending approval")
+
+    def test_rejected_post_is_listed_but_not_linked_to_detail(self):
+        post = CommunityPost.objects.create(
+            author=self.owner,
+            title="Rejected jam",
+            body="Not suitable",
+            status=ApprovalStatus.REJECTED,
+        )
+        detail_url = reverse("community:post_detail", args=[post.slug])
+
+        self.client.force_login(self.owner)
+        response = self.client.get(self.profile_url)
+
+        self.assertContains(response, "Rejected jam")
+        self.assertContains(response, "Rejected")
+        self.assertNotContains(response, f'href="{detail_url}"')
+        self.assertContains(
+            response, f'action="{reverse("community:post_delete", args=[post.slug])}"'
+        )
+
+    def test_rejected_post_with_reason_shows_exact_reason_on_profile(self):
+        reason = "Not related to jam sessions in Ireland."
+        CommunityPost.objects.create(
+            author=self.owner,
+            title="Off-topic jam",
+            body="Wrong topic",
+            status=ApprovalStatus.REJECTED,
+            rejection_reason=reason,
+        )
+
+        self.client.force_login(self.owner)
+        response = self.client.get(self.profile_url)
+
+        self.assertEqual(response.context["my_posts"][0].rejection_reason, reason)
+        self.assertContains(response, reason)
+        self.assertContains(response, "Reason for rejection")
+        self.assertNotContains(response, "No reason provided.")
+
+    def test_rejected_post_without_reason_shows_fallback_message(self):
+        CommunityPost.objects.create(
+            author=self.owner,
+            title="Rejected without note",
+            body="No explanation stored",
+            status=ApprovalStatus.REJECTED,
+            rejection_reason="",
+        )
+
+        self.client.force_login(self.owner)
+        response = self.client.get(self.profile_url)
+
+        self.assertEqual(response.context["my_posts"][0].rejection_reason, "")
+        self.assertContains(response, "No reason provided.")
+
+    def test_my_posts_delete_button_uses_community_post_delete(self):
+        post = CommunityPost.objects.create(
+            author=self.owner,
+            title="Delete me from profile",
+            body="Gone soon",
+            status=ApprovalStatus.PENDING,
+        )
+        delete_url = reverse("community:post_delete", args=[post.slug])
+
+        self.client.force_login(self.owner)
+        profile_response = self.client.get(self.profile_url)
+        self.assertContains(profile_response, f'action="{delete_url}"')
+
+        delete_response = self.client.post(delete_url)
+        self.assertRedirects(delete_response, reverse("community:list"))
+        self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
+
+
+class ProfileReviewItemsTests(TestCase):
+    """Staff-only Review Items control on the owner profile."""
+
+    def setUp(self):
+        self.client.post(reverse("accounts:register"), data=valid_registration_data())
+        self.regular = User.objects.get(email="aoife@example.com")
+        self.staff = User.objects.create_user(
+            username="review_staff",
+            email="review_staff@example.com",
+            password="jam-session-test-pass1",
+            display_name="Review Staff",
+            is_staff=True,
+        )
+        self.staff_profile_url = reverse(
+            "accounts:profile_detail", kwargs={"username": self.staff.username}
+        )
+        self.regular_profile_url = reverse(
+            "accounts:profile_detail", kwargs={"username": self.regular.username}
+        )
+        self.queue_url = reverse("community:moderation_queue")
+
+    def test_non_staff_owner_does_not_see_review_items(self):
+        self.client.force_login(self.regular)
+        response = self.client.get(self.regular_profile_url)
+
+        self.assertFalse(response.context["show_review_items"])
+        self.assertNotContains(response, "Review Items")
+        self.assertNotContains(response, self.queue_url)
+
+    def test_staff_with_zero_pending_sees_disabled_review_items(self):
+        self.client.force_login(self.staff)
+        response = self.client.get(self.staff_profile_url)
+
+        self.assertTrue(response.context["show_review_items"])
+        self.assertEqual(response.context["pending_review_count"], 0)
+        self.assertContains(response, "Review Items")
+        self.assertContains(response, "Nothing to review")
+        self.assertContains(response, "profile-review-items--disabled")
+        self.assertNotContains(response, f'href="{self.queue_url}"')
+
+    def test_staff_with_pending_items_sees_active_link_and_correct_count(self):
+        author = self.regular
+        CommunityPost.objects.create(
+            author=author,
+            title="Pending A",
+            body="Body A",
+            status=ApprovalStatus.PENDING,
+        )
+        CommunityPost.objects.create(
+            author=author,
+            title="Pending B",
+            body="Body B",
+            status=ApprovalStatus.PENDING,
+        )
+        approved = CommunityPost.objects.create(
+            author=author,
+            title="Approved host",
+            body="Host",
+            status=ApprovalStatus.APPROVED,
+        )
+        CommunityComment.objects.create(
+            post=approved,
+            author=author,
+            body="Pending comment",
+            status=ApprovalStatus.PENDING,
+        )
+        GalleryItem.objects.create(
+            uploaded_by=author,
+            file="image/upload/v1/pending_gallery.jpg",
+            media_type=MediaType.IMAGE,
+            title="Pending gallery",
+            status=ApprovalStatus.PENDING,
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(self.staff_profile_url)
+
+        # 2 pending posts + 1 pending comment + 1 pending gallery item
+        self.assertEqual(response.context["pending_review_count"], 4)
+        self.assertContains(response, "Review Items")
+        self.assertContains(response, f'href="{self.queue_url}"')
+        self.assertContains(response, "profile-review-items--active")
+        self.assertContains(response, ">4<")
+        self.assertNotContains(response, "Nothing to review")
+
+
 class ProfileEditTests(TestCase):
     def setUp(self):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
@@ -529,6 +785,80 @@ class DeleteAccountTests(TestCase):
         item.refresh_from_db()
         self.assertIsNone(item.uploaded_by)
         self.assertEqual(item.status, ApprovalStatus.APPROVED)
+
+
+class UserProfilePictureCloudinaryCleanupTests(TestCase):
+    """
+    Account deletion must remove the profile picture from Cloudinary storage,
+    but must NOT touch Cloudinary assets belonging to content that survives
+    with author/uploaded_by set to NULL (posts, comments, gallery items).
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="cleanup_user",
+            email="cleanup_user@example.com",
+            password="jam-session-test-pass1",
+            display_name="Cleanup User",
+            first_name="Cleanup",
+            last_name="User",
+        )
+        self.user.profile_picture.name = (
+            "JamSession Lab/cleanup_user/profile_pictures/avatar_id"
+        )
+        self.user.save(update_fields=["profile_picture"])
+
+    def test_deleting_user_cleans_profile_picture_not_surviving_content(self):
+        post = CommunityPost.objects.create(
+            author=self.user,
+            title="Survives account deletion",
+            body="Body",
+            status=ApprovalStatus.APPROVED,
+        )
+        CommunityPostMedia.objects.create(
+            post=post,
+            file="image/upload/v1/surviving_post_media.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        comment = CommunityComment.objects.create(
+            post=post,
+            author=self.user,
+            body="Survives too",
+            status=ApprovalStatus.APPROVED,
+        )
+        CommunityCommentMedia.objects.create(
+            comment=comment,
+            file="image/upload/v1/surviving_comment_media.jpg",
+            media_type=MediaType.IMAGE,
+        )
+        gallery_item = GalleryItem.objects.create(
+            uploaded_by=self.user,
+            file="image/upload/v1/surviving_gallery.jpg",
+            media_type=MediaType.IMAGE,
+            status=ApprovalStatus.APPROVED,
+        )
+
+        with (
+            patch("jamsession.cloudinary_cleanup._delete_stored_file") as mock_cleanup,
+            patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy,
+        ):
+            self.user.delete()
+
+        mock_cleanup.assert_called_once()
+        cleaned_value = mock_cleanup.call_args.args[0]
+        self.assertEqual(
+            cleaned_value.name,
+            "JamSession Lab/cleanup_user/profile_pictures/avatar_id",
+        )
+        # Surviving moderated content must not trigger Cloudinary destroy.
+        mock_destroy.assert_not_called()
+
+        post.refresh_from_db()
+        gallery_item.refresh_from_db()
+        self.assertIsNone(post.author)
+        self.assertIsNone(gallery_item.uploaded_by)
+        self.assertTrue(CommunityPostMedia.objects.filter(post=post).exists())
+        self.assertTrue(CommunityCommentMedia.objects.filter(comment=comment).exists())
 
 
 class TermsPagesTests(TestCase):

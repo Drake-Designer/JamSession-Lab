@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Start a Discussion{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <div class="text-center" data-aos="fade-up">
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    Start a Discussion
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    Ask a question, share a story, or post about an upcoming session.
+                    You can attach photos or videos too.
+                </p>
+                <p class="mt-3 text-sm text-jam-muted-dark">
+                    Your post will be reviewed before it appears publicly.
+                </p>
+            </div>
+
+            <form
+                method="post"
+                enctype="multipart/form-data"
+                class="community-form mt-10 rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8"
+                data-aos="fade-up"
+                data-aos-delay="100"
+            >
+                {% csrf_token %}
+
+                <div class="community-form__field{% if form.title.errors %} community-form__field--error{% endif %}">
+                    <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+                    {{ form.title }}
+                    {% if form.title.errors %}
+                    <ul class="errorlist">
+                        {% for error in form.title.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+
+                <div class="community-form__field{% if form.body.errors %} community-form__field--error{% endif %}">
+                    <label for="{{ form.body.id_for_label }}">{{ form.body.label }}</label>
+                    {{ form.body }}
+                    {% if form.body.errors %}
+                    <ul class="errorlist">
+                        {% for error in form.body.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+
+                <div class="community-form__field{% if form.cover_image.errors %} community-form__field--error{% endif %}">
+                    <label for="{{ form.cover_image.id_for_label }}">{{ form.cover_image.label }}</label>
+                    {{ form.cover_image }}
+                    {% if form.cover_image.help_text %}
+                    <p class="mt-2 text-sm text-jam-muted-dark">{{ form.cover_image.help_text }}</p>
+                    {% endif %}
+                    {% if form.cover_image.errors %}
+                    <ul class="errorlist">
+                        {% for error in form.cover_image.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+
+                <div class="community-form__field{% if form.files.errors %} community-form__field--error{% endif %}">
+                    <label for="{{ form.files.id_for_label }}">{{ form.files.label }}</label>
+                    {{ form.files }}
+                    {% if form.files.help_text %}
+                    <p class="mt-2 text-sm text-jam-muted-dark">{{ form.files.help_text }}</p>
+                    {% endif %}
+                    {% if form.files.errors %}
+                    <ul class="errorlist">
+                        {% for error in form.files.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+
+                {% if form.non_field_errors %}
+                <ul class="errorlist">
+                    {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
+                <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <button type="submit" class="community-submit-button">
+                        Submit for Approval
+                    </button>
+                    <a href="{% url 'community:list' %}" class="text-center text-sm font-medium text-jam-muted transition hover:text-jam-red">
+                        Back to Community
+                    </a>
+                </div>
+            </form>
+        </div>
+    </section>
+{% endblock %}

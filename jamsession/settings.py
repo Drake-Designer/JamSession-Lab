@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
     "pages",
     "gallery",
+    "community",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -75,6 +76,14 @@ def gallery_pending_admin_link(request):
     from django.urls import reverse
 
     return reverse("admin:gallery_galleryitem_changelist") + "?status__exact=pending"
+
+
+def community_pending_admin_link(request):
+    from django.urls import reverse
+
+    return (
+        reverse("admin:community_communitypost_changelist") + "?status__exact=pending"
+    )
 
 
 UNFOLD = {
@@ -111,6 +120,31 @@ UNFOLD = {
                         "title": _("Pending approval"),
                         "icon": "pending",
                         "link": gallery_pending_admin_link,
+                    },
+                ],
+            },
+            {
+                "title": _("Community"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("All posts"),
+                        "icon": "forum",
+                        "link": reverse_lazy(
+                            "admin:community_communitypost_changelist"
+                        ),
+                    },
+                    {
+                        "title": _("Pending approval"),
+                        "icon": "pending",
+                        "link": community_pending_admin_link,
+                    },
+                    {
+                        "title": _("All comments"),
+                        "icon": "chat",
+                        "link": reverse_lazy(
+                            "admin:community_communitycomment_changelist"
+                        ),
                     },
                 ],
             },

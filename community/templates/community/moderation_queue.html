@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Review Items{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
+    <link rel="stylesheet" href="{% static 'community/css/moderation.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+            <div class="mx-auto max-w-2xl text-center" data-aos="fade-up">
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">Review Items</h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    Community posts, comments, and gallery submissions awaiting approval, oldest first.
+                </p>
+            </div>
+
+            <section class="moderation-section mt-14" data-aos="fade-up" data-aos-delay="100">
+                <h2 class="moderation-section__title">Pending posts ({{ pending_posts|length }})</h2>
+
+                {% if pending_posts %}
+                <div class="moderation-list mt-6">
+                    {% for post in pending_posts %}
+                    <article class="moderation-item">
+                        <div class="moderation-item__meta">
+                            <span class="community-card__author">
+                                {% if post.author %}@{{ post.author.display_name|default:post.author.username }}{% else %}Deleted account{% endif %}
+                            </span>
+                            <span class="community-card__dot" aria-hidden="true">&middot;</span>
+                            <time datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|date:"j M Y, H:i" }}</time>
+                        </div>
+
+                        <h3 class="moderation-item__title">{{ post.title }}</h3>
+                        <p class="moderation-item__body">{{ post.body|linebreaksbr }}</p>
+
+                        {% if post.media.all %}
+                        <div class="moderation-media-list">
+                            {% for media in post.media.all %}
+                            {% include "community/_moderation_media_item.html" with media=media %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <div class="moderation-item__actions">
+                            <form method="post" action="{% url 'community:moderation_post_approve' post.slug %}">
+                                {% csrf_token %}
+                                <button type="submit" class="moderation-button moderation-button--approve">Approve</button>
+                            </form>
+
+                            <form method="post" action="{% url 'community:moderation_post_reject' post.slug %}" class="moderation-reject-form">
+                                {% csrf_token %}
+                                <label for="post-reject-reason-{{ post.pk }}" class="moderation-reject-form__label">Rejection reason (optional)</label>
+                                <input type="text" id="post-reject-reason-{{ post.pk }}" name="reason" class="moderation-reject-form__input" placeholder="Let the author know why...">
+                                <button type="submit" class="moderation-button moderation-button--reject">Reject</button>
+                            </form>
+
+                            <form
+                                method="post"
+                                action="{% url 'community:moderation_post_delete' post.slug %}"
+                                class="js-confirm-delete"
+                                data-confirm-message="Delete this pending post? This cannot be undone."
+                            >
+                                {% csrf_token %}
+                                <button type="submit" class="moderation-button moderation-button--delete">Delete</button>
+                            </form>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="community-empty community-empty--compact mt-6">No pending posts. All caught up!</p>
+                {% endif %}
+            </section>
+
+            <section class="moderation-section mt-16" data-aos="fade-up" data-aos-delay="150">
+                <h2 class="moderation-section__title">Pending comments ({{ pending_comments|length }})</h2>
+
+                {% if pending_comments %}
+                <div class="moderation-list mt-6">
+                    {% for comment in pending_comments %}
+                    <article class="moderation-item">
+                        <div class="moderation-item__meta">
+                            <span class="community-card__author">
+                                {% if comment.author %}@{{ comment.author.display_name|default:comment.author.username }}{% else %}Deleted account{% endif %}
+                            </span>
+                            <span class="community-card__dot" aria-hidden="true">&middot;</span>
+                            <time datetime="{{ comment.created_at|date:'c' }}">{{ comment.created_at|date:"j M Y, H:i" }}</time>
+                            <span class="community-card__dot" aria-hidden="true">&middot;</span>
+                            <span>on <a href="{% url 'community:post_detail' comment.post.slug %}" class="moderation-item__post-link">{{ comment.post.title }}</a></span>
+                        </div>
+
+                        <p class="moderation-item__body">{{ comment.body|linebreaksbr }}</p>
+
+                        {% if comment.media.all %}
+                        <div class="moderation-media-list">
+                            {% for media in comment.media.all %}
+                            {% include "community/_moderation_media_item.html" with media=media %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <div class="moderation-item__actions">
+                            <form method="post" action="{% url 'community:moderation_comment_approve' comment.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="moderation-button moderation-button--approve">Approve</button>
+                            </form>
+
+                            <form method="post" action="{% url 'community:moderation_comment_reject' comment.pk %}" class="moderation-reject-form">
+                                {% csrf_token %}
+                                <label for="comment-reject-reason-{{ comment.pk }}" class="moderation-reject-form__label">Rejection reason (optional)</label>
+                                <input type="text" id="comment-reject-reason-{{ comment.pk }}" name="reason" class="moderation-reject-form__input" placeholder="Let the author know why...">
+                                <button type="submit" class="moderation-button moderation-button--reject">Reject</button>
+                            </form>
+
+                            <form
+                                method="post"
+                                action="{% url 'community:moderation_comment_delete' comment.pk %}"
+                                class="js-confirm-delete"
+                                data-confirm-message="Delete this pending comment? This cannot be undone."
+                            >
+                                {% csrf_token %}
+                                <button type="submit" class="moderation-button moderation-button--delete">Delete</button>
+                            </form>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="community-empty community-empty--compact mt-6">No pending comments. All caught up!</p>
+                {% endif %}
+            </section>
+
+            <section class="moderation-section mt-16" data-aos="fade-up" data-aos-delay="200">
+                <h2 class="moderation-section__title">Gallery submissions ({{ pending_gallery_items|length }})</h2>
+
+                {% if pending_gallery_items %}
+                <div class="moderation-list mt-6">
+                    {% for item in pending_gallery_items %}
+                    <article class="moderation-item">
+                        <div class="moderation-item__meta">
+                            <span class="community-card__author">
+                                {% if item.uploaded_by %}@{{ item.uploaded_by.display_name|default:item.uploaded_by.username }}{% else %}Deleted account{% endif %}
+                            </span>
+                            <span class="community-card__dot" aria-hidden="true">&middot;</span>
+                            <time datetime="{{ item.created_at|date:'c' }}">{{ item.created_at|date:"j M Y, H:i" }}</time>
+                        </div>
+
+                        {% if item.title %}
+                        <h3 class="moderation-item__title">{{ item.title }}</h3>
+                        {% endif %}
+                        {% if item.caption %}
+                        <p class="moderation-item__body">{{ item.caption|linebreaksbr }}</p>
+                        {% endif %}
+
+                        <div class="moderation-media-list">
+                            <div class="moderation-media-item">
+                                {% if item.is_video %}
+                                <video src="{{ item.display_media_url }}" controls playsinline preload="metadata" class="moderation-media-item__video"></video>
+                                {% else %}
+                                <img src="{{ item.display_media_url }}" alt="" loading="lazy" class="moderation-media-item__image">
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="moderation-item__actions">
+                            <form method="post" action="{% url 'community:moderation_gallery_approve' item.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="moderation-button moderation-button--approve">Approve</button>
+                            </form>
+
+                            <form method="post" action="{% url 'community:moderation_gallery_reject' item.pk %}" class="moderation-reject-form">
+                                {% csrf_token %}
+                                <label for="gallery-reject-reason-{{ item.pk }}" class="moderation-reject-form__label">Rejection reason (optional)</label>
+                                <input type="text" id="gallery-reject-reason-{{ item.pk }}" name="reason" class="moderation-reject-form__input" placeholder="Let the author know why...">
+                                <button type="submit" class="moderation-button moderation-button--reject">Reject</button>
+                            </form>
+
+                            <form
+                                method="post"
+                                action="{% url 'community:moderation_gallery_delete' item.pk %}"
+                                class="js-confirm-delete"
+                                data-confirm-message="Delete this pending gallery submission? This cannot be undone."
+                            >
+                                {% csrf_token %}
+                                <button type="submit" class="moderation-button moderation-button--delete">Delete</button>
+                            </form>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="community-empty community-empty--compact mt-6">No pending gallery submissions. All caught up!</p>
+                {% endif %}
+            </section>
+        </div>
+    </section>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'community/js/community.js' %}"></script>
+{% endblock %}

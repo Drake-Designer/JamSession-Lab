@@ -3,6 +3,13 @@
 
 {% block title %}JamSession Lab — {{ profile_user.display_name|default:profile_user.username }}{% endblock %}
 
+{% block extra_head %}
+    {% if is_owner or show_review_items %}
+    <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
+    <link rel="stylesheet" href="{% static 'accounts/css/profile.css' %}">
+    {% endif %}
+{% endblock %}
+
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
         <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
@@ -50,6 +57,27 @@
                         >
                             Edit Profile
                         </a>
+
+                        {% if show_review_items %}
+                        {% if pending_review_count > 0 %}
+                        <a
+                            href="{% url 'community:moderation_queue' %}"
+                            class="profile-review-items profile-review-items--active"
+                        >
+                            Review Items
+                            <span class="profile-review-items__badge">{{ pending_review_count }}</span>
+                        </a>
+                        {% else %}
+                        <span
+                            class="profile-review-items profile-review-items--disabled"
+                            title="Nothing to review"
+                            aria-disabled="true"
+                        >
+                            Review Items
+                            <span class="profile-review-items__badge profile-review-items__badge--muted">0</span>
+                        </span>
+                        {% endif %}
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -84,6 +112,66 @@
             </div>
             {% endif %}
 
+            {% if is_owner %}
+            <section class="profile-posts rounded-2xl border border-jam-grey-light bg-jam-grey p-7 sm:p-8" data-aos="fade-up" data-aos-delay="200">
+                <h2 class="profile-posts__title">My posts</h2>
+
+                {% if my_posts %}
+                <div class="profile-posts__list">
+                    {% for post in my_posts %}
+                    <article class="profile-posts__item">
+                        {% if post.status == "rejected" %}
+                        <div class="profile-posts__main profile-posts__main--static">
+                            <h3 class="profile-posts__post-title">{{ post.title }}</h3>
+                            <p class="profile-posts__excerpt">{{ post.body|truncatewords:30 }}</p>
+                            <div class="profile-posts__meta">
+                                <time datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|date:"j M Y" }}</time>
+                                <span class="community-status community-status--{{ post.status }}">{{ post.get_status_display }}</span>
+                            </div>
+                            <div class="profile-posts__rejection" role="status">
+                                <p class="profile-posts__rejection-label">Reason for rejection</p>
+                                <p class="profile-posts__rejection-text">
+                                    {% if post.rejection_reason %}{{ post.rejection_reason }}{% else %}No reason provided.{% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        {% else %}
+                        <a href="{% url 'community:post_detail' post.slug %}" class="profile-posts__main">
+                            <h3 class="profile-posts__post-title">{{ post.title }}</h3>
+                            <p class="profile-posts__excerpt">{{ post.body|truncatewords:30 }}</p>
+                            <div class="profile-posts__meta">
+                                <time datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|date:"j M Y" }}</time>
+                                <span class="community-status community-status--{{ post.status }}">{{ post.get_status_display }}</span>
+                            </div>
+                        </a>
+                        {% endif %}
+
+                        <div class="profile-posts__actions">
+                            <form
+                                method="post"
+                                action="{% url 'community:post_delete' post.slug %}"
+                                class="js-confirm-delete"
+                                data-confirm-message="Delete this post? This cannot be undone."
+                            >
+                                {% csrf_token %}
+                                <button type="submit" class="community-link-button community-link-button--danger">Delete</button>
+                            </form>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="profile-posts__empty">You have not written any community posts yet.</p>
+                {% endif %}
+            </section>
+            {% endif %}
+
         </div>
     </section>
+{% endblock %}
+
+{% block extra_scripts %}
+    {% if is_owner %}
+    <script src="{% static 'community/js/community.js' %}"></script>
+    {% endif %}
 {% endblock %}

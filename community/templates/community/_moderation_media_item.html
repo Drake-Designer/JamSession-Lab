@@ -1,0 +1,8 @@
+{# Single media attachment, shown full-width for moderation review. Expects: media. #}
+<div class="moderation-media-item">
+    {% if media.media_type == "video" %}
+    <video src="{{ media.display_url }}" controls playsinline preload="metadata" class="moderation-media-item__video"></video>
+    {% else %}
+    <img src="{{ media.display_url }}" alt="" loading="lazy" class="moderation-media-item__image">
+    {% endif %}
+</div>
