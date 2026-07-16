@@ -685,6 +685,81 @@ class ProfileEditTests(TestCase):
         self.assertContains(response, "f_auto")
         self.assertContains(response, "profile_pictures/IMG_4599")
 
+    def test_edit_form_shows_picture_preview_without_raw_cloudinary_link_text(self):
+        storage_path = "JamSession Lab/aoife_b/profile_pictures/IMG_4599"
+        self.user.profile_picture.name = storage_path
+        self.user.save(update_fields=["profile_picture"])
+
+        response = self.client.get(self.edit_url)
+        self.assertEqual(response.status_code, 200)
+
+        # Custom widget: circular preview image, not Django's "Currently: <a>url</a>".
+        self.assertContains(response, 'class="profile-picture-widget__preview"')
+        self.assertContains(response, "<img")
+        self.assertContains(response, "Change photo")
+        self.assertContains(response, "Remove")
+        self.assertNotContains(response, "Currently:")
+        # Storage path must not appear as visible link text (old ClearableFileInput).
+        self.assertNotContains(response, f">{storage_path}<")
+        self.assertNotContains(response, f'href="{self.user.profile_picture.url}"')
+
+    def test_edit_form_clear_checkbox_still_clears_profile_picture(self):
+        """
+        Remove via the custom widget clears the DB field AND deletes the
+        remote Cloudinary asset.
+
+        Path: ClearableFileInput clear checkbox → pre_save
+        cleanup_old_file_on_change → _delete_stored_file (not post_delete).
+        """
+        self.user.profile_picture.name = (
+            "JamSession Lab/aoife_b/profile_pictures/to_clear"
+        )
+        self.user.save(update_fields=["profile_picture"])
+
+        with patch("jamsession.cloudinary_cleanup._delete_stored_file") as mock_cleanup:
+            response = self.client.post(
+                self.edit_url,
+                data=self._edit_data(**{"profile_picture-clear": "on"}),
+            )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "accounts:profile_detail", kwargs={"username": self.user.username}
+            ),
+        )
+        self.user.refresh_from_db()
+        self.assertFalse(bool(self.user.profile_picture))
+        mock_cleanup.assert_called_once()
+        cleaned_value = mock_cleanup.call_args.args[0]
+        self.assertEqual(
+            cleaned_value.name,
+            "JamSession Lab/aoife_b/profile_pictures/to_clear",
+        )
+
+    def test_replacing_profile_picture_triggers_cloudinary_cleanup(self):
+        """
+        Change photo (replace without Remove) must delete the previous
+        Cloudinary asset via cleanup_old_file_on_change on pre_save.
+        """
+        self.user.profile_picture.name = (
+            "JamSession Lab/aoife_b/profile_pictures/old_pic"
+        )
+        self.user.save(update_fields=["profile_picture"])
+
+        with patch("jamsession.cloudinary_cleanup._delete_stored_file") as mock_cleanup:
+            self.user.profile_picture.name = (
+                "JamSession Lab/aoife_b/profile_pictures/new_pic"
+            )
+            self.user.save(update_fields=["profile_picture"])
+
+        mock_cleanup.assert_called_once()
+        cleaned_value = mock_cleanup.call_args.args[0]
+        self.assertEqual(
+            cleaned_value.name,
+            "JamSession Lab/aoife_b/profile_pictures/old_pic",
+        )
+
 
 class ProfilePictureHelpersTests(TestCase):
     def test_heic_upload_is_converted_to_jpeg(self):

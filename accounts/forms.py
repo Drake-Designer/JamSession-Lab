@@ -12,6 +12,7 @@ from jamsession.image_formats import convert_heic_upload_to_jpeg
 from .constants import County, Instrument, MusicGenre, TOWNS_BY_COUNTY
 from .models import User
 from .validators import validate_minimum_age, validate_profile_picture
+from .widgets import ProfilePictureInput
 
 # Shared Tailwind classes so every input matches the brand-dark style.
 TEXT_INPUT_CLASSES = (
@@ -302,8 +303,8 @@ class ProfileEditForm(forms.ModelForm):
             "town_city",
         )
         widgets = {
-            "profile_picture": forms.ClearableFileInput(
-                attrs={"class": TEXT_INPUT_CLASSES, "accept": "image/*,.heic,.heif"},
+            "profile_picture": ProfilePictureInput(
+                attrs={"accept": "image/*,.heic,.heif"},
             ),
             "display_name": forms.TextInput(attrs={"class": TEXT_INPUT_CLASSES}),
             "bio": forms.Textarea(attrs={"class": TEXT_INPUT_CLASSES, "rows": 5}),

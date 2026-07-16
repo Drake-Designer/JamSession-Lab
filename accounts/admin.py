@@ -8,6 +8,7 @@ from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationFo
 
 from .constants import Instrument, MusicGenre
 from .models import User
+from .widgets import ProfilePictureInput
 
 
 class AdminUserChangeForm(UserChangeForm):
@@ -25,6 +26,13 @@ class AdminUserChangeForm(UserChangeForm):
         required=False,
         widget=forms.CheckboxSelectMultiple,
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "profile_picture" in self.fields:
+            self.fields["profile_picture"].widget = ProfilePictureInput(
+                attrs={"accept": "image/*,.heic,.heif"},
+            )
 
 
 @admin.register(User)
@@ -126,6 +134,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
     ordering = ("username",)
 
     class Media:
+        css = {"all": ("accounts/css/profile_picture_widget.css",)}
         js = ("accounts/js/instrument_toggle.js",)
 
     @staticmethod

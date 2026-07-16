@@ -1,0 +1,45 @@
+{# Custom clearable image input — preview + Change/Remove, never a raw URL link. #}
+<div class="profile-picture-widget">
+    {% if widget.is_initial and widget.preview_url %}
+    <div class="profile-picture-widget__current">
+        <img
+            src="{{ widget.preview_url }}"
+            alt="{% if widget.attrs.alt %}{{ widget.attrs.alt }}{% else %}Current profile photo{% endif %}"
+            class="profile-picture-widget__preview"
+            width="96"
+            height="96"
+        >
+        {% if not widget.required %}
+        <label class="profile-picture-widget__remove" for="{{ widget.checkbox_id }}">
+            <input
+                type="checkbox"
+                name="{{ widget.checkbox_name }}"
+                id="{{ widget.checkbox_id }}"
+                class="profile-picture-widget__clear-checkbox"
+                {% if widget.attrs.disabled %}disabled{% endif %}
+                {% if widget.attrs.checked %}checked{% endif %}
+            >
+            <span class="profile-picture-widget__remove-label">{{ widget.clear_checkbox_label }}</span>
+        </label>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="profile-picture-widget__upload">
+        <label class="profile-picture-widget__change" for="{{ widget.attrs.id }}">
+            {% if widget.is_initial %}{{ widget.input_text }}{% else %}Choose photo{% endif %}
+        </label>
+        <input
+            type="{{ widget.type }}"
+            name="{{ widget.name }}"
+            class="profile-picture-widget__file-input{% if widget.attrs.class %} {{ widget.attrs.class }}{% endif %}"
+            {% for name, value in widget.attrs.items %}
+                {% if name != "class" and name != "checked" %}
+                    {% if value is not False %}
+                        {{ name }}{% if value is not True %}="{{ value }}"{% endif %}
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        >
+    </div>
+</div>
