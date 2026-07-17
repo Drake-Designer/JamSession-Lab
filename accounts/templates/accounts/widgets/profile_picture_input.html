@@ -1,45 +1,64 @@
-{# Custom clearable image input — preview + Change/Remove, never a raw URL link. #}
-<div class="profile-picture-widget">
+{# Custom clearable image input — centred preview + equal Change/Remove buttons. #}
+<div
+    class="profile-picture-widget"
+    {% if widget.immediate_upload_url %}
+    data-immediate-upload-url="{{ widget.immediate_upload_url }}"
+    {% endif %}
+    {% if widget.immediate_remove_url %}
+    data-immediate-remove-url="{{ widget.immediate_remove_url }}"
+    {% endif %}
+>
     {% if widget.is_initial and widget.preview_url %}
-    <div class="profile-picture-widget__current">
-        <img
-            src="{{ widget.preview_url }}"
-            alt="{% if widget.attrs.alt %}{{ widget.attrs.alt }}{% else %}Current profile photo{% endif %}"
-            class="profile-picture-widget__preview"
-            width="96"
-            height="96"
-        >
-        {% if not widget.required %}
-        <label class="profile-picture-widget__remove" for="{{ widget.checkbox_id }}">
-            <input
-                type="checkbox"
-                name="{{ widget.checkbox_name }}"
-                id="{{ widget.checkbox_id }}"
-                class="profile-picture-widget__clear-checkbox"
-                {% if widget.attrs.disabled %}disabled{% endif %}
-                {% if widget.attrs.checked %}checked{% endif %}
-            >
-            <span class="profile-picture-widget__remove-label">{{ widget.clear_checkbox_label }}</span>
-        </label>
-        {% endif %}
-    </div>
+    <img
+        src="{{ widget.preview_url }}"
+        alt="{% if widget.attrs.alt %}{{ widget.attrs.alt }}{% else %}Current profile photo{% endif %}"
+        class="profile-picture-widget__preview"
+        width="96"
+        height="96"
+        data-profile-picture-preview
+    >
     {% endif %}
 
-    <div class="profile-picture-widget__upload">
+    <div class="profile-picture-widget__actions">
         <label class="profile-picture-widget__change" for="{{ widget.attrs.id }}">
             {% if widget.is_initial %}{{ widget.input_text }}{% else %}Choose photo{% endif %}
         </label>
-        <input
-            type="{{ widget.type }}"
-            name="{{ widget.name }}"
-            class="profile-picture-widget__file-input{% if widget.attrs.class %} {{ widget.attrs.class }}{% endif %}"
-            {% for name, value in widget.attrs.items %}
-                {% if name != "class" and name != "checked" %}
-                    {% if value is not False %}
-                        {{ name }}{% if value is not True %}="{{ value }}"{% endif %}
-                    {% endif %}
-                {% endif %}
-            {% endfor %}
-        >
+        {% if widget.is_initial and not widget.required %}
+            {% if widget.immediate_remove_url %}
+            <button
+                type="button"
+                class="profile-picture-widget__remove-btn"
+                data-profile-picture-remove
+            >
+                {{ widget.clear_checkbox_label }}
+            </button>
+            {% else %}
+            <label class="profile-picture-widget__remove" for="{{ widget.checkbox_id }}">
+                <input
+                    type="checkbox"
+                    name="{{ widget.checkbox_name }}"
+                    id="{{ widget.checkbox_id }}"
+                    class="profile-picture-widget__clear-checkbox"
+                    {% if widget.attrs.disabled %}disabled{% endif %}
+                    {% if widget.attrs.checked %}checked{% endif %}
+                >
+                <span class="profile-picture-widget__remove-label">{{ widget.clear_checkbox_label }}</span>
+            </label>
+            {% endif %}
+        {% endif %}
     </div>
+
+    <input
+        type="{{ widget.type }}"
+        name="{{ widget.name }}"
+        class="profile-picture-widget__file-input{% if widget.attrs.class %} {{ widget.attrs.class }}{% endif %}"
+        data-profile-picture-input
+        {% for name, value in widget.attrs.items %}
+            {% if name != "class" and name != "checked" %}
+                {% if value is not False %}
+                    {{ name }}{% if value is not True %}="{{ value }}"{% endif %}
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+    >
 </div>

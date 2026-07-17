@@ -1,20 +1,42 @@
+import math
 import uuid
 
 from cloudinary_storage.storage import MediaCloudinaryStorage
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from jamsession.cloudinary_delivery import web_image_url
 
 from .constants import (
+    OTHER_GENRE_MAX_LENGTH,
     OTHER_INSTRUMENT_MAX_LENGTH,
     County,
+    ExperienceLevel,
     Instrument,
+    MusicGenre,
 )
 from .upload_paths import profile_picture_upload_path
 from .validators import calculate_age, phone_number_validator, validate_profile_picture
+
+
+# Fields that count toward profile completion (equal weight). Labels match
+# ProfileEditForm / edit template wording for highlight UI consistency.
+PROFILE_COMPLETION_FIELDS = (
+    ("profile_picture", _("Profile picture")),
+    ("display_name", _("Display Name")),
+    ("phone_number", _("Phone number")),
+    ("county", _("County")),
+    ("town_city", _("Town / City")),
+    ("instruments", _("Instruments played")),
+    ("preferred_genres", _("Preferred music genres")),
+    ("years_of_experience", _("Years of experience")),
+    ("experience_level", _("Experience level")),
+    ("bio", _("Bio")),
+    ("social_links", _("Social / music links")),
+)
 
 
 class User(AbstractUser):
@@ -38,7 +60,7 @@ class User(AbstractUser):
 
     phone_number = models.CharField(
         _("phone number"),
-        max_length=20,
+        max_length=15,
         blank=True,
         validators=[phone_number_validator],
         help_text=_(
@@ -92,6 +114,27 @@ class User(AbstractUser):
         default=list,
         blank=True,
     )
+    other_genre = models.CharField(
+        _("other genre"),
+        max_length=OTHER_GENRE_MAX_LENGTH,
+        blank=True,
+        help_text=_("Specify your genre if you selected 'Other'."),
+    )
+
+    years_of_experience = models.PositiveSmallIntegerField(
+        _("years of experience"),
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(0), MaxValueValidator(80)],
+        help_text=_("How many years you have been playing (0–80)."),
+    )
+    experience_level = models.CharField(
+        _("experience level"),
+        max_length=20,
+        choices=ExperienceLevel.choices,
+        blank=True,
+    )
+
     bio = models.TextField(_("bio"), blank=True)
 
     # Email verification is prepared but not enforced yet. Once a real SMTP
@@ -122,12 +165,93 @@ class User(AbstractUser):
             crop="fill",
         )
 
+    def _profile_field_is_complete(self, field_key):
+        """Return True when a completion-tracked field has a usable value."""
+        if field_key == "profile_picture":
+            return bool(self.profile_picture)
+        if field_key == "display_name":
+            return bool((self.display_name or "").strip())
+        if field_key == "phone_number":
+            return bool((self.phone_number or "").strip())
+        if field_key == "county":
+            return bool(self.county)
+        if field_key == "town_city":
+            return bool((self.town_city or "").strip())
+        if field_key == "instruments":
+            return bool(self.instruments)
+        if field_key == "preferred_genres":
+            return bool(self.preferred_genres)
+        if field_key == "years_of_experience":
+            # 0 years is a valid answer — only null counts as missing.
+            return self.years_of_experience is not None
+        if field_key == "experience_level":
+            return bool(self.experience_level)
+        if field_key == "bio":
+            return bool((self.bio or "").strip())
+        if field_key == "social_links":
+            # Prefer the prefetched cache when profile_detail loaded it.
+            return any(True for _ in self.social_links.all())
+        return False
+
+    @property
+    def profile_completion_percentage(self):
+        """
+        Share of profile fields that are filled, rounded to the nearest int.
+
+        Every field in PROFILE_COMPLETION_FIELDS has equal weight.
+        """
+        total = len(PROFILE_COMPLETION_FIELDS)
+        if total == 0:
+            return 100
+        filled = sum(
+            1
+            for field_key, _label in PROFILE_COMPLETION_FIELDS
+            if self._profile_field_is_complete(field_key)
+        )
+        return round((filled / total) * 100)
+
+    @property
+    def profile_completion_dashoffset(self):
+        """
+        SVG stroke-dashoffset for the 60px progress ring (radius 26).
+
+        Full circle = 0 offset; empty = full circumference.
+        """
+        circumference = 2 * math.pi * 26
+        return round(
+            circumference * (1 - self.profile_completion_percentage / 100),
+            4,
+        )
+
+    @property
+    def missing_field_keys(self):
+        """Machine names of incomplete profile fields (for form highlighting)."""
+        return [
+            field_key
+            for field_key, _label in PROFILE_COMPLETION_FIELDS
+            if not self._profile_field_is_complete(field_key)
+        ]
+
+    @property
+    def missing_fields(self):
+        """Human-readable labels of incomplete profile fields."""
+        return [
+            str(label)
+            for field_key, label in PROFILE_COMPLETION_FIELDS
+            if not self._profile_field_is_complete(field_key)
+        ]
+
     def clean(self):
         super().clean()
 
         if Instrument.OTHER in (self.instruments or []) and not self.other_instrument:
             raise ValidationError(
                 {"other_instrument": _("Please specify your instrument.")}
+            )
+
+        if MusicGenre.OTHER in (self.preferred_genres or []) and not self.other_genre:
+            raise ValidationError(
+                {"other_genre": _("Please specify your genre.")}
             )
 
         if self.county and self.town_city:
@@ -150,7 +274,21 @@ class User(AbstractUser):
             if code == Instrument.OTHER and self.other_instrument:
                 labels.append(self.other_instrument)
             else:
-                labels.append(Instrument(code).label if code in Instrument.values else code)
+                labels.append(
+                    Instrument(code).label if code in Instrument.values else code
+                )
+        return ", ".join(str(label) for label in labels)
+
+    def get_genres_display(self):
+        """Human-readable list of preferred genres, with 'Other' spelled out."""
+        labels = []
+        for code in self.preferred_genres or []:
+            if code == MusicGenre.OTHER and self.other_genre:
+                labels.append(self.other_genre)
+            else:
+                labels.append(
+                    MusicGenre(code).label if code in MusicGenre.values else code
+                )
         return ", ".join(str(label) for label in labels)
 
     def regenerate_email_verification_token(self):
@@ -160,3 +298,35 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.display_name or self.username
+
+
+class SocialLink(models.Model):
+    """
+    One social / music profile URL belonging to a user.
+
+    Multiple rows per user are allowed (Instagram + Spotify + …). Display
+    order on the public profile follows the ``order`` field.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="social_links",
+        verbose_name=_("user"),
+    )
+    url = models.URLField(_("URL"), max_length=200)
+    order = models.PositiveSmallIntegerField(_("order"), default=0, db_index=True)
+
+    class Meta:
+        ordering = ["order", "pk"]
+        verbose_name = _("social / music link")
+        verbose_name_plural = _("social / music links")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "url"],
+                name="accounts_sociallink_user_url_uniq",
+            ),
+        ]
+
+    def __str__(self):
+        return self.url

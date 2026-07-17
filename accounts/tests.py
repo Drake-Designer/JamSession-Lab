@@ -2,7 +2,7 @@ from datetime import date
 from unittest.mock import patch
 
 from django.core import mail
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -16,8 +16,59 @@ from gallery.models import GalleryItem, MediaType
 from jamsession.moderation import ApprovalStatus
 
 from .forms import RegistrationForm
-from .models import User
+from .models import SocialLink, User
+from .social_platforms import detect_social_platform
 from .validators import UNDERAGE_ERROR_MESSAGE
+
+
+def social_links_formset_data(urls=None, existing_ids=None):
+    """
+    Build POST keys for the SocialLink inline formset (prefix social_links).
+
+    ``urls`` is a list of URL strings for the submitted rows.
+    ``existing_ids`` maps row index → SocialLink pk for INITIAL_FORMS rows.
+    """
+    urls = list(urls or [])
+    existing_ids = existing_ids or {}
+    initial = len(existing_ids)
+    # Always keep at least one row (matching extra=1 on an empty set).
+    if not urls:
+        urls = [""]
+    total = len(urls)
+    data = {
+        "social_links-TOTAL_FORMS": str(total),
+        "social_links-INITIAL_FORMS": str(initial),
+        "social_links-MIN_NUM_FORMS": "0",
+        "social_links-MAX_NUM_FORMS": "5",
+    }
+    for index, url in enumerate(urls):
+        data[f"social_links-{index}-url"] = url
+        data[f"social_links-{index}-id"] = str(existing_ids.get(index, ""))
+        data[f"social_links-{index}-DELETE"] = ""
+    return data
+
+
+class SocialPlatformDetectionTests(SimpleTestCase):
+    def test_detects_known_hosts(self):
+        cases = (
+            ("https://open.spotify.com/artist/abc", "spotify", "Spotify"),
+            ("https://www.instagram.com/jamlab/", "instagram", "Instagram"),
+            ("https://youtu.be/abc123", "youtube", "YouTube"),
+            ("https://music.youtube.com/channel/x", "youtube", "YouTube"),
+            ("https://www.facebook.com/page", "facebook", "Facebook"),
+            ("https://soundcloud.com/artist/track", "soundcloud", "SoundCloud"),
+            ("https://www.tiktok.com/@user", "tiktok", "TikTok"),
+            ("https://myband.ie/about", "website", "Website"),
+        )
+        for url, key, label in cases:
+            platform = detect_social_platform(url)
+            self.assertIsNotNone(platform)
+            self.assertEqual(platform.key, key, msg=url)
+            self.assertEqual(str(platform.label), label, msg=url)
+
+    def test_empty_url_returns_none(self):
+        self.assertIsNone(detect_social_platform(""))
+        self.assertIsNone(detect_social_platform(None))
 
 
 def valid_registration_data(**overrides):
@@ -27,7 +78,7 @@ def valid_registration_data(**overrides):
         "last_name": "Byrne",
         "display_name": "Aoife B",
         "email": "aoife@example.com",
-        "phone_number": "+353 87 123 4567",
+        "phone_number": "+353871234567",
         "password1": "brave-purple-drums!",
         "password2": "brave-purple-drums!",
         "date_of_birth": "1990-05-10",
@@ -321,13 +372,13 @@ class ProfilePageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Aoife B")
         self.assertContains(response, "Swords")
-        self.assertNotContains(response, "+353 87 123 4567")
+        self.assertNotContains(response, "+353871234567")
         self.assertNotContains(response, "Edit Profile")
 
     def test_phone_is_never_shown_even_to_owner(self):
         self.client.force_login(self.user)
         response = self.client.get(self.profile_url)
-        self.assertNotContains(response, "+353 87 123 4567")
+        self.assertNotContains(response, "+353871234567")
 
     def test_owner_sees_edit_button(self):
         self.client.force_login(self.user)
@@ -349,6 +400,95 @@ class ProfilePageTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(reverse("accounts:profile"))
         self.assertRedirects(response, self.profile_url)
+
+    def test_public_profile_renders_clickable_social_link(self):
+        SocialLink.objects.create(
+            user=self.user,
+            url="https://open.spotify.com/artist/example",
+            order=0,
+        )
+        self.user.other_instrument = "Theremin"
+        self.user.instruments = ["other", "vocals"]
+        self.user.preferred_genres = ["rock", "other"]
+        self.user.other_genre = "Celtic Fusion"
+        self.user.years_of_experience = 8
+        self.user.experience_level = "advanced"
+        self.user.save()
+
+        response = self.client.get(self.profile_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Spotify")
+        self.assertContains(response, "profile-social__link--spotify")
+        self.assertContains(
+            response,
+            'href="https://open.spotify.com/artist/example"',
+        )
+        self.assertContains(response, 'target="_blank"')
+        self.assertContains(response, 'rel="noopener noreferrer"')
+        self.assertNotContains(
+            response, ">https://open.spotify.com/artist/example<"
+        )
+        self.assertNotContains(response, "View link")
+        self.assertContains(response, "Theremin")
+        self.assertContains(response, "Celtic Fusion")
+        self.assertContains(response, "Years of experience")
+        self.assertContains(response, "8")
+        self.assertContains(response, "Advanced")
+        self.assertEqual(len(response.context["social_links"]), 1)
+        self.assertEqual(
+            response.context["social_links"][0]["platform"].key, "spotify"
+        )
+
+    def test_public_profile_shows_multiple_social_chips(self):
+        SocialLink.objects.create(
+            user=self.user,
+            url="https://www.instagram.com/rockgirl/",
+            order=0,
+        )
+        SocialLink.objects.create(
+            user=self.user,
+            url="https://open.spotify.com/artist/example",
+            order=1,
+        )
+        response = self.client.get(self.profile_url)
+        self.assertContains(response, "Instagram")
+        self.assertContains(response, "Spotify")
+        self.assertContains(response, "profile-social__link--instagram")
+        self.assertContains(response, "profile-social__link--spotify")
+        self.assertEqual(len(response.context["social_links"]), 2)
+
+    def test_public_profile_detects_youtube_and_generic_website(self):
+        SocialLink.objects.create(
+            user=self.user,
+            url="https://youtu.be/dQw4w9WgXcQ",
+            order=0,
+        )
+        response = self.client.get(self.profile_url)
+        self.assertContains(response, "YouTube")
+        self.assertContains(response, "profile-social__link--youtube")
+
+        SocialLink.objects.all().delete()
+        SocialLink.objects.create(
+            user=self.user,
+            url="https://example.com/my-band",
+            order=0,
+        )
+        response = self.client.get(self.profile_url)
+        self.assertContains(response, "Website")
+        self.assertContains(response, "profile-social__link--website")
+
+    def test_public_profile_shows_other_badges_without_raw_other_code(self):
+        self.user.instruments = ["other"]
+        self.user.other_instrument = "Handpan"
+        self.user.preferred_genres = ["other"]
+        self.user.other_genre = "Afrobeat"
+        self.user.save()
+
+        response = self.client.get(self.profile_url)
+        self.assertContains(response, "Handpan")
+        self.assertContains(response, "Afrobeat")
+        self.assertEqual(response.context["instrument_labels"], ["Handpan"])
+        self.assertEqual(response.context["genre_labels"], ["Afrobeat"])
 
 
 class ProfileMyPostsTests(TestCase):
@@ -606,13 +746,18 @@ class ProfileEditTests(TestCase):
     def _edit_data(self, **overrides):
         data = {
             "display_name": "Aoife B",
-            "phone_number": "+353 87 123 4567",
+            "phone_number": "+353871234567",
             "county": "dublin",
             "town_city": "Swords",
             "instruments": ["electric_guitar", "vocals"],
             "other_instrument": "",
+            "preferred_genres": [],
+            "other_genre": "",
+            "years_of_experience": "",
+            "experience_level": "",
             "bio": "",
         }
+        data.update(social_links_formset_data())
         data.update(overrides)
         return data
 
@@ -685,7 +830,7 @@ class ProfileEditTests(TestCase):
         self.assertContains(response, "f_auto")
         self.assertContains(response, "profile_pictures/IMG_4599")
 
-    def test_edit_form_shows_picture_preview_without_raw_cloudinary_link_text(self):
+    def test_edit_form_shows_immediate_picture_remove_control(self):
         storage_path = "JamSession Lab/aoife_b/profile_pictures/IMG_4599"
         self.user.profile_picture.name = storage_path
         self.user.save(update_fields=["profile_picture"])
@@ -697,19 +842,18 @@ class ProfileEditTests(TestCase):
         self.assertContains(response, 'class="profile-picture-widget__preview"')
         self.assertContains(response, "<img")
         self.assertContains(response, "Change photo")
-        self.assertContains(response, "Remove")
+        self.assertContains(response, "data-profile-picture-remove")
+        self.assertContains(response, "data-immediate-remove-url")
+        self.assertContains(response, "data-immediate-upload-url")
         self.assertNotContains(response, "Currently:")
         # Storage path must not appear as visible link text (old ClearableFileInput).
         self.assertNotContains(response, f">{storage_path}<")
         self.assertNotContains(response, f'href="{self.user.profile_picture.url}"')
 
-    def test_edit_form_clear_checkbox_still_clears_profile_picture(self):
+    def test_profile_picture_remove_endpoint_clears_immediately(self):
         """
-        Remove via the custom widget clears the DB field AND deletes the
-        remote Cloudinary asset.
-
-        Path: ClearableFileInput clear checkbox → pre_save
-        cleanup_old_file_on_change → _delete_stored_file (not post_delete).
+        Remove photo via AJAX clears the DB field AND deletes the remote
+        Cloudinary asset without submitting the full edit form.
         """
         self.user.profile_picture.name = (
             "JamSession Lab/aoife_b/profile_pictures/to_clear"
@@ -718,16 +862,11 @@ class ProfileEditTests(TestCase):
 
         with patch("jamsession.cloudinary_cleanup._delete_stored_file") as mock_cleanup:
             response = self.client.post(
-                self.edit_url,
-                data=self._edit_data(**{"profile_picture-clear": "on"}),
+                reverse("accounts:profile_picture_remove")
             )
 
-        self.assertRedirects(
-            response,
-            reverse(
-                "accounts:profile_detail", kwargs={"username": self.user.username}
-            ),
-        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
         self.user.refresh_from_db()
         self.assertFalse(bool(self.user.profile_picture))
         mock_cleanup.assert_called_once()
@@ -736,6 +875,81 @@ class ProfileEditTests(TestCase):
             cleaned_value.name,
             "JamSession Lab/aoife_b/profile_pictures/to_clear",
         )
+
+    def test_profile_picture_upload_endpoint_saves_immediately(self):
+        from io import BytesIO
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        buffer = BytesIO()
+        Image.new("RGB", (40, 40), color=(20, 20, 20)).save(buffer, format="JPEG")
+        upload = SimpleUploadedFile(
+            "avatar.jpg",
+            buffer.getvalue(),
+            content_type="image/jpeg",
+        )
+
+        response = self.client.post(
+            reverse("accounts:profile_picture_upload"),
+            data={"profile_picture": upload},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
+        self.user.refresh_from_db()
+        self.assertTrue(bool(self.user.profile_picture))
+
+    def test_profile_picture_upload_endpoint_rejects_missing_file(self):
+        response = self.client.post(reverse("accounts:profile_picture_upload"))
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()["ok"])
+
+    def test_social_link_delete_endpoint_removes_immediately(self):
+        keep = SocialLink.objects.create(
+            user=self.user,
+            url="https://open.spotify.com/artist/keep",
+            order=0,
+        )
+        drop = SocialLink.objects.create(
+            user=self.user,
+            url="https://www.instagram.com/drop/",
+            order=1,
+        )
+
+        response = self.client.post(
+            reverse("accounts:social_link_delete", kwargs={"pk": drop.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
+        self.assertFalse(SocialLink.objects.filter(pk=drop.pk).exists())
+        keep.refresh_from_db()
+        self.assertEqual(keep.order, 0)
+        self.assertEqual(self.user.social_links.count(), 1)
+
+    def test_social_link_delete_rejects_other_users_links(self):
+        other = User.objects.create_user(
+            username="other_link_owner",
+            email="otherlink@example.com",
+            password="brave-purple-drums!",
+            display_name="Other Link",
+        )
+        link = SocialLink.objects.create(
+            user=other,
+            url="https://www.instagram.com/other/",
+            order=0,
+        )
+        response = self.client.post(
+            reverse("accounts:social_link_delete", kwargs={"pk": link.pk})
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(SocialLink.objects.filter(pk=link.pk).exists())
+
+    def test_edit_form_hides_remove_on_empty_social_link_row(self):
+        response = self.client.get(self.edit_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "social-links-row__delete-wrap is-hidden")
+        self.assertContains(response, "Add another link")
+        self.assertContains(response, "social-links-forms")
 
     def test_replacing_profile_picture_triggers_cloudinary_cleanup(self):
         """
@@ -759,6 +973,377 @@ class ProfileEditTests(TestCase):
             cleaned_value.name,
             "JamSession Lab/aoife_b/profile_pictures/old_pic",
         )
+
+    def test_required_fields_reject_empty_submit(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(
+                display_name="",
+                phone_number="",
+                county="",
+                town_city="",
+                instruments=[],
+            ),
+        )
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        for field_name in (
+            "display_name",
+            "phone_number",
+            "county",
+            "town_city",
+            "instruments",
+        ):
+            self.assertIn(field_name, form.errors)
+
+    def test_other_instrument_requires_free_text(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(
+                instruments=["other"],
+                other_instrument="",
+            ),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Please specify your instrument.")
+
+    def test_other_instrument_saves_free_text(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(
+                instruments=["other"],
+                other_instrument="Theremin",
+            ),
+        )
+        self.assertRedirects(
+            response,
+            reverse(
+                "accounts:profile_detail", kwargs={"username": self.user.username}
+            ),
+        )
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.instruments, ["other"])
+        self.assertEqual(self.user.other_instrument, "Theremin")
+
+    def test_other_genre_requires_free_text(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(
+                preferred_genres=["other"],
+                other_genre="",
+            ),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Please specify your genre.")
+
+    def test_other_genre_saves_free_text(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(
+                preferred_genres=["rock", "other"],
+                other_genre="Celtic Fusion",
+            ),
+        )
+        self.assertRedirects(
+            response,
+            reverse(
+                "accounts:profile_detail", kwargs={"username": self.user.username}
+            ),
+        )
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.preferred_genres, ["rock", "other"])
+        self.assertEqual(self.user.other_genre, "Celtic Fusion")
+
+    def test_removed_genres_are_not_valid_choices(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(preferred_genres=["irish_traditional", "ska"]),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("preferred_genres", response.context["form"].errors)
+
+    def test_social_link_rejects_url_without_scheme(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(**social_links_formset_data(["www.spotify.com/artist/x"])),
+        )
+        self.assertEqual(response.status_code, 200)
+        formset = response.context["social_link_formset"]
+        self.assertTrue(formset.errors)
+        self.assertContains(
+            response, "Enter a full URL starting with http:// or https://"
+        )
+
+    def test_social_link_rejects_non_http_schemes(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(
+                **social_links_formset_data(["ftp://files.example.com/track"])
+            ),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, "Enter a full URL starting with http:// or https://"
+        )
+
+    def test_social_link_accepts_https(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(
+                years_of_experience="5",
+                experience_level="intermediate",
+                **social_links_formset_data(
+                    ["https://open.spotify.com/artist/example"]
+                ),
+            ),
+        )
+        self.assertRedirects(
+            response,
+            reverse(
+                "accounts:profile_detail", kwargs={"username": self.user.username}
+            ),
+        )
+        self.user.refresh_from_db()
+        links = list(self.user.social_links.order_by("order"))
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0].url, "https://open.spotify.com/artist/example")
+        self.assertEqual(self.user.years_of_experience, 5)
+        self.assertEqual(self.user.experience_level, "intermediate")
+
+    def test_can_save_multiple_social_links(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(
+                **social_links_formset_data(
+                    [
+                        "https://www.instagram.com/aoife/",
+                        "https://open.spotify.com/artist/aoife",
+                        "https://youtube.com/@aoife",
+                    ]
+                )
+            ),
+        )
+        self.assertRedirects(
+            response,
+            reverse(
+                "accounts:profile_detail", kwargs={"username": self.user.username}
+            ),
+        )
+        urls = list(
+            self.user.social_links.order_by("order").values_list("url", flat=True)
+        )
+        self.assertEqual(
+            urls,
+            [
+                "https://www.instagram.com/aoife/",
+                "https://open.spotify.com/artist/aoife",
+                "https://youtube.com/@aoife",
+            ],
+        )
+
+    def test_duplicate_social_links_rejected(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(
+                **social_links_formset_data(
+                    [
+                        "https://www.instagram.com/aoife/",
+                        "https://www.instagram.com/aoife/",
+                    ]
+                )
+            ),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "You have already added this link.")
+        self.assertEqual(self.user.social_links.count(), 0)
+
+    def test_edit_form_maxlength_on_display_name_and_phone(self):
+        response = self.client.get(self.edit_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="id_display_name"')
+        self.assertContains(response, 'maxlength="20"')
+        self.assertContains(response, 'id="id_phone_number"')
+        self.assertContains(response, 'maxlength="15"')
+        self.assertContains(response, "Display Name")
+        self.assertContains(response, "jam-input--display-name")
+        self.assertContains(response, "jam-input--phone-number")
+        self.assertContains(response, "Add another link")
+        self.assertContains(response, "social-links-forms")
+
+
+class ProfileCompletionTests(TestCase):
+    """Profile completion percentage, ring UI, and edit-form highlighting."""
+
+    TOTAL_FIELDS = 11
+
+    def setUp(self):
+        self.client.post(reverse("accounts:register"), data=valid_registration_data())
+        self.user = User.objects.get(email="aoife@example.com")
+        self.profile_url = reverse(
+            "accounts:profile_detail", kwargs={"username": self.user.username}
+        )
+        self.edit_url = reverse("accounts:profile_edit")
+
+    def _empty_user(self):
+        """User with every completion-tracked field blank (0%)."""
+        return User.objects.create_user(
+            username="empty_profile",
+            email="empty@example.com",
+            password="test-pass-12345!",
+            first_name="Empty",
+            last_name="Profile",
+            display_name="",
+            phone_number="",
+            county="",
+            town_city="",
+            instruments=[],
+            preferred_genres=[],
+            years_of_experience=None,
+            experience_level="",
+            bio="",
+        )
+
+    def _complete_profile(self, user):
+        """Fill every completion-tracked field (100%)."""
+        user.profile_picture.name = (
+            "JamSession Lab/aoife_b/profile_pictures/complete_pic"
+        )
+        user.display_name = user.display_name or "Complete User"
+        user.phone_number = user.phone_number or "+353871234567"
+        user.county = user.county or "dublin"
+        user.town_city = user.town_city or "Swords"
+        user.instruments = user.instruments or ["vocals"]
+        user.preferred_genres = ["rock"]
+        user.years_of_experience = 5
+        user.experience_level = "intermediate"
+        user.bio = "Guitarist from Dublin."
+        user.save()
+        if not user.social_links.exists():
+            SocialLink.objects.create(
+                user=user,
+                url="https://open.spotify.com/artist/example",
+                order=0,
+            )
+
+    def test_empty_profile_is_zero_percent(self):
+        user = self._empty_user()
+        self.assertEqual(user.profile_completion_percentage, 0)
+        self.assertEqual(len(user.missing_fields), self.TOTAL_FIELDS)
+        self.assertEqual(
+            set(user.missing_field_keys),
+            {
+                "profile_picture",
+                "display_name",
+                "phone_number",
+                "county",
+                "town_city",
+                "instruments",
+                "preferred_genres",
+                "years_of_experience",
+                "experience_level",
+                "bio",
+                "social_links",
+            },
+        )
+
+    def test_partial_profile_percentage_after_registration(self):
+        # Registration fills display_name, phone, county, town, instruments.
+        self.assertEqual(self.user.profile_completion_percentage, round(5 / 11 * 100))
+        self.assertEqual(self.user.profile_completion_percentage, 45)
+        expected_missing = {
+            "Profile picture",
+            "Preferred music genres",
+            "Years of experience",
+            "Experience level",
+            "Bio",
+            "Social / music links",
+        }
+        self.assertEqual(set(self.user.missing_fields), expected_missing)
+
+    def test_six_of_eleven_fields_rounds_correctly(self):
+        self.user.bio = "Almost there."
+        self.user.save(update_fields=["bio"])
+        self.assertEqual(self.user.profile_completion_percentage, round(6 / 11 * 100))
+        self.assertEqual(self.user.profile_completion_percentage, 55)
+        self.assertNotIn("Bio", self.user.missing_fields)
+
+    def test_complete_profile_is_one_hundred_percent(self):
+        self._complete_profile(self.user)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.profile_completion_percentage, 100)
+        self.assertEqual(self.user.missing_fields, [])
+        self.assertEqual(self.user.missing_field_keys, [])
+        self.assertEqual(self.user.profile_completion_dashoffset, 0.0)
+
+    def test_zero_years_of_experience_counts_as_filled(self):
+        self.user.years_of_experience = 0
+        self.user.save(update_fields=["years_of_experience"])
+        self.assertNotIn("years_of_experience", self.user.missing_field_keys)
+
+    def test_completion_ring_hidden_from_visitors(self):
+        self.client.logout()
+        response = self.client.get(self.profile_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "profile-completion")
+
+    def test_incomplete_owner_sees_clickable_ring_with_query_param(self):
+        self.client.force_login(self.user)
+        response = self.client.get(self.profile_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "profile-completion--incomplete")
+        self.assertContains(response, "Profile 45% complete")
+        edit_with_highlight = f"{self.edit_url}?highlight_missing=1"
+        self.assertContains(response, f'href="{edit_with_highlight}"')
+        self.assertContains(response, "stroke-dasharray")
+        self.assertContains(response, "stroke-dashoffset")
+
+    def test_complete_owner_ring_is_not_a_link(self):
+        self._complete_profile(self.user)
+        self.client.force_login(self.user)
+        response = self.client.get(self.profile_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "profile-completion--complete")
+        self.assertContains(response, "Profile 100% complete")
+        self.assertNotContains(
+            response, f'href="{self.edit_url}?highlight_missing=1"'
+        )
+        self.assertNotContains(response, "profile-completion--incomplete")
+        # Complete ring is a non-link container (div), never an <a>.
+        content = response.content.decode()
+        complete_idx = content.find("profile-completion--complete")
+        self.assertGreater(complete_idx, 0)
+        snippet = content[max(0, complete_idx - 80) : complete_idx]
+        self.assertIn("<div", snippet)
+        self.assertNotIn("<a", snippet)
+
+    def test_highlight_missing_marks_empty_fields_on_edit_form(self):
+        self.client.force_login(self.user)
+        response = self.client.get(f"{self.edit_url}?highlight_missing=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "form-field--missing")
+        self.assertContains(response, "form-field__missing-badge")
+        content = response.content.decode()
+        # Filled at registration — must not be highlighted.
+        self.assertNotRegex(
+            content,
+            r'form-field--missing[^>]*>\s*<label[^>]*for="id_display_name"',
+        )
+        self.assertIn("Preferred music genres", content)
+        self.assertRegex(
+            content,
+            r'form-field--missing[^>]*>[\s\S]*?Preferred music genres',
+        )
+        self.assertRegex(
+            content,
+            r'social-links-fieldset form-field--missing',
+        )
+
+    def test_edit_without_highlight_param_has_no_missing_class(self):
+        self.client.force_login(self.user)
+        response = self.client.get(self.edit_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "form-field--missing")
+        self.assertNotContains(response, "form-field__missing-badge")
 
 
 class ProfilePictureHelpersTests(TestCase):

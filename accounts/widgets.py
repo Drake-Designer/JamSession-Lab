@@ -28,6 +28,16 @@ class ProfilePictureInput(ClearableFileInput):
                 crop="fill",
             )
         context["widget"]["preview_url"] = preview_url
+        # Pop so these are not dumped onto the <input type="file"> element.
+        widget_attrs = context["widget"]["attrs"]
+        context["widget"]["immediate_remove_url"] = widget_attrs.pop(
+            "data-immediate-remove-url",
+            "",
+        )
+        context["widget"]["immediate_upload_url"] = widget_attrs.pop(
+            "data-immediate-upload-url",
+            "",
+        )
         return context
 
     def render(self, name, value, attrs=None, renderer=None):

@@ -302,7 +302,7 @@ DEFAULT_FROM_EMAIL = "JamSession Lab <noreply@jamsessionlab.ie>"
 
 # Invitation link to the community WhatsApp group, shown after registration
 # and included in the welcome email. Replace with the real group link.
-WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/REPLACE-WITH-REAL-INVITE"
+WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/JzOeCrY2Lb96ag6zze1qhb"
 
 
 STORAGES = {

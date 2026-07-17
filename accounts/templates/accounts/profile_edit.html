@@ -30,15 +30,15 @@
                     {% include "accounts/_form_field.html" with field=form.profile_picture %}
                     {% include "accounts/_form_field.html" with field=form.display_name %}
                     {% include "accounts/_form_field.html" with field=form.phone_number %}
+                    {% include "accounts/_form_field.html" with field=form.county %}
+                    {% include "accounts/_form_field.html" with field=form.town_city %}
 
-                    <div class="grid gap-6 sm:grid-cols-2">
-                        {% include "accounts/_form_field.html" with field=form.county %}
-                        {% include "accounts/_form_field.html" with field=form.town_city %}
-                    </div>
-
-                    <fieldset>
+                    <fieldset class="{% if 'instruments' in missing_field_keys %}form-field--missing{% endif %}">
                         <legend class="mb-1.5 block text-sm font-semibold text-jam-white">
                             {{ form.instruments.label }} <span class="text-jam-red" aria-hidden="true">*</span>
+                            {% if 'instruments' in missing_field_keys %}
+                            <span class="form-field__missing-badge">Missing</span>
+                            {% endif %}
                         </legend>
                         <p class="mb-3 text-xs text-jam-muted">Select at least one instrument.</p>
                         <div class="instruments-grid">
@@ -53,9 +53,12 @@
                         {% include "accounts/_form_field.html" with field=form.other_instrument %}
                     </div>
 
-                    <fieldset>
+                    <fieldset class="{% if 'preferred_genres' in missing_field_keys %}form-field--missing{% endif %}">
                         <legend class="mb-1.5 block text-sm font-semibold text-jam-white">
                             {{ form.preferred_genres.label }}
+                            {% if 'preferred_genres' in missing_field_keys %}
+                            <span class="form-field__missing-badge">Missing</span>
+                            {% endif %}
                         </legend>
                         <p class="mb-3 text-xs text-jam-muted">Optional — pick as many as you like.</p>
                         <div class="genres-grid">
@@ -66,7 +69,113 @@
                         {% endfor %}
                     </fieldset>
 
+                    <div id="other-genre-field">
+                        {% include "accounts/_form_field.html" with field=form.other_genre %}
+                    </div>
+
+                    <div class="profile-edit-experience-grid">
+                        {% include "accounts/_form_field.html" with field=form.years_of_experience %}
+                        {% include "accounts/_form_field.html" with field=form.experience_level %}
+                    </div>
+
                     {% include "accounts/_form_field.html" with field=form.bio %}
+
+                    <fieldset class="social-links-fieldset{% if 'social_links' in missing_field_keys %} form-field--missing{% endif %}">
+                        <legend class="mb-1.5 block text-sm font-semibold text-jam-white">
+                            Social / music links
+                            {% if 'social_links' in missing_field_keys %}
+                            <span class="form-field__missing-badge">Missing</span>
+                            {% endif %}
+                        </legend>
+                        <p class="mb-3 text-xs text-jam-muted">
+                            Optional — add up to {{ social_link_formset.max_num }} links.
+                            Spotify, YouTube, Instagram, Facebook, SoundCloud and TikTok
+                            are recognised automatically on your public profile.
+                        </p>
+
+                        {{ social_link_formset.management_form }}
+                        {% if social_link_formset.non_form_errors %}
+                        <div class="mb-3 rounded-xl border border-jam-red/50 bg-jam-black px-4 py-3">
+                            {% for error in social_link_formset.non_form_errors %}
+                            <p class="form-field__error">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <div
+                            id="social-links-forms"
+                            class="social-links-forms"
+                            data-max-forms="{{ social_link_formset.max_num }}"
+                        >
+                            {% for link_form in social_link_formset %}
+                            <div
+                                class="social-links-row{% if link_form.instance.pk and link_form.DELETE.value %} is-marked-delete{% endif %}"
+                                {% if link_form.instance.pk %}
+                                data-link-id="{{ link_form.instance.pk }}"
+                                data-delete-url="{% url 'accounts:social_link_delete' link_form.instance.pk %}"
+                                {% endif %}
+                            >
+                                {% for hidden in link_form.hidden_fields %}{{ hidden }}{% endfor %}
+                                <div class="social-links-row__fields">
+                                    <label class="sr-only" for="{{ link_form.url.id_for_label }}">
+                                        {{ link_form.url.label }}
+                                    </label>
+                                    {{ link_form.url }}
+                                    {% if link_form.DELETE %}
+                                    <div class="social-links-row__delete-wrap is-hidden">
+                                        {{ link_form.DELETE }}
+                                        <button
+                                            type="button"
+                                            class="social-links-row__remove"
+                                            data-social-link-remove
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% for error in link_form.url.errors %}
+                                <p class="form-field__error">{{ error }}</p>
+                                {% endfor %}
+                                {% for error in link_form.non_field_errors %}
+                                <p class="form-field__error">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <template id="social-link-empty-form">
+                            <div class="social-links-row">
+                                {% for hidden in social_link_formset.empty_form.hidden_fields %}{{ hidden }}{% endfor %}
+                                <div class="social-links-row__fields">
+                                    <label class="sr-only" for="{{ social_link_formset.empty_form.url.id_for_label }}">
+                                        {{ social_link_formset.empty_form.url.label }}
+                                    </label>
+                                    {{ social_link_formset.empty_form.url }}
+                                    {% if social_link_formset.empty_form.DELETE %}
+                                    <div class="social-links-row__delete-wrap is-hidden">
+                                        {{ social_link_formset.empty_form.DELETE }}
+                                        <button
+                                            type="button"
+                                            class="social-links-row__remove"
+                                            data-social-link-remove
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </template>
+
+                        <button
+                            type="button"
+                            id="social-links-add"
+                            class="social-links-add"
+                        >
+                            Add another link
+                        </button>
+                    </fieldset>
 
                     <button
                         type="submit"
@@ -164,6 +273,8 @@
 
 {% block extra_scripts %}
     {# Reused from the registration page: dependent County/Town dropdown and
-       the "Other" instrument toggle target the same element IDs. #}
+       the "Other" instrument/genre toggles target the same element IDs. #}
     <script src="{% static 'accounts/js/register.js' %}"></script>
+    <script src="{% static 'accounts/js/profile_picture_remove.js' %}"></script>
+    <script src="{% static 'accounts/js/social_links_formset.js' %}"></script>
 {% endblock %}

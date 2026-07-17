@@ -2,12 +2,12 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.translation import gettext_lazy as _
-from unfold.admin import ModelAdmin
+from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
 from .constants import Instrument, MusicGenre
-from .models import User
+from .models import SocialLink, User
 from .widgets import ProfilePictureInput
 
 
@@ -35,11 +35,19 @@ class AdminUserChangeForm(UserChangeForm):
             )
 
 
+class SocialLinkInline(TabularInline):
+    model = SocialLink
+    extra = 0
+    fields = ("url", "order")
+    ordering = ("order", "pk")
+
+
 @admin.register(User)
 class CustomUserAdmin(ModelAdmin, UserAdmin):
     form = AdminUserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
+    inlines = [SocialLinkInline]
 
     fieldsets = (
         (
@@ -70,6 +78,8 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                     "instruments",
                     "other_instrument",
                     "preferred_genres",
+                    "other_genre",
+                    ("years_of_experience", "experience_level"),
                     "bio",
                 ),
             },

@@ -17,12 +17,13 @@ PROFILE_PICTURE_TOO_LARGE_MESSAGE = _(
     "photo or compress it before uploading."
 )
 
-# Accepts international formats like "+353 87 123 4567" or "0871234567".
+# Digits only, optional leading + for the country code (e.g. +353871234567).
+# Model max_length=15 caps the full string length.
 phone_number_validator = RegexValidator(
-    regex=r"^\+?[0-9][0-9 \-()]{6,19}$",
+    regex=r"^\+?[0-9]{7,15}$",
     message=_(
-        "Enter a valid phone number, e.g. +353 87 123 4567. "
-        "Digits, spaces, dashes and an optional leading + are allowed."
+        "Enter a valid phone number using digits only, with an optional "
+        "leading + for the country code (e.g. +353871234567)."
     ),
 )
 

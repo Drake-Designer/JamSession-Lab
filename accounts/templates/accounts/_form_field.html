@@ -1,7 +1,10 @@
 {# Reusable form field block: label, input, help text, and errors. #}
-<div class="form-field">
+<div class="form-field{% if field.name in missing_field_keys %} form-field--missing{% endif %}">
     <label for="{{ field.id_for_label }}" class="mb-1.5 block text-sm font-semibold text-jam-white">
         {{ field.label }}{% if field.field.required %} <span class="text-jam-red" aria-hidden="true">*</span>{% endif %}
+        {% if field.name in missing_field_keys %}
+        <span class="form-field__missing-badge">Missing</span>
+        {% endif %}
     </label>
     {{ field }}
     {% if field.help_text %}

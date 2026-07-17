@@ -10,6 +10,15 @@ from django.utils.translation import gettext_lazy as _
 
 # Maximum length of the free-text field shown when "Other" is selected.
 OTHER_INSTRUMENT_MAX_LENGTH = 15
+OTHER_GENRE_MAX_LENGTH = 30
+
+
+class ExperienceLevel(models.TextChoices):
+    """Self-assessed playing level shown on the public profile."""
+
+    BEGINNER = "beginner", _("Beginner")
+    INTERMEDIATE = "intermediate", _("Intermediate")
+    ADVANCED = "advanced", _("Advanced")
 
 
 class County(models.TextChoices):
@@ -460,7 +469,6 @@ class MusicGenre(models.TextChoices):
     GOSPEL = "gospel", _("Gospel")
     HIP_HOP = "hip_hop", _("Hip Hop / Rap")
     INDIE = "indie", _("Indie / Alternative")
-    IRISH_TRADITIONAL = "irish_traditional", _("Irish Traditional")
     JAZZ = "jazz", _("Jazz")
     LATIN = "latin", _("Latin")
     METAL = "metal", _("Metal")
@@ -472,5 +480,4 @@ class MusicGenre(models.TextChoices):
     REGGAE = "reggae", _("Reggae")
     ROCK = "rock", _("Rock")
     SINGER_SONGWRITER = "singer_songwriter", _("Singer-Songwriter")
-    SKA = "ska", _("Ska")
-    WORLD = "world", _("World Music")
+    OTHER = "other", _("Other")

@@ -1,7 +1,7 @@
 /*
- * Registration form behaviour:
+ * Registration / profile-edit form behaviour:
  * 1. Dependent dropdown — Town/City options follow the selected County.
- * 2. "Other" instrument — free-text field only visible when Other is ticked.
+ * 2. "Other" instrument / genre — free-text fields only visible when Other is ticked.
  */
 (function () {
     "use strict";
@@ -64,12 +64,12 @@
         });
     }
 
-    /* ---- "Other" instrument toggle ---- */
+    /* ---- Shared "Other" checkbox → free-text toggle ---- */
 
-    function initOtherInstrumentToggle() {
-        const wrapper = document.getElementById("other-instrument-field");
+    function initOtherToggle(checkboxName, wrapperId, otherValue) {
+        const wrapper = document.getElementById(wrapperId);
         const checkboxes = document.querySelectorAll(
-            'input[name="instruments"][type="checkbox"]'
+            'input[name="' + checkboxName + '"][type="checkbox"]'
         );
 
         if (!wrapper || checkboxes.length === 0) {
@@ -79,7 +79,7 @@
         function toggle() {
             let otherTicked = false;
             checkboxes.forEach(function (checkbox) {
-                if (checkbox.value === "other" && checkbox.checked) {
+                if (checkbox.value === otherValue && checkbox.checked) {
                     otherTicked = true;
                 }
             });
@@ -94,7 +94,8 @@
 
     function init() {
         initDependentTowns();
-        initOtherInstrumentToggle();
+        initOtherToggle("instruments", "other-instrument-field", "other");
+        initOtherToggle("preferred_genres", "other-genre-field", "other");
     }
 
     if (document.readyState === "loading") {

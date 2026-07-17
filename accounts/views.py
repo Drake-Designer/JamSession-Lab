@@ -3,14 +3,18 @@ from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext_lazy as _
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 
 import cloudinary.exceptions
 
 from community.models import CommunityComment, CommunityPost
 from gallery.models import GalleryItem
+from jamsession.image_formats import convert_heic_upload_to_jpeg
 from jamsession.moderation import ApprovalStatus
 
 from .constants import TOWNS_BY_COUNTY, Instrument, MusicGenre
@@ -20,8 +24,14 @@ from .forms import (
     LoginForm,
     ProfileEditForm,
     RegistrationForm,
+    SocialLinkFormSet,
 )
-from .models import User
+from .models import SocialLink, User
+from .social_platforms import detect_social_platform
+from .validators import validate_profile_picture
+
+
+SOCIAL_LINKS_FORMSET_PREFIX = "social_links"
 
 
 class LoginView(auth_views.LoginView):
@@ -85,12 +95,13 @@ def _instrument_labels(user):
 
 
 def _genre_labels(user):
-    """Alphabetical labels for the user's preferred genres."""
-    labels = [
-        str(MusicGenre(code).label)
-        for code in user.preferred_genres or []
-        if code in MusicGenre.values
-    ]
+    """Alphabetical labels for the user's preferred genres, with 'Other' spelled out."""
+    labels = []
+    for code in user.preferred_genres or []:
+        if code == MusicGenre.OTHER:
+            labels.append(user.other_genre or str(MusicGenre.OTHER.label))
+        elif code in MusicGenre.values:
+            labels.append(str(MusicGenre(code).label))
     return sorted(labels, key=str.casefold)
 
 
@@ -102,7 +113,11 @@ def my_profile(request):
 
 def profile_detail(request, username):
     """Public profile page, visible to everyone including anonymous visitors."""
-    profile_user = get_object_or_404(User, username=username, is_active=True)
+    profile_user = get_object_or_404(
+        User.objects.prefetch_related("social_links"),
+        username=username,
+        is_active=True,
+    )
 
     is_owner = request.user.is_authenticated and request.user == profile_user
 
@@ -128,6 +143,13 @@ def profile_detail(request, username):
             + GalleryItem.objects.filter(status=ApprovalStatus.PENDING).count()
         )
 
+    social_links = []
+    for link in profile_user.social_links.all():
+        platform = detect_social_platform(link.url)
+        if platform is None:
+            continue
+        social_links.append({"url": link.url, "platform": platform})
+
     return render(
         request,
         "accounts/profile.html",
@@ -135,10 +157,18 @@ def profile_detail(request, username):
             "profile_user": profile_user,
             "instrument_labels": _instrument_labels(profile_user),
             "genre_labels": _genre_labels(profile_user),
+            "social_links": social_links,
             "is_owner": is_owner,
             "my_posts": my_posts,
             "show_review_items": show_review_items,
             "pending_review_count": pending_review_count,
+            # Owner-only completion ring — visitors never see this.
+            "profile_completion_percentage": (
+                profile_user.profile_completion_percentage if is_owner else None
+            ),
+            "missing_fields": (
+                profile_user.missing_fields if is_owner else []
+            ),
         },
     )
 
@@ -149,9 +179,16 @@ def profile_edit(request):
     """Let the signed-in user edit their own profile."""
     if request.method == "POST":
         form = ProfileEditForm(request.POST, request.FILES, instance=request.user)
-        if form.is_valid():
+        formset = SocialLinkFormSet(
+            request.POST,
+            instance=request.user,
+            prefix=SOCIAL_LINKS_FORMSET_PREFIX,
+        )
+        if form.is_valid() and formset.is_valid():
             try:
-                form.save()
+                with transaction.atomic():
+                    form.save()
+                    formset.save()
             except cloudinary.exceptions.Error:
                 form.add_error(
                     "profile_picture",
@@ -167,6 +204,10 @@ def profile_edit(request):
                 )
     else:
         form = ProfileEditForm(instance=request.user)
+        formset = SocialLinkFormSet(
+            instance=request.user,
+            prefix=SOCIAL_LINKS_FORMSET_PREFIX,
+        )
 
     selected_town = (
         request.POST.get("town_city")
@@ -174,16 +215,93 @@ def profile_edit(request):
         else request.user.town_city
     )
 
+    highlight_missing = request.GET.get("highlight_missing") == "1"
+    missing_field_keys = (
+        request.user.missing_field_keys if highlight_missing else []
+    )
+
     return render(
         request,
         "accounts/profile_edit.html",
         {
             "form": form,
+            "social_link_formset": formset,
             "delete_form": DeleteAccountForm(user=request.user),
             "towns_by_county": TOWNS_BY_COUNTY,
             "selected_town": selected_town or "",
+            "highlight_missing": highlight_missing,
+            "missing_field_keys": missing_field_keys,
         },
     )
+
+
+@login_required
+@require_POST
+def profile_picture_remove(request):
+    """Delete the signed-in user's profile photo immediately (AJAX)."""
+    user = request.user
+    if user.profile_picture:
+        user.profile_picture = None
+        user.save(update_fields=["profile_picture"])
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@require_POST
+def profile_picture_upload(request):
+    """Upload / replace the signed-in user's profile photo immediately (AJAX)."""
+    uploaded = request.FILES.get("profile_picture")
+    if uploaded is None:
+        return JsonResponse(
+            {"ok": False, "error": str(_("Please choose a photo to upload."))},
+            status=400,
+        )
+
+    try:
+        picture = convert_heic_upload_to_jpeg(
+            uploaded,
+            field_name="profile_picture",
+        )
+        validate_profile_picture(picture)
+    except ValidationError as exc:
+        message = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+        return JsonResponse({"ok": False, "error": message}, status=400)
+
+    user = request.user
+    try:
+        user.profile_picture = picture
+        user.save(update_fields=["profile_picture"])
+    except cloudinary.exceptions.Error:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": str(
+                    _(
+                        "We couldn't process that image. Please try a "
+                        "different photo (JPG, PNG, or HEIC) under 10MB."
+                    )
+                ),
+            },
+            status=400,
+        )
+
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@require_POST
+def social_link_delete(request, pk):
+    """Delete one of the signed-in user's social links immediately (AJAX)."""
+    link = get_object_or_404(SocialLink, pk=pk, user=request.user)
+    link.delete()
+
+    # Keep display order contiguous after a mid-list deletion.
+    remaining = list(request.user.social_links.order_by("order", "pk"))
+    for index, item in enumerate(remaining):
+        if item.order != index:
+            SocialLink.objects.filter(pk=item.pk).update(order=index)
+
+    return JsonResponse({"ok": True})
 
 
 @login_required

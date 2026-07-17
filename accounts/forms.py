@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.core.files.uploadedfile import UploadedFile
+from django.forms import BaseInlineFormSet, inlineformset_factory
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
@@ -9,14 +10,29 @@ from django.utils.translation import gettext_lazy as _
 
 from jamsession.image_formats import convert_heic_upload_to_jpeg
 
-from .constants import County, Instrument, MusicGenre, TOWNS_BY_COUNTY
-from .models import User
+from .constants import (
+    OTHER_GENRE_MAX_LENGTH,
+    OTHER_INSTRUMENT_MAX_LENGTH,
+    County,
+    ExperienceLevel,
+    Instrument,
+    MusicGenre,
+    TOWNS_BY_COUNTY,
+)
+from .models import SocialLink, User
+from .social_platforms import MAX_SOCIAL_LINKS
 from .validators import validate_minimum_age, validate_profile_picture
 from .widgets import ProfilePictureInput
 
 # Shared Tailwind classes so every input matches the brand-dark style.
 TEXT_INPUT_CLASSES = (
     "w-full rounded-xl border border-jam-grey-light bg-jam-black px-4 py-3 "
+    "text-sm text-jam-white placeholder:text-jam-muted-dark "
+    "focus:border-jam-red focus:outline-none focus:ring-1 focus:ring-jam-red"
+)
+# Display Name / Phone use fixed ch widths (no w-full) — see forms.css.
+SIZED_INPUT_CLASSES = (
+    "rounded-xl border border-jam-grey-light bg-jam-black px-4 py-3 "
     "text-sm text-jam-white placeholder:text-jam-muted-dark "
     "focus:border-jam-red focus:outline-none focus:ring-1 focus:ring-jam-red"
 )
@@ -103,13 +119,14 @@ class RegistrationForm(UserCreationForm):
             "phone_number": forms.TextInput(
                 attrs={
                     "class": TEXT_INPUT_CLASSES,
-                    "placeholder": "+353 87 123 4567",
+                    "maxlength": "15",
+                    "placeholder": "+353871234567",
                 },
             ),
             "other_instrument": forms.TextInput(
                 attrs={
                     "class": TEXT_INPUT_CLASSES,
-                    "maxlength": "15",
+                    "maxlength": str(OTHER_INSTRUMENT_MAX_LENGTH),
                 },
             ),
         }
@@ -288,47 +305,97 @@ class ProfileEditForm(forms.ModelForm):
         choices=MusicGenre.choices,
         widget=forms.CheckboxSelectMultiple,
     )
+    experience_level = forms.ChoiceField(
+        label=_("Experience level"),
+        required=False,
+        choices=[("", _("Select your level"))] + list(ExperienceLevel.choices),
+        widget=forms.Select(attrs={"class": SELECT_CLASSES}),
+    )
 
     class Meta:
         model = User
         fields = (
             "profile_picture",
             "display_name",
-            "bio",
-            "preferred_genres",
-            "instruments",
-            "other_instrument",
             "phone_number",
             "county",
             "town_city",
+            "instruments",
+            "other_instrument",
+            "preferred_genres",
+            "other_genre",
+            "years_of_experience",
+            "experience_level",
+            "bio",
         )
         widgets = {
             "profile_picture": ProfilePictureInput(
                 attrs={"accept": "image/*,.heic,.heif"},
             ),
-            "display_name": forms.TextInput(attrs={"class": TEXT_INPUT_CLASSES}),
-            "bio": forms.Textarea(attrs={"class": TEXT_INPUT_CLASSES, "rows": 5}),
-            "other_instrument": forms.TextInput(
-                attrs={"class": TEXT_INPUT_CLASSES, "maxlength": "15"},
+            "display_name": forms.TextInput(
+                attrs={
+                    "class": f"{SIZED_INPUT_CLASSES} jam-input--display-name",
+                    "maxlength": "20",
+                },
             ),
-            "phone_number": forms.TextInput(attrs={"class": TEXT_INPUT_CLASSES}),
+            "phone_number": forms.TextInput(
+                attrs={
+                    "class": f"{SIZED_INPUT_CLASSES} jam-input--phone-number",
+                    "maxlength": "15",
+                    "placeholder": "+353871234567",
+                    "inputmode": "tel",
+                },
+            ),
+            "other_instrument": forms.TextInput(
+                attrs={
+                    "class": TEXT_INPUT_CLASSES,
+                    "maxlength": str(OTHER_INSTRUMENT_MAX_LENGTH),
+                },
+            ),
+            "other_genre": forms.TextInput(
+                attrs={
+                    "class": TEXT_INPUT_CLASSES,
+                    "maxlength": str(OTHER_GENRE_MAX_LENGTH),
+                },
+            ),
+            "years_of_experience": forms.NumberInput(
+                attrs={
+                    "class": TEXT_INPUT_CLASSES,
+                    "min": "0",
+                    "max": "80",
+                    "inputmode": "numeric",
+                },
+            ),
+            "bio": forms.Textarea(attrs={"class": TEXT_INPUT_CLASSES, "rows": 5}),
         }
         labels = {
-            "display_name": _("Nickname / Display name"),
-            "other_instrument": _("Other instrument"),
+            "display_name": _("Display Name"),
             "phone_number": _("Phone number"),
+            "other_instrument": _("Other instrument"),
+            "other_genre": _("Other genre"),
+            "years_of_experience": _("Years of experience"),
+            "bio": _("Bio"),
         }
         help_texts = {
             "phone_number": _(
                 "Only visible to you. Used for the community WhatsApp group "
-                "invitation."
+                "invitation. Digits only, optional leading +."
             ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["display_name"].required = True
         self.fields["phone_number"].required = True
         self.fields["other_instrument"].required = False
+        self.fields["other_genre"].required = False
+        self.fields["years_of_experience"].required = False
+        self.fields["profile_picture"].widget.attrs[
+            "data-immediate-remove-url"
+        ] = reverse("accounts:profile_picture_remove")
+        self.fields["profile_picture"].widget.attrs[
+            "data-immediate-upload-url"
+        ] = reverse("accounts:profile_picture_upload")
 
     def clean_display_name(self):
         display_name = (self.cleaned_data.get("display_name") or "").strip()
@@ -370,6 +437,16 @@ class ProfileEditForm(forms.ModelForm):
         if Instrument.OTHER not in instruments:
             cleaned_data["other_instrument"] = ""
 
+        preferred_genres = cleaned_data.get("preferred_genres") or []
+        other_genre = (cleaned_data.get("other_genre") or "").strip()
+        if MusicGenre.OTHER in preferred_genres and not other_genre:
+            self.add_error(
+                "other_genre",
+                _("Please specify your genre."),
+            )
+        if MusicGenre.OTHER not in preferred_genres:
+            cleaned_data["other_genre"] = ""
+
         county = cleaned_data.get("county")
         town_city = cleaned_data.get("town_city")
         if county and town_city:
@@ -381,6 +458,110 @@ class ProfileEditForm(forms.ModelForm):
                 )
 
         return cleaned_data
+
+
+class SocialLinkForm(forms.ModelForm):
+    """Single optional URL row inside the profile edit formset."""
+
+    class Meta:
+        model = SocialLink
+        fields = ("url",)
+        widgets = {
+            "url": forms.URLInput(
+                attrs={
+                    "class": TEXT_INPUT_CLASSES,
+                    "placeholder": _(
+                        "https://… (Instagram, Spotify or YouTube)"
+                    ),
+                    "autocomplete": "url",
+                },
+            ),
+        }
+        labels = {"url": _("Link URL")}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["url"].required = False
+
+    def clean_url(self):
+        # Django's URLField may assume https:// for schemeless values — check
+        # the raw submitted string so "www.…" is still rejected.
+        raw = (self.data.get(self.add_prefix("url")) or "").strip()
+        if not raw:
+            return ""
+        if not (raw.startswith("http://") or raw.startswith("https://")):
+            raise forms.ValidationError(
+                _("Enter a full URL starting with http:// or https://.")
+            )
+        return (self.cleaned_data.get("url") or raw).strip()
+
+
+class BaseSocialLinkFormSet(BaseInlineFormSet):
+    """Assign display order and reject duplicate URLs in one submit."""
+
+    def clean(self):
+        super().clean()
+
+        seen = set()
+        active_count = 0
+        for form in self.forms:
+            if not hasattr(form, "cleaned_data") or not form.cleaned_data:
+                continue
+            if form.cleaned_data.get("DELETE"):
+                continue
+            url = (form.cleaned_data.get("url") or "").strip()
+            if not url:
+                continue
+            active_count += 1
+            key = url.casefold().rstrip("/")
+            if key in seen:
+                form.add_error(
+                    "url",
+                    _("You have already added this link."),
+                )
+            seen.add(key)
+
+        if active_count > MAX_SOCIAL_LINKS:
+            raise forms.ValidationError(
+                _("You can add at most %(max)s social / music links.")
+                % {"max": MAX_SOCIAL_LINKS}
+            )
+
+    def validate_unique(self):
+        """
+        Replace Django's generic duplicate-constraint wording with our
+        clearer field-level message (already set in clean()).
+        """
+        # Intentionally skip BaseModelFormSet.validate_unique — clean() above
+        # already rejects duplicate URLs among the submitted rows, and the
+        # DB UniqueConstraint remains as a safety net on save.
+        return
+
+    def save(self, commit=True):
+        order = 0
+        for form in self.forms:
+            if not hasattr(form, "cleaned_data") or not form.cleaned_data:
+                continue
+            if form.cleaned_data.get("DELETE"):
+                continue
+            if not (form.cleaned_data.get("url") or "").strip():
+                continue
+            form.instance.order = order
+            order += 1
+        return super().save(commit=commit)
+
+
+SocialLinkFormSet = inlineformset_factory(
+    User,
+    SocialLink,
+    form=SocialLinkForm,
+    formset=BaseSocialLinkFormSet,
+    fields=("url",),
+    extra=1,
+    max_num=MAX_SOCIAL_LINKS,
+    validate_max=True,
+    can_delete=True,
+)
 
 
 class DeleteAccountForm(forms.Form):

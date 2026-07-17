@@ -15,6 +15,21 @@ urlpatterns = [
     path("profile/", views.my_profile, name="profile"),
     # Must come before profile/<username>/ so "edit" is not read as a username.
     path("profile/edit/", views.profile_edit, name="profile_edit"),
+    path(
+        "profile/picture/remove/",
+        views.profile_picture_remove,
+        name="profile_picture_remove",
+    ),
+    path(
+        "profile/picture/upload/",
+        views.profile_picture_upload,
+        name="profile_picture_upload",
+    ),
+    path(
+        "profile/social-links/<int:pk>/delete/",
+        views.social_link_delete,
+        name="social_link_delete",
+    ),
     path("profile/delete/", views.account_delete, name="account_delete"),
     path("profile/<str:username>/", views.profile_detail, name="profile_detail"),
     path(
