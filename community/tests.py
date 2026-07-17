@@ -1536,6 +1536,32 @@ class CommunityModerationQueueViewTests(TestCase):
         self.assertContains(response, f'src="{expected_url}"')
         self.assertContains(response, "moderation-media-item__image")
 
+    def test_queue_shows_gallery_item_video_preview(self):
+        item = GalleryItem.objects.create(
+            uploaded_by=self.author,
+            file="video/upload/v1/gallery_preview.mp4",
+            media_type=MediaType.VIDEO,
+            title="Preview video",
+            status=ApprovalStatus.PENDING,
+        )
+        # Plain string paths have no resource_type, so save()'s
+        # _sync_media_type() resets media_type to "image". Force VIDEO at
+        # the DB level (same workaround as gallery list tests).
+        GalleryItem.objects.filter(pk=item.pk).update(media_type=MediaType.VIDEO)
+        item.refresh_from_db()
+        expected_url = item.display_media_url
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("community:moderation_queue"))
+
+        self.assertTrue(expected_url)
+        self.assertTrue(item.is_video)
+        self.assertContains(response, expected_url)
+        self.assertContains(response, f'src="{expected_url}"')
+        self.assertContains(response, "moderation-media-item__video")
+        self.assertContains(response, "<video")
+        self.assertNotContains(response, "moderation-media-item__image")
+
 
 class CommunityModerationPostActionViewTests(TestCase):
     """Tests for moderation_post_approve/reject/delete."""
@@ -2071,3 +2097,36 @@ class CommunityCloudinaryCleanupSignalTests(TestCase):
             "solo_comment_media", resource_type="image", invalidate=True
         )
         self.assertTrue(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+    def test_replacing_cover_image_destroys_the_old_cloudinary_resource(self):
+        """pre_save cover cleanup: replacing cover_image must destroy the old asset."""
+        _attach_cover(self.post, public_id="image/upload/v1/old_cover.jpg")
+
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            self.post.cover_image = "image/upload/v1/new_cover.jpg"
+            self.post.save(update_fields=["cover_image"])
+
+        mock_destroy.assert_called_once_with(
+            "old_cover", resource_type="image", invalidate=True
+        )
+
+    def test_deleting_post_destroys_its_cover_image_on_cloudinary(self):
+        """post_delete cover cleanup: deleting the post must destroy cover_image."""
+        _attach_cover(self.post, public_id="image/upload/v1/cover_to_remove.jpg")
+
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            self.post.delete()
+
+        mock_destroy.assert_called_once_with(
+            "cover_to_remove", resource_type="image", invalidate=True
+        )
+
+    def test_saving_post_without_changing_cover_does_not_destroy_it(self):
+        """Guards against accidental destroy when only non-cover fields change."""
+        _attach_cover(self.post, public_id="image/upload/v1/stable_cover.jpg")
+
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            self.post.title = "Updated title only"
+            self.post.save(update_fields=["title"])
+
+        mock_destroy.assert_not_called()
