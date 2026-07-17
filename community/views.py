@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext_lazy as _
@@ -32,14 +33,29 @@ def _require_moderator(user):
     """
     Raise PermissionDenied (-> 403) unless the user is staff/superuser.
 
-    Used only by the moderation queue and its approve/reject/delete action
-    views below. This is an explicit, single-purpose check — not a new
-    permission system — kept separate from _user_can_moderate_or_owns()
-    because the moderation queue has no "author exception": it is staff/
-    superuser only, full stop.
+    Used by the moderation queue, Admin Tool, and staff preview/delete
+    actions. Explicit single-purpose check — not a new permission system —
+    kept separate from _user_can_moderate_or_owns() because these tools have
+    no "author exception": staff/superuser only, full stop.
     """
     if not (user.is_staff or user.is_superuser):
         raise PermissionDenied
+
+
+def _parse_id_list(raw_values):
+    """Parse repeated POST id values into a de-duplicated list of ints."""
+    ids = []
+    seen = set()
+    for value in raw_values:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            continue
+        if parsed in seen:
+            continue
+        seen.add(parsed)
+        ids.append(parsed)
+    return ids
 
 
 def _visible_post_or_404(request, slug):
@@ -358,3 +374,171 @@ def moderation_gallery_delete(request, pk):
     item.delete()
     messages.success(request, _("The gallery submission has been deleted."))
     return redirect("community:moderation_queue")
+
+
+@login_required
+def admin_tool(request):
+    """
+    Staff-only hub listing every gallery item, post, and comment (all statuses).
+
+    Separate from the pending-only moderation queue: this page is for browsing
+    and bulk deletion across the full catalogue.
+    """
+    _require_moderator(request.user)
+
+    gallery_items = list(
+        GalleryItem.objects.select_related("uploaded_by").order_by("-created_at")
+    )
+    posts = list(
+        CommunityPost.objects.select_related("author")
+        .prefetch_related("media")
+        .order_by("-created_at")
+    )
+    comments = list(
+        CommunityComment.objects.select_related("author", "post")
+        .prefetch_related("media")
+        .order_by("-created_at")
+    )
+
+    return render(
+        request,
+        "community/admin_tool.html",
+        {
+            "gallery_items": gallery_items,
+            "gallery_count": len(gallery_items),
+            "posts": posts,
+            "post_count": len(posts),
+            "comments": comments,
+            "comment_count": len(comments),
+        },
+    )
+
+
+@login_required
+def admin_post_preview(request, slug):
+    """
+    Staff-only post detail that ignores public status filters.
+
+    Reuses the public post_detail template so moderators see the real content
+    for pending/rejected posts instead of a 404.
+    """
+    _require_moderator(request.user)
+
+    post = get_object_or_404(
+        CommunityPost.objects.select_related("author").prefetch_related("media"),
+        slug=slug,
+    )
+    comments = post.comments.select_related("author").prefetch_related("media")
+
+    return render(
+        request,
+        "community/post_detail.html",
+        {
+            "post": post,
+            "is_pending_preview": post.status == ApprovalStatus.PENDING,
+            "is_staff_preview": True,
+            "staff_preview_status": post.get_status_display(),
+            "comments": comments,
+            "comment_form": None,
+            "like_count": post.likes.count(),
+            "user_has_liked": False,
+            "can_delete_post": True,
+        },
+    )
+
+
+@login_required
+def admin_comment_preview(request, pk):
+    """Staff-only preview of a single comment, regardless of status."""
+    _require_moderator(request.user)
+
+    comment = get_object_or_404(
+        CommunityComment.objects.select_related("author", "post").prefetch_related(
+            "media"
+        ),
+        pk=pk,
+    )
+    return render(
+        request,
+        "community/admin_comment_preview.html",
+        {"comment": comment, "post": comment.post},
+    )
+
+
+@login_required
+@require_POST
+def admin_tool_gallery_delete(request, pk):
+    """Delete any gallery item from Admin Tool (staff only)."""
+    _require_moderator(request.user)
+
+    item = get_object_or_404(GalleryItem, pk=pk)
+    item.delete()
+    messages.success(request, _("The gallery item has been deleted."))
+    return redirect("community:admin_tool")
+
+
+@login_required
+@require_POST
+def admin_tool_post_delete(request, slug):
+    """Delete any community post from Admin Tool (staff only)."""
+    _require_moderator(request.user)
+
+    post = get_object_or_404(CommunityPost, slug=slug)
+    post.delete()
+    messages.success(request, _("The post has been deleted."))
+    return redirect("community:admin_tool")
+
+
+@login_required
+@require_POST
+def admin_tool_comment_delete(request, pk):
+    """Delete any community comment from Admin Tool (staff only)."""
+    _require_moderator(request.user)
+
+    comment = get_object_or_404(CommunityComment, pk=pk)
+    comment.delete()
+    messages.success(request, _("The comment has been deleted."))
+    return redirect("community:admin_tool")
+
+
+@login_required
+@require_POST
+def admin_tool_bulk_delete(request):
+    """
+    Delete every selected gallery item, post, and comment in one transaction.
+
+    Each row is deleted individually so Cloudinary cleanup signals still run
+    for every associated media file (including CASCADE attachments).
+    """
+    _require_moderator(request.user)
+
+    gallery_ids = _parse_id_list(request.POST.getlist("gallery_ids"))
+    post_ids = _parse_id_list(request.POST.getlist("post_ids"))
+    comment_ids = _parse_id_list(request.POST.getlist("comment_ids"))
+
+    deleted_count = 0
+
+    with transaction.atomic():
+        for item in GalleryItem.objects.filter(pk__in=gallery_ids):
+            item.delete()
+            deleted_count += 1
+
+        for post in CommunityPost.objects.filter(pk__in=post_ids):
+            post.delete()
+            deleted_count += 1
+
+        for comment in CommunityComment.objects.filter(pk__in=comment_ids):
+            comment.delete()
+            deleted_count += 1
+
+    if deleted_count == 0:
+        messages.info(request, _("No items were selected for deletion."))
+    elif deleted_count == 1:
+        messages.success(request, _("1 item has been deleted."))
+    else:
+        messages.success(
+            request,
+            _("%(count)d items have been deleted.") % {"count": deleted_count},
+        )
+
+    return redirect("community:admin_tool")

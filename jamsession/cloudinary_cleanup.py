@@ -23,6 +23,7 @@ available to every app.
 from cloudinary import CloudinaryResource
 from cloudinary.uploader import destroy
 from django.core.files.uploadedfile import UploadedFile
+from django.db import transaction
 
 
 def _stored_file_identity(file_value, field):
@@ -96,5 +97,16 @@ def cleanup_old_file_on_change(sender, instance, field_name, **kwargs):
 
 
 def cleanup_file_on_delete(sender, instance, field_name, **kwargs):
-    """post_delete handler: delete the file belonging to a just-deleted row."""
-    _delete_stored_file(getattr(instance, field_name, None))
+    """
+    post_delete handler: delete the file belonging to a just-deleted row.
+
+    Cloudinary/storage deletion is deferred with ``transaction.on_commit`` so
+    a rolled-back ``atomic()`` block (e.g. Admin Tool bulk delete) never
+    destroys files for rows that remain in the database.
+    """
+    file_value = getattr(instance, field_name, None)
+    if not file_value:
+        return
+
+    # Capture the field value now; the instance row is already gone.
+    transaction.on_commit(lambda: _delete_stored_file(file_value))

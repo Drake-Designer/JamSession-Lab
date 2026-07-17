@@ -1,0 +1,13 @@
+{% comment %}
+Compact author chip: optional avatar + user_credit (name link + badge).
+
+Expects ``credit_user`` (User or None).
+Optional: ``avatar_size`` (default user-avatar--xs).
+Always omits the @ prefix (dense table/card rows).
+{% endcomment %}
+<span class="user-author-chip">
+    {% if credit_user %}
+    {% include "accounts/partials/user_avatar.html" with avatar_user=credit_user avatar_size=avatar_size|default:"user-avatar--xs" %}
+    {% endif %}
+    {% include "accounts/partials/user_credit.html" with credit_user=credit_user hide_at=True %}
+</span>

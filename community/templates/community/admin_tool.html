@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Admin Tool{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
+    <link rel="stylesheet" href="{% static 'community/css/admin_tool.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black">
+    <div class="admin-tool">
+        <header class="admin-tool__header">
+            <h1 class="admin-tool__title">Admin Tool</h1>
+            <p class="admin-tool__subtitle">
+                Browse, preview, and delete gallery items, community posts, and comments in one place.
+            </p>
+        </header>
+
+        <aside
+            id="admin-tool-selection-bar"
+            class="admin-tool-bar is-hidden"
+            aria-live="polite"
+            aria-label="Bulk selection actions"
+        >
+            <div class="admin-tool-bar__inner">
+                <span class="admin-tool-bar__count">0 selected</span>
+                <div class="admin-tool-bar__actions">
+                    <button type="button" class="admin-tool-bar__btn admin-tool-bar__btn--cancel" data-admin-tool-cancel>
+                        Cancel selection
+                    </button>
+                    <button type="button" class="admin-tool-bar__btn admin-tool-bar__btn--delete" data-admin-tool-delete-selected>
+                        Delete selected
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        {# —— Gallery —— #}
+        <section class="admin-tool-section" aria-labelledby="admin-tool-gallery-heading">
+            <div class="admin-tool-section__header">
+                <h2 id="admin-tool-gallery-heading" class="admin-tool-section__title">
+                    Gallery ({{ gallery_count }})
+                </h2>
+                <label class="admin-tool-select-all">
+                    <input
+                        type="checkbox"
+                        class="admin-tool-select-all__input"
+                        data-select-all="gallery"
+                        aria-label="Select all gallery items"
+                    >
+                    <span class="admin-tool-select-all__label">Select all Gallery</span>
+                </label>
+            </div>
+
+            {% if gallery_items %}
+            <div class="admin-tool-list" role="list">
+                {% for item in gallery_items %}
+                <article class="admin-tool-row" role="listitem">
+                    <div class="admin-tool-row__check">
+                        <input
+                            type="checkbox"
+                            class="admin-tool-check"
+                            data-kind="gallery"
+                            data-id="{{ item.pk }}"
+                            aria-label="Select gallery item{% if item.title %}: {{ item.title }}{% endif %}"
+                        >
+                    </div>
+
+                    <div class="admin-tool-row__thumb">
+                        {% if item.status == "approved" %}
+                        <a
+                            href="{% url 'gallery:list' %}#gallery-item-{{ item.pk }}"
+                            class="admin-tool-row__thumb-link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            {% if item.display_image_url %}
+                            <img src="{{ item.display_image_url }}" alt="" loading="lazy" class="admin-tool-row__thumb-image">
+                            {% else %}
+                            <span class="admin-tool-row__thumb-fallback" aria-hidden="true"></span>
+                            {% endif %}
+                        </a>
+                        {% else %}
+                        <button
+                            type="button"
+                            class="admin-tool-gallery-preview admin-tool-row__thumb-button{% if item.is_video %} admin-tool-row__thumb-button--video{% endif %}"
+                            data-preview-src="{{ item.display_media_url }}"
+                            data-preview-poster="{{ item.display_image_url }}"
+                            data-preview-type="{% if item.is_video %}video{% else %}image{% endif %}"
+                            data-preview-title="{{ item.title|default:'' }}"
+                            aria-label="Preview gallery item{% if item.title %}: {{ item.title }}{% endif %}"
+                        >
+                            {% if item.display_image_url %}
+                            <img src="{{ item.display_image_url }}" alt="" loading="lazy" class="admin-tool-row__thumb-image">
+                            {% else %}
+                            <span class="admin-tool-row__thumb-fallback" aria-hidden="true"></span>
+                            {% endif %}
+                            {% if item.is_video %}
+                            <span class="admin-tool-row__play-icon" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M8 5v14l11-7z"/>
+                                </svg>
+                            </span>
+                            {% endif %}
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    <div class="admin-tool-row__main">
+                        {% if item.status == "approved" %}
+                        <a
+                            href="{% url 'gallery:list' %}#gallery-item-{{ item.pk }}"
+                            class="admin-tool-row__link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <span class="admin-tool-row__title">{{ item.title|default:"Untitled gallery item" }}</span>
+                        </a>
+                        {% else %}
+                        <button
+                            type="button"
+                            class="admin-tool-gallery-preview admin-tool-row__preview"
+                            data-preview-src="{{ item.display_media_url }}"
+                            data-preview-poster="{{ item.display_image_url }}"
+                            data-preview-type="{% if item.is_video %}video{% else %}image{% endif %}"
+                            data-preview-title="{{ item.title|default:'' }}"
+                        >
+                            <span class="admin-tool-row__title">{{ item.title|default:"Untitled gallery item" }}</span>
+                        </button>
+                        {% endif %}
+                        <div class="admin-tool-row__author">
+                            {% include "accounts/partials/user_author_chip.html" with credit_user=item.uploaded_by %}
+                        </div>
+                    </div>
+
+                    <div class="admin-tool-row__status">
+                        <span class="community-status community-status--{{ item.status }}">{{ item.get_status_display }}</span>
+                    </div>
+
+                    <time class="admin-tool-row__date" datetime="{{ item.created_at|date:'c' }}">
+                        {{ item.created_at|date:"j M Y" }}
+                    </time>
+
+                    <div class="admin-tool-row__actions">
+                        <form
+                            method="post"
+                            action="{% url 'community:admin_tool_gallery_delete' item.pk %}"
+                            class="admin-tool-delete-form js-confirm-delete"
+                            data-confirm-message="Delete this item?"
+                        >
+                            {% csrf_token %}
+                            <button type="submit" class="admin-tool-delete-btn" aria-label="Delete">
+                                {% include "community/_admin_tool_trash_icon.html" %}
+                            </button>
+                        </form>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="admin-tool-empty">No gallery items found.</p>
+            {% endif %}
+        </section>
+
+        {# —— Posts —— #}
+        <section class="admin-tool-section" aria-labelledby="admin-tool-posts-heading">
+            <div class="admin-tool-section__header">
+                <h2 id="admin-tool-posts-heading" class="admin-tool-section__title">
+                    Posts ({{ post_count }})
+                </h2>
+                <label class="admin-tool-select-all">
+                    <input
+                        type="checkbox"
+                        class="admin-tool-select-all__input"
+                        data-select-all="post"
+                        aria-label="Select all posts"
+                    >
+                    <span class="admin-tool-select-all__label">Select all</span>
+                </label>
+            </div>
+
+            {% if posts %}
+            <div class="admin-tool-list" role="list">
+                {% for post in posts %}
+                <article class="admin-tool-row" role="listitem">
+                    <div class="admin-tool-row__check">
+                        <input
+                            type="checkbox"
+                            class="admin-tool-check"
+                            data-kind="post"
+                            data-id="{{ post.pk }}"
+                            aria-label="Select post: {{ post.title }}"
+                        >
+                    </div>
+
+                    <div class="admin-tool-row__thumb">
+                        <a
+                            href="{% if post.status == 'approved' %}{% url 'community:post_detail' post.slug %}{% else %}{% url 'community:admin_post_preview' post.slug %}{% endif %}"
+                            class="admin-tool-row__thumb-link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            {% if post.cover_display_url %}
+                            <img src="{{ post.cover_display_url }}" alt="" loading="lazy" class="admin-tool-row__thumb-image">
+                            {% else %}
+                            <span class="admin-tool-row__thumb-fallback" aria-hidden="true"></span>
+                            {% endif %}
+                        </a>
+                    </div>
+
+                    <div class="admin-tool-row__main">
+                        <a
+                            href="{% if post.status == 'approved' %}{% url 'community:post_detail' post.slug %}{% else %}{% url 'community:admin_post_preview' post.slug %}{% endif %}"
+                            class="admin-tool-row__link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <span class="admin-tool-row__title">{{ post.title }}</span>
+                        </a>
+                        <div class="admin-tool-row__author">
+                            {% include "accounts/partials/user_author_chip.html" with credit_user=post.author %}
+                        </div>
+                    </div>
+
+                    <div class="admin-tool-row__status">
+                        <span class="community-status community-status--{{ post.status }}">{{ post.get_status_display }}</span>
+                    </div>
+
+                    <time class="admin-tool-row__date" datetime="{{ post.created_at|date:'c' }}">
+                        {{ post.created_at|date:"j M Y" }}
+                    </time>
+
+                    <div class="admin-tool-row__actions">
+                        <form
+                            method="post"
+                            action="{% url 'community:admin_tool_post_delete' post.slug %}"
+                            class="admin-tool-delete-form js-confirm-delete"
+                            data-confirm-message="Delete this item?"
+                        >
+                            {% csrf_token %}
+                            <button type="submit" class="admin-tool-delete-btn" aria-label="Delete">
+                                {% include "community/_admin_tool_trash_icon.html" %}
+                            </button>
+                        </form>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="admin-tool-empty">No posts found.</p>
+            {% endif %}
+        </section>
+
+        {# —— Comments —— #}
+        <section class="admin-tool-section" aria-labelledby="admin-tool-comments-heading">
+            <div class="admin-tool-section__header">
+                <h2 id="admin-tool-comments-heading" class="admin-tool-section__title">
+                    Comments ({{ comment_count }})
+                </h2>
+                <label class="admin-tool-select-all">
+                    <input
+                        type="checkbox"
+                        class="admin-tool-select-all__input"
+                        data-select-all="comment"
+                        aria-label="Select all comments"
+                    >
+                    <span class="admin-tool-select-all__label">Select all</span>
+                </label>
+            </div>
+
+            {% if comments %}
+            <div class="admin-tool-list admin-tool-list--comments" role="list">
+                {% for comment in comments %}
+                <article class="admin-tool-row admin-tool-row--comment" role="listitem">
+                    <div class="admin-tool-row__check">
+                        <input
+                            type="checkbox"
+                            class="admin-tool-check"
+                            data-kind="comment"
+                            data-id="{{ comment.pk }}"
+                            aria-label="Select comment"
+                        >
+                    </div>
+
+                    <div class="admin-tool-row__main admin-tool-row__main--full">
+                        {% if comment.post.status == "approved" and comment.status == "approved" %}
+                        <a
+                            href="{% url 'community:post_detail' comment.post.slug %}#comment-{{ comment.pk }}"
+                            class="admin-tool-row__link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <span class="admin-tool-row__excerpt">{{ comment.body|truncatewords:20 }}</span>
+                        </a>
+                        {% elif comment.post.status != "approved" %}
+                        <a
+                            href="{% url 'community:admin_post_preview' comment.post.slug %}#comment-{{ comment.pk }}"
+                            class="admin-tool-row__link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <span class="admin-tool-row__excerpt">{{ comment.body|truncatewords:20 }}</span>
+                        </a>
+                        {% else %}
+                        <a
+                            href="{% url 'community:admin_comment_preview' comment.pk %}"
+                            class="admin-tool-row__link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <span class="admin-tool-row__excerpt">{{ comment.body|truncatewords:20 }}</span>
+                        </a>
+                        {% endif %}
+                        <div class="admin-tool-row__author">
+                            {% include "accounts/partials/user_author_chip.html" with credit_user=comment.author %}
+                        </div>
+                    </div>
+
+                    <div class="admin-tool-row__status">
+                        <span class="community-status community-status--{{ comment.status }}">{{ comment.get_status_display }}</span>
+                    </div>
+
+                    <time class="admin-tool-row__date" datetime="{{ comment.created_at|date:'c' }}">
+                        {{ comment.created_at|date:"j M Y" }}
+                    </time>
+
+                    <div class="admin-tool-row__actions">
+                        <form
+                            method="post"
+                            action="{% url 'community:admin_tool_comment_delete' comment.pk %}"
+                            class="admin-tool-delete-form js-confirm-delete"
+                            data-confirm-message="Delete this item?"
+                        >
+                            {% csrf_token %}
+                            <button type="submit" class="admin-tool-delete-btn" aria-label="Delete">
+                                {% include "community/_admin_tool_trash_icon.html" %}
+                            </button>
+                        </form>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="admin-tool-empty">No comments found.</p>
+            {% endif %}
+        </section>
+
+        <form
+            id="admin-tool-bulk-form"
+            method="post"
+            action="{% url 'community:admin_tool_bulk_delete' %}"
+            class="js-confirm-delete"
+            data-confirm-message="Delete selected items? This cannot be undone."
+        >
+            {% csrf_token %}
+            <div id="admin-tool-bulk-fields"></div>
+        </form>
+
+        <div
+            id="admin-tool-lightbox"
+            class="admin-tool-lightbox"
+            hidden
+            role="dialog"
+            aria-modal="true"
+            aria-label="Gallery preview"
+        >
+            <button type="button" class="admin-tool-lightbox__backdrop" data-admin-tool-lightbox-close aria-label="Close preview"></button>
+            <div class="admin-tool-lightbox__panel">
+                <button type="button" class="admin-tool-lightbox__close" data-admin-tool-lightbox-close aria-label="Close preview">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+                <div class="admin-tool-lightbox__stage">
+                    <img class="admin-tool-lightbox__image" alt="" hidden>
+                    <video class="admin-tool-lightbox__video" controls playsinline preload="metadata" hidden></video>
+                </div>
+                <p class="admin-tool-lightbox__title" hidden></p>
+            </div>
+        </div>
+    </div>
+    </section>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'community/js/admin_tool.js' %}" defer></script>
+{% endblock %}

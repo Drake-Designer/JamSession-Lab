@@ -122,6 +122,28 @@
     color: #a3a3a3;
 }
 
+/* Staff Admin Tool entry — always clickable when shown */
+.profile-admin-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    border: 1px solid #262626;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #ffffff;
+    background-color: #111111;
+    text-decoration: none;
+    transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.profile-admin-tool:hover {
+    border-color: #e63946;
+    color: #ff4d5a;
+    background-color: rgba(230, 57, 70, 0.08);
+}
+
 /* Public social / music links — compact responsive chip row */
 .profile-social {
     display: flex;

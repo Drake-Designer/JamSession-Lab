@@ -652,7 +652,7 @@ class ProfileMyPostsTests(TestCase):
 
 
 class ProfileReviewItemsTests(TestCase):
-    """Staff-only Review Items control on the owner profile."""
+    """Staff-only Review Items + Admin Tool controls on the owner profile."""
 
     def setUp(self):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
@@ -671,16 +671,19 @@ class ProfileReviewItemsTests(TestCase):
             "accounts:profile_detail", kwargs={"username": self.regular.username}
         )
         self.queue_url = reverse("community:moderation_queue")
+        self.admin_tool_url = reverse("community:admin_tool")
 
-    def test_non_staff_owner_does_not_see_review_items(self):
+    def test_non_staff_owner_does_not_see_review_or_admin_tool(self):
         self.client.force_login(self.regular)
         response = self.client.get(self.regular_profile_url)
 
         self.assertFalse(response.context["show_review_items"])
         self.assertNotContains(response, "Review Items")
+        self.assertNotContains(response, "Admin Tool")
         self.assertNotContains(response, self.queue_url)
+        self.assertNotContains(response, self.admin_tool_url)
 
-    def test_staff_with_zero_pending_sees_disabled_review_items(self):
+    def test_staff_with_zero_pending_sees_disabled_review_and_admin_tool(self):
         self.client.force_login(self.staff)
         response = self.client.get(self.staff_profile_url)
 
@@ -690,6 +693,8 @@ class ProfileReviewItemsTests(TestCase):
         self.assertContains(response, "Nothing to review")
         self.assertContains(response, "profile-review-items--disabled")
         self.assertNotContains(response, f'href="{self.queue_url}"')
+        self.assertContains(response, "Admin Tool")
+        self.assertContains(response, f'href="{self.admin_tool_url}"')
 
     def test_staff_with_pending_items_sees_active_link_and_correct_count(self):
         author = self.regular
@@ -735,6 +740,8 @@ class ProfileReviewItemsTests(TestCase):
         self.assertContains(response, "profile-review-items--active")
         self.assertContains(response, ">4<")
         self.assertNotContains(response, "Nothing to review")
+        self.assertContains(response, "Admin Tool")
+        self.assertContains(response, f'href="{self.admin_tool_url}"')
 
 
 class ProfileEditTests(TestCase):
@@ -1502,7 +1509,8 @@ class UserProfilePictureCloudinaryCleanupTests(TestCase):
             patch("jamsession.cloudinary_cleanup._delete_stored_file") as mock_cleanup,
             patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy,
         ):
-            self.user.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                self.user.delete()
 
         mock_cleanup.assert_called_once()
         cleaned_value = mock_cleanup.call_args.args[0]

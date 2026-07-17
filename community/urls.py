@@ -58,4 +58,35 @@ urlpatterns = [
         views.moderation_gallery_delete,
         name="moderation_gallery_delete",
     ),
+    path("admin-tool/", views.admin_tool, name="admin_tool"),
+    path(
+        "admin-tool/post/<slug:slug>/preview/",
+        views.admin_post_preview,
+        name="admin_post_preview",
+    ),
+    path(
+        "admin-tool/comment/<int:pk>/preview/",
+        views.admin_comment_preview,
+        name="admin_comment_preview",
+    ),
+    path(
+        "admin-tool/gallery/<int:pk>/delete/",
+        views.admin_tool_gallery_delete,
+        name="admin_tool_gallery_delete",
+    ),
+    path(
+        "admin-tool/post/<slug:slug>/delete/",
+        views.admin_tool_post_delete,
+        name="admin_tool_post_delete",
+    ),
+    path(
+        "admin-tool/comment/<int:pk>/delete/",
+        views.admin_tool_comment_delete,
+        name="admin_tool_comment_delete",
+    ),
+    path(
+        "admin-tool/bulk-delete/",
+        views.admin_tool_bulk_delete,
+        name="admin_tool_bulk_delete",
+    ),
 ]

@@ -526,7 +526,8 @@ class CloudinaryCleanupSignalTests(TestCase):
         item.refresh_from_db()
 
         with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
-            item.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                item.delete()
 
         mock_destroy.assert_called_once_with(
             "clip_id", resource_type="video", invalidate=True

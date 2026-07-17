@@ -68,6 +68,7 @@ class HomeCarouselSlideAdminTests(TestCase):
     def test_delete_slide_removes_stored_image(self, mock_delete):
         image_name = self.slide.image.name
 
-        self.slide.delete()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.slide.delete()
 
         mock_delete.assert_called_once_with(image_name)

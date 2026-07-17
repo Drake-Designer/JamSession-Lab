@@ -264,7 +264,8 @@ class CommunityPostMediaModelTests(TestCase):
         )
 
         with patch("jamsession.cloudinary_cleanup.destroy"):
-            self.post.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                self.post.delete()
 
         self.assertFalse(CommunityPostMedia.objects.filter(pk=media.pk).exists())
 
@@ -332,7 +333,8 @@ class CommunityCommentMediaModelTests(TestCase):
         )
 
         with patch("jamsession.cloudinary_cleanup.destroy"):
-            self.comment.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                self.comment.delete()
 
         self.assertFalse(CommunityCommentMedia.objects.filter(pk=media.pk).exists())
 
@@ -1998,7 +2000,8 @@ class CommunityCloudinaryCleanupSignalTests(TestCase):
         )
 
         with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
-            self.post.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                self.post.delete()
 
         self.assertEqual(mock_destroy.call_count, 3)
         destroyed_ids = {call.args[0] for call in mock_destroy.call_args_list}
@@ -2023,7 +2026,8 @@ class CommunityCloudinaryCleanupSignalTests(TestCase):
         )
 
         with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
-            comment.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                comment.delete()
 
         self.assertEqual(mock_destroy.call_count, 2)
         destroyed_ids = {call.args[0] for call in mock_destroy.call_args_list}
@@ -2034,7 +2038,8 @@ class CommunityCloudinaryCleanupSignalTests(TestCase):
 
     def test_deleting_post_with_no_media_does_not_call_destroy(self):
         with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
-            self.post.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                self.post.delete()
 
         mock_destroy.assert_not_called()
 
@@ -2044,7 +2049,8 @@ class CommunityCloudinaryCleanupSignalTests(TestCase):
         )
 
         with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
-            comment.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                comment.delete()
 
         mock_destroy.assert_not_called()
 
@@ -2070,7 +2076,8 @@ class CommunityCloudinaryCleanupSignalTests(TestCase):
         remove.refresh_from_db()
 
         with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
-            remove.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                remove.delete()
 
         mock_destroy.assert_called_once_with(
             "remove_me", resource_type="image", invalidate=True
@@ -2091,7 +2098,8 @@ class CommunityCloudinaryCleanupSignalTests(TestCase):
         media.refresh_from_db()
 
         with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
-            media.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                media.delete()
 
         mock_destroy.assert_called_once_with(
             "solo_comment_media", resource_type="image", invalidate=True
@@ -2115,7 +2123,8 @@ class CommunityCloudinaryCleanupSignalTests(TestCase):
         _attach_cover(self.post, public_id="image/upload/v1/cover_to_remove.jpg")
 
         with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
-            self.post.delete()
+            with self.captureOnCommitCallbacks(execute=True):
+                self.post.delete()
 
         mock_destroy.assert_called_once_with(
             "cover_to_remove", resource_type="image", invalidate=True
@@ -2130,6 +2139,656 @@ class CommunityCloudinaryCleanupSignalTests(TestCase):
             self.post.save(update_fields=["title"])
 
         mock_destroy.assert_not_called()
+
+
+class AdminToolTests(TestCase):
+    """Staff Admin Tool listing, previews, single/bulk delete, and permissions."""
+
+    def setUp(self):
+        self.staff = _make_user("admin_tool_staff", is_staff=True)
+        self.regular = _make_user("admin_tool_member")
+        self.tool_url = reverse("community:admin_tool")
+        self.bulk_url = reverse("community:admin_tool_bulk_delete")
+
+    def test_non_staff_gets_403(self):
+        self.client.force_login(self.regular)
+        response = self.client.get(self.tool_url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_non_staff_gets_403_on_every_admin_tool_endpoint(self):
+        """Every Admin Tool view must reject non-moderators with 403."""
+        post = _make_post(
+            self.regular, title="Gate post", status=ApprovalStatus.PENDING
+        )
+        comment = CommunityComment.objects.create(
+            post=_make_post(
+                self.regular, title="Gate host", status=ApprovalStatus.APPROVED
+            ),
+            author=self.regular,
+            body="Gate comment",
+            status=ApprovalStatus.REJECTED,
+        )
+        gallery = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/gate_gal.jpg",
+            media_type=MediaType.IMAGE,
+            title="Gate gallery",
+            status=ApprovalStatus.APPROVED,
+        )
+
+        endpoints = (
+            ("get", reverse("community:admin_tool")),
+            (
+                "get",
+                reverse("community:admin_post_preview", kwargs={"slug": post.slug}),
+            ),
+            (
+                "get",
+                reverse(
+                    "community:admin_comment_preview", kwargs={"pk": comment.pk}
+                ),
+            ),
+            (
+                "post",
+                reverse(
+                    "community:admin_tool_gallery_delete", kwargs={"pk": gallery.pk}
+                ),
+            ),
+            (
+                "post",
+                reverse(
+                    "community:admin_tool_post_delete", kwargs={"slug": post.slug}
+                ),
+            ),
+            (
+                "post",
+                reverse(
+                    "community:admin_tool_comment_delete", kwargs={"pk": comment.pk}
+                ),
+            ),
+            ("post", reverse("community:admin_tool_bulk_delete")),
+        )
+
+        self.client.force_login(self.regular)
+        for method, url in endpoints:
+            with self.subTest(method=method, url=url):
+                if method == "get":
+                    response = self.client.get(url)
+                else:
+                    response = self.client.post(url)
+                self.assertEqual(response.status_code, 403)
+
+    def test_anonymous_is_redirected_to_login(self):
+        response = self.client.get(self.tool_url)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+
+    def test_counts_include_all_statuses(self):
+        _make_post(self.regular, title="Approved post", status=ApprovalStatus.APPROVED)
+        _make_post(self.regular, title="Pending post", status=ApprovalStatus.PENDING)
+        rejected = _make_post(
+            self.regular, title="Rejected post", status=ApprovalStatus.REJECTED
+        )
+        host = _make_post(
+            self.regular, title="Host for comments", status=ApprovalStatus.APPROVED
+        )
+        CommunityComment.objects.create(
+            post=host,
+            author=self.regular,
+            body="Approved comment",
+            status=ApprovalStatus.APPROVED,
+        )
+        CommunityComment.objects.create(
+            post=host,
+            author=self.regular,
+            body="Pending comment",
+            status=ApprovalStatus.PENDING,
+        )
+        CommunityComment.objects.create(
+            post=rejected,
+            author=self.regular,
+            body="Rejected comment",
+            status=ApprovalStatus.REJECTED,
+        )
+        GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/gal_approved.jpg",
+            media_type=MediaType.IMAGE,
+            title="Approved gallery",
+            status=ApprovalStatus.APPROVED,
+        )
+        GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/gal_pending.jpg",
+            media_type=MediaType.IMAGE,
+            title="Pending gallery",
+            status=ApprovalStatus.PENDING,
+        )
+        GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/gal_rejected.jpg",
+            media_type=MediaType.IMAGE,
+            title="Rejected gallery",
+            status=ApprovalStatus.REJECTED,
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(self.tool_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["gallery_count"], 3)
+        self.assertEqual(response.context["post_count"], 4)
+        self.assertEqual(response.context["comment_count"], 3)
+        self.assertContains(response, "Gallery (3)")
+        self.assertContains(response, "Posts (4)")
+        self.assertContains(response, "Comments (3)")
+
+    def test_approved_post_links_to_public_detail(self):
+        post = _make_post(
+            self.regular, title="Public post", status=ApprovalStatus.APPROVED
+        )
+        self.client.force_login(self.staff)
+        response = self.client.get(self.tool_url)
+        public_url = reverse("community:post_detail", kwargs={"slug": post.slug})
+        self.assertContains(response, public_url)
+        self.assertNotContains(
+            response,
+            reverse("community:admin_post_preview", kwargs={"slug": post.slug}),
+        )
+
+    def test_pending_post_links_to_staff_preview(self):
+        post = _make_post(
+            self.regular, title="Hidden pending", status=ApprovalStatus.PENDING
+        )
+        preview_url = reverse(
+            "community:admin_post_preview", kwargs={"slug": post.slug}
+        )
+        self.client.force_login(self.staff)
+        response = self.client.get(self.tool_url)
+        self.assertContains(response, preview_url)
+
+        preview = self.client.get(preview_url)
+        self.assertEqual(preview.status_code, 200)
+        self.assertContains(preview, "Hidden pending")
+        self.assertContains(preview, "Staff preview")
+
+        # Public detail still 404 for non-author.
+        self.client.force_login(self.staff)
+        # Staff is not the author — public detail must 404 for pending.
+        public = self.client.get(
+            reverse("community:post_detail", kwargs={"slug": post.slug})
+        )
+        self.assertEqual(public.status_code, 404)
+
+    def test_rejected_comment_preview_requires_staff(self):
+        host = _make_post(
+            self.regular, title="Host", status=ApprovalStatus.APPROVED
+        )
+        comment = CommunityComment.objects.create(
+            post=host,
+            author=self.regular,
+            body="Rejected body text",
+            status=ApprovalStatus.REJECTED,
+        )
+        preview_url = reverse(
+            "community:admin_comment_preview", kwargs={"pk": comment.pk}
+        )
+
+        self.client.force_login(self.regular)
+        self.assertEqual(self.client.get(preview_url).status_code, 403)
+
+        self.client.force_login(self.staff)
+        response = self.client.get(preview_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Rejected body text")
+        self.assertContains(response, "Staff preview")
+
+    def test_single_gallery_delete(self):
+        item = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/to_delete_gal.jpg",
+            media_type=MediaType.IMAGE,
+            title="Delete me",
+            status=ApprovalStatus.APPROVED,
+        )
+        delete_url = reverse(
+            "community:admin_tool_gallery_delete", kwargs={"pk": item.pk}
+        )
+
+        self.client.force_login(self.regular)
+        self.assertEqual(self.client.post(delete_url).status_code, 403)
+        self.assertTrue(GalleryItem.objects.filter(pk=item.pk).exists())
+
+        self.client.force_login(self.staff)
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(delete_url)
+
+        self.assertRedirects(response, self.tool_url)
+        self.assertFalse(GalleryItem.objects.filter(pk=item.pk).exists())
+        mock_destroy.assert_called_once_with(
+            "to_delete_gal", resource_type="image", invalidate=True
+        )
+
+    def test_single_post_delete(self):
+        post = _make_post(
+            self.regular, title="Delete this post", status=ApprovalStatus.APPROVED
+        )
+        delete_url = reverse(
+            "community:admin_tool_post_delete", kwargs={"slug": post.slug}
+        )
+
+        self.client.force_login(self.regular)
+        self.assertEqual(self.client.post(delete_url).status_code, 403)
+        self.assertTrue(CommunityPost.objects.filter(pk=post.pk).exists())
+
+        self.client.force_login(self.staff)
+        response = self.client.post(delete_url)
+        self.assertRedirects(response, self.tool_url)
+        self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
+
+    def test_section_counts_update_after_delete(self):
+        GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/count_gal.jpg",
+            media_type=MediaType.IMAGE,
+            title="Count gallery",
+            status=ApprovalStatus.APPROVED,
+        )
+        post = _make_post(
+            self.regular, title="Count post", status=ApprovalStatus.APPROVED
+        )
+        CommunityComment.objects.create(
+            post=post,
+            author=self.regular,
+            body="Count comment",
+            status=ApprovalStatus.APPROVED,
+        )
+
+        self.client.force_login(self.staff)
+        before = self.client.get(self.tool_url)
+        self.assertEqual(before.context["gallery_count"], 1)
+        self.assertEqual(before.context["post_count"], 1)
+        self.assertEqual(before.context["comment_count"], 1)
+        self.assertContains(before, "Gallery (1)")
+        self.assertContains(before, "Posts (1)")
+        self.assertContains(before, "Comments (1)")
+
+        self.client.post(
+            reverse("community:admin_tool_post_delete", kwargs={"slug": post.slug})
+        )
+        # Deleting the post cascades its comments.
+        after = self.client.get(self.tool_url)
+        self.assertEqual(after.context["gallery_count"], 1)
+        self.assertEqual(after.context["post_count"], 0)
+        self.assertEqual(after.context["comment_count"], 0)
+        self.assertContains(after, "Gallery (1)")
+        self.assertContains(after, "Posts (0)")
+        self.assertContains(after, "Comments (0)")
+
+    def test_admin_tool_query_count_does_not_grow_with_row_count(self):
+        """
+        Authors are select_related; badge/avatar use User columns only.
+
+        Query count for Admin Tool must stay constant from 5 to 25 rows
+        per section (same pattern as the members sidebar check).
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def seed(prefix, count):
+            for index in range(count):
+                author = _make_user(f"{prefix}_u{index:02d}")
+                GalleryItem.objects.create(
+                    uploaded_by=author,
+                    file=f"image/upload/v1/{prefix}_g{index:02d}.jpg",
+                    media_type=MediaType.IMAGE,
+                    title=f"{prefix} gal {index}",
+                    status=ApprovalStatus.APPROVED,
+                )
+                post = _make_post(
+                    author,
+                    title=f"{prefix} post {index}",
+                    status=ApprovalStatus.APPROVED,
+                )
+                CommunityComment.objects.create(
+                    post=post,
+                    author=author,
+                    body=f"{prefix} comment {index}",
+                    status=ApprovalStatus.APPROVED,
+                )
+
+        def tool_query_count():
+            with CaptureQueriesContext(connection) as captured:
+                response = self.client.get(self.tool_url)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "user-author-chip")
+            return len(captured)
+
+        self.client.force_login(self.staff)
+        seed("q5", 5)
+        queries_with_5 = tool_query_count()
+        seed("q25", 20)
+        queries_with_25 = tool_query_count()
+
+        self.assertEqual(
+            queries_with_5,
+            queries_with_25,
+            msg=(
+                f"Admin Tool queries grew with row count: "
+                f"{queries_with_5} (5/section) vs {queries_with_25} (25/section)"
+            ),
+        )
+        self.assertLessEqual(queries_with_25, 20)
+
+    def test_bulk_delete_removes_only_selected_ids(self):
+        keep_gallery = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/keep_gal.jpg",
+            media_type=MediaType.IMAGE,
+            title="Keep gallery",
+            status=ApprovalStatus.APPROVED,
+        )
+        delete_gallery = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/bulk_gal.jpg",
+            media_type=MediaType.IMAGE,
+            title="Bulk gallery",
+            status=ApprovalStatus.PENDING,
+        )
+        keep_post = _make_post(
+            self.regular, title="Keep post", status=ApprovalStatus.APPROVED
+        )
+        delete_post = _make_post(
+            self.regular, title="Bulk post", status=ApprovalStatus.REJECTED
+        )
+        host = _make_post(
+            self.regular, title="Comment host", status=ApprovalStatus.APPROVED
+        )
+        keep_comment = CommunityComment.objects.create(
+            post=host,
+            author=self.regular,
+            body="Keep comment",
+            status=ApprovalStatus.APPROVED,
+        )
+        delete_comment = CommunityComment.objects.create(
+            post=host,
+            author=self.regular,
+            body="Bulk comment",
+            status=ApprovalStatus.PENDING,
+        )
+
+        self.client.force_login(self.staff)
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    self.bulk_url,
+                    data={
+                        "gallery_ids": [str(delete_gallery.pk)],
+                        "post_ids": [str(delete_post.pk)],
+                        "comment_ids": [str(delete_comment.pk)],
+                    },
+                )
+
+        self.assertRedirects(response, self.tool_url)
+        self.assertTrue(GalleryItem.objects.filter(pk=keep_gallery.pk).exists())
+        self.assertFalse(GalleryItem.objects.filter(pk=delete_gallery.pk).exists())
+        self.assertTrue(CommunityPost.objects.filter(pk=keep_post.pk).exists())
+        self.assertFalse(CommunityPost.objects.filter(pk=delete_post.pk).exists())
+        self.assertTrue(CommunityComment.objects.filter(pk=keep_comment.pk).exists())
+        self.assertFalse(CommunityComment.objects.filter(pk=delete_comment.pk).exists())
+        mock_destroy.assert_called_once_with(
+            "bulk_gal", resource_type="image", invalidate=True
+        )
+
+    def test_bulk_delete_destroys_cloudinary_for_each_gallery_media(self):
+        first = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/bulk_one.jpg",
+            media_type=MediaType.IMAGE,
+            title="One",
+            status=ApprovalStatus.APPROVED,
+        )
+        second = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/bulk_two.jpg",
+            media_type=MediaType.IMAGE,
+            title="Two",
+            status=ApprovalStatus.REJECTED,
+        )
+
+        self.client.force_login(self.staff)
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            with self.captureOnCommitCallbacks(execute=True):
+                self.client.post(
+                    self.bulk_url,
+                    data={"gallery_ids": [str(first.pk), str(second.pk)]},
+                )
+
+        self.assertEqual(mock_destroy.call_count, 2)
+        destroyed = {call.args[0] for call in mock_destroy.call_args_list}
+        self.assertEqual(destroyed, {"bulk_one", "bulk_two"})
+
+    def test_moderation_queue_still_lists_only_pending(self):
+        """No regression: Review queue stays pending-only."""
+        _make_post(self.regular, title="Pending only", status=ApprovalStatus.PENDING)
+        _make_post(self.regular, title="Approved skip", status=ApprovalStatus.APPROVED)
+        GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/pending_only.jpg",
+            media_type=MediaType.IMAGE,
+            title="Pending gal",
+            status=ApprovalStatus.PENDING,
+        )
+        GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/approved_skip.jpg",
+            media_type=MediaType.IMAGE,
+            title="Approved gal",
+            status=ApprovalStatus.APPROVED,
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("community:moderation_queue"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["pending_posts"]), 1)
+        self.assertEqual(len(response.context["pending_gallery_items"]), 1)
+        self.assertContains(response, "Pending only")
+        self.assertNotContains(response, "Approved skip")
+
+    def test_rejected_post_links_to_staff_preview(self):
+        post = _make_post(
+            self.regular, title="Rejected hidden", status=ApprovalStatus.REJECTED
+        )
+        preview_url = reverse(
+            "community:admin_post_preview", kwargs={"slug": post.slug}
+        )
+        self.client.force_login(self.staff)
+        response = self.client.get(self.tool_url)
+        self.assertContains(response, preview_url)
+
+        preview = self.client.get(preview_url)
+        self.assertEqual(preview.status_code, 200)
+        self.assertContains(preview, "Rejected hidden")
+        self.assertContains(preview, "Staff preview")
+
+    def test_admin_post_preview_requires_staff(self):
+        post = _make_post(
+            self.regular, title="Preview gate", status=ApprovalStatus.PENDING
+        )
+        preview_url = reverse(
+            "community:admin_post_preview", kwargs={"slug": post.slug}
+        )
+        self.client.force_login(self.regular)
+        self.assertEqual(self.client.get(preview_url).status_code, 403)
+
+    def test_approved_comment_link_includes_comment_anchor(self):
+        host = _make_post(
+            self.regular, title="Anchor host", status=ApprovalStatus.APPROVED
+        )
+        comment = CommunityComment.objects.create(
+            post=host,
+            author=self.regular,
+            body="Anchored comment",
+            status=ApprovalStatus.APPROVED,
+        )
+        detail_url = reverse("community:post_detail", kwargs={"slug": host.slug})
+        self.client.force_login(self.staff)
+        response = self.client.get(self.tool_url)
+        self.assertContains(response, f"{detail_url}#comment-{comment.pk}")
+
+    def test_approved_gallery_link_includes_gallery_anchor(self):
+        item = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/anchor_gal.jpg",
+            media_type=MediaType.IMAGE,
+            title="Anchored gallery",
+            status=ApprovalStatus.APPROVED,
+        )
+        gallery_url = reverse("gallery:list")
+        self.client.force_login(self.staff)
+        response = self.client.get(self.tool_url)
+        self.assertContains(response, f"{gallery_url}#gallery-item-{item.pk}")
+
+    def test_rows_reuse_author_chip_partial_with_badge(self):
+        _make_post(self.regular, title="Badge row", status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.staff)
+        response = self.client.get(self.tool_url)
+        self.assertContains(response, "user-author-chip")
+        self.assertContains(response, "user-avatar")
+        self.assertContains(response, self.regular.badge_info.label)
+        profile_url = reverse(
+            "accounts:profile_detail", args=[self.regular.username]
+        )
+        self.assertContains(response, profile_url)
+
+    def test_single_comment_delete(self):
+        host = _make_post(
+            self.regular, title="Comment delete host", status=ApprovalStatus.APPROVED
+        )
+        comment = CommunityComment.objects.create(
+            post=host,
+            author=self.regular,
+            body="Delete me comment",
+            status=ApprovalStatus.APPROVED,
+        )
+        delete_url = reverse(
+            "community:admin_tool_comment_delete", kwargs={"pk": comment.pk}
+        )
+
+        self.client.force_login(self.regular)
+        self.assertEqual(self.client.post(delete_url).status_code, 403)
+        self.assertTrue(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+        self.client.force_login(self.staff)
+        response = self.client.post(delete_url)
+        self.assertRedirects(response, self.tool_url)
+        self.assertFalse(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+    def test_bulk_delete_non_staff_gets_403(self):
+        post = _make_post(
+            self.regular, title="Bulk 403 post", status=ApprovalStatus.APPROVED
+        )
+        self.client.force_login(self.regular)
+        response = self.client.post(
+            self.bulk_url, data={"post_ids": [str(post.pk)]}
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(CommunityPost.objects.filter(pk=post.pk).exists())
+
+    def test_bulk_delete_empty_selection_shows_info_message(self):
+        self.client.force_login(self.staff)
+        response = self.client.post(self.bulk_url, data={}, follow=True)
+        self.assertRedirects(response, self.tool_url)
+        self.assertContains(response, "No items were selected for deletion.")
+
+    def test_bulk_delete_rolls_back_when_one_delete_fails(self):
+        first = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/rollback_one.jpg",
+            media_type=MediaType.IMAGE,
+            title="Rollback one",
+            status=ApprovalStatus.APPROVED,
+        )
+        second = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/rollback_two.jpg",
+            media_type=MediaType.IMAGE,
+            title="Rollback two",
+            status=ApprovalStatus.APPROVED,
+        )
+        original_delete = GalleryItem.delete
+        call_count = {"n": 0}
+
+        def flaky_delete(self, *args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] >= 2:
+                raise RuntimeError("simulated bulk delete failure")
+            return original_delete(self, *args, **kwargs)
+
+        self.client.force_login(self.staff)
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            with patch.object(GalleryItem, "delete", flaky_delete):
+                with self.assertRaises(RuntimeError):
+                    with self.captureOnCommitCallbacks(execute=True):
+                        self.client.post(
+                            self.bulk_url,
+                            data={"gallery_ids": [str(first.pk), str(second.pk)]},
+                        )
+
+            # Rolled-back deletes must not destroy Cloudinary assets.
+            mock_destroy.assert_not_called()
+
+        self.assertTrue(GalleryItem.objects.filter(pk=first.pk).exists())
+        self.assertTrue(GalleryItem.objects.filter(pk=second.pk).exists())
+
+    def test_bulk_delete_post_destroys_cloudinary_attachments(self):
+        post = _make_post(
+            self.regular, title="Bulk media post", status=ApprovalStatus.APPROVED
+        )
+        CommunityPostMedia.objects.create(
+            post=post,
+            file="image/upload/v1/bulk_post_media.jpg",
+            media_type=MediaType.IMAGE,
+        )
+
+        self.client.force_login(self.staff)
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            with self.captureOnCommitCallbacks(execute=True):
+                self.client.post(self.bulk_url, data={"post_ids": [str(post.pk)]})
+
+        self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
+        mock_destroy.assert_called_once_with(
+            "bulk_post_media", resource_type="image", invalidate=True
+        )
+
+    def test_bulk_delete_comment_destroys_cloudinary_attachments(self):
+        host = _make_post(
+            self.regular, title="Bulk media host", status=ApprovalStatus.APPROVED
+        )
+        comment = CommunityComment.objects.create(
+            post=host,
+            author=self.regular,
+            body="With attachment",
+            status=ApprovalStatus.APPROVED,
+        )
+        CommunityCommentMedia.objects.create(
+            comment=comment,
+            file="image/upload/v1/bulk_comment_media.jpg",
+            media_type=MediaType.IMAGE,
+        )
+
+        self.client.force_login(self.staff)
+        with patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy:
+            with self.captureOnCommitCallbacks(execute=True):
+                self.client.post(
+                    self.bulk_url, data={"comment_ids": [str(comment.pk)]}
+                )
+
+        self.assertFalse(CommunityComment.objects.filter(pk=comment.pk).exists())
+        mock_destroy.assert_called_once_with(
+            "bulk_comment_media", resource_type="image", invalidate=True
+        )
 
 
 class CommunityMembersSidebarTests(TestCase):
