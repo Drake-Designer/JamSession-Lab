@@ -39,9 +39,20 @@ if not os.environ.get("SECRET_KEY"):
 SECRET_KEY = os.environ["SECRET_KEY"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Default False — local development must set DJANGO_DEBUG=True explicitly in .env.
+DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = []
+# Comma-separated hostnames, e.g. "jamsessionlab.ie,www.jamsessionlab.ie".
+# Local fallback applies only when DEBUG is on and the env var is unset.
+_allowed_hosts_env = os.environ.get("DJANGO_ALLOWED_HOSTS", "").strip()
+if _allowed_hosts_env:
+    ALLOWED_HOSTS = [
+        host.strip() for host in _allowed_hosts_env.split(",") if host.strip()
+    ]
+elif DEBUG:
+    ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+else:
+    ALLOWED_HOSTS = []
 
 
 # Application definition
