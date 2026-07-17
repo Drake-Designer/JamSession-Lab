@@ -62,6 +62,28 @@ def _make_image_file(name="photo.jpg", size=(20, 20), colour=(230, 57, 70)):
     return SimpleUploadedFile(name, buffer.read(), content_type="image/jpeg")
 
 
+def _make_large_image_file(name="large_photo.jpg", min_bytes=3_000_000):
+    """
+    Build a valid JPEG larger than Django's historical 2.5 MB request-body
+    default, so upload tests prove RequestDataTooBig no longer fires early.
+    """
+    import os
+
+    width = 1800
+    while True:
+        buffer = BytesIO()
+        raw = os.urandom(width * width * 3)
+        Image.frombytes("RGB", (width, width), raw).save(
+            buffer, format="JPEG", quality=92
+        )
+        if buffer.tell() >= min_bytes:
+            buffer.seek(0)
+            return SimpleUploadedFile(
+                name, buffer.read(), content_type="image/jpeg"
+            )
+        width += 400
+
+
 def _make_invalid_file(name="notes.txt"):
     """Build a file that is neither a real image nor a recognised video container."""
     return SimpleUploadedFile(
@@ -372,6 +394,48 @@ class GalleryUploadViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(GalleryItem.objects.count(), 0)
+
+    def test_upload_between_former_django_limit_and_100mb_is_not_bad_request(self):
+        """
+        Files between 2.5 MB and 100 MB must reach the form layer.
+
+        Before DATA_UPLOAD_MAX_MEMORY_SIZE was raised, Django raised
+        RequestDataTooBig (400 Bad Request) before any gallery validation.
+        """
+        from django.conf import settings
+        from django.core.exceptions import RequestDataTooBig
+
+        self.assertGreaterEqual(settings.DATA_UPLOAD_MAX_MEMORY_SIZE, 3_000_000)
+        self.assertGreaterEqual(settings.FILE_UPLOAD_MAX_MEMORY_SIZE, 3_000_000)
+
+        large_file = _make_large_image_file(min_bytes=3_000_000)
+        self.assertGreater(large_file.size, 2_621_440)
+        self.assertLessEqual(large_file.size, settings.DATA_UPLOAD_MAX_MEMORY_SIZE)
+
+        self.client.force_login(self.user)
+
+        try:
+            with patch(
+                "cloudinary.uploader.upload_resource",
+                side_effect=_fake_upload_resource,
+            ):
+                response = self.client.post(
+                    reverse("gallery:upload"),
+                    data={
+                        "files": [large_file],
+                        "title": "Large shot",
+                        "caption": "",
+                    },
+                )
+        except RequestDataTooBig:
+            self.fail(
+                "Upload between 2.5 MB and 100 MB must not raise RequestDataTooBig"
+            )
+
+        # Accepted by the form — not a raw Django 400.
+        self.assertNotEqual(response.status_code, 400)
+        self.assertRedirects(response, reverse("gallery:list"))
+        self.assertEqual(GalleryItem.objects.count(), 1)
 
 
 class GalleryAdminActionsTests(TestCase):

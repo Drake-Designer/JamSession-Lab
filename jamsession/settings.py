@@ -316,6 +316,12 @@ STORAGES = {
 
 MEDIA_URL = "/media/"
 
+# Align request-body / in-memory upload limits with the highest business
+# upload cap (gallery / community: 100 MB). Without this, Django rejects
+# bodies over the 2.5 MB default with a raw RequestDataTooBig before forms run.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 104_857_600  # 100 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 104_857_600  # 100 MB
+
 # Production-only HTTPS hardening. Left off when DEBUG=True so local
 # development on http://127.0.0.1:8000 keeps working.
 if not DEBUG:
