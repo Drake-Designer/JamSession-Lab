@@ -9,7 +9,9 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div class="community-layout">
+                <div class="community-layout__main">
 
             <a href="{% url 'community:list' %}" class="community-back-link" data-aos="fade-up">&larr; Back to Community</a>
 
@@ -28,12 +30,15 @@
                 <div class="community-post__content">
                 <div class="community-post__meta">
                     <span class="community-post__author">
-                        {% if post.author %}@{{ post.author.display_name|default:post.author.username }}{% else %}Deleted account{% endif %}
+                        {% include "accounts/partials/user_credit.html" with credit_user=post.author %}
                     </span>
                     <span class="community-card__dot" aria-hidden="true">&middot;</span>
                     <time datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|date:"j M Y" }}</time>
 
-                    {% if is_pending_preview %}
+                    {% if is_staff_preview %}
+                    <span class="community-pill">Staff preview</span>
+                    <span class="community-status community-status--{{ post.status }}">{{ staff_preview_status }}</span>
+                    {% elif is_pending_preview %}
                     <span class="community-status community-status--pending">Pending approval</span>
                     {% endif %}
                 </div>
@@ -50,6 +55,7 @@
                 {% endif %}
 
                 <div class="community-post__actions">
+                    {% if not is_staff_preview %}
                     {% if user.is_authenticated %}
                     <form method="post" action="{% url 'community:like_toggle' post.slug %}" class="community-like-form">
                         {% csrf_token %}
@@ -78,6 +84,9 @@
                         <button type="submit" class="community-link-button community-link-button--danger">Delete post</button>
                     </form>
                     {% endif %}
+                    {% else %}
+                    <span class="community-pill">{{ like_count }} like{{ like_count|pluralize }}</span>
+                    {% endif %}
                 </div>
                 </div>
             </article>
@@ -88,14 +97,18 @@
                 {% if comments %}
                 <div class="community-comments__list">
                     {% for comment in comments %}
+                        {% if is_staff_preview %}
+                        {% include "community/_comment_card.html" with comment=comment user=user show_delete=False %}
+                        {% else %}
                         {% include "community/_comment_card.html" with comment=comment user=user show_delete=True %}
+                        {% endif %}
                     {% endfor %}
                 </div>
                 {% else %}
                 <p class="community-empty community-empty--compact">No comments yet. Be the first to reply.</p>
                 {% endif %}
 
-                {% if user.is_authenticated %}
+                {% if not is_staff_preview and user.is_authenticated and comment_form %}
                 <form
                     method="post"
                     action="{% url 'community:comment_add' post.slug %}"
@@ -133,13 +146,21 @@
 
                     <button type="submit" class="community-submit-button">Post Comment</button>
                 </form>
-                {% else %}
+                {% elif not is_staff_preview %}
                 <p class="community-empty community-empty--compact">
                     <a href="{% url 'accounts:login' %}?next={{ request.path }}" class="text-jam-red hover:underline">Log in</a> to join the discussion.
                 </p>
                 {% endif %}
             </section>
 
+                </div>
+
+                {% include "community/_members_sidebar.html" %}
+            </div>
         </div>
     </section>
+{% endblock %}
+
+{% block alpine_components %}
+    <script src="{% static 'community/js/community.js' %}"></script>
 {% endblock %}

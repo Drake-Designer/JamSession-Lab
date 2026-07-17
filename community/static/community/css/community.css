@@ -455,3 +455,182 @@
         justify-content: center;
     }
 }
+
+/* Two-column Community layout + members sidebar
+ *
+ * <1024px (mobile + tablet): column stack — main content full width, sidebar
+ * below (accordion on mobile). The create form is never squeezed sideways.
+ * ≥1024px: row with sticky sidebar on the right.
+ */
+.community-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+}
+
+.community-layout__main {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.members-sidebar {
+    width: 100%;
+    border-radius: 1rem;
+    border: 1px solid #262626;
+    background-color: #1a1a1a;
+}
+
+.members-sidebar__toggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.875rem 1.125rem;
+    border: none;
+    border-radius: 1rem;
+    background: transparent;
+    color: #ffffff;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+}
+
+.members-sidebar__toggle:hover {
+    color: #e63946;
+}
+
+.members-sidebar__chevron {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+    color: #a3a3a3;
+    transition: transform 0.2s ease;
+}
+
+.members-sidebar__chevron--open {
+    transform: rotate(180deg);
+}
+
+.members-sidebar__panel {
+    display: none;
+    padding: 0 1rem 1rem;
+}
+
+.members-sidebar__panel--open {
+    display: block;
+}
+
+.members-sidebar__title {
+    display: none;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 1rem 1.125rem 0.75rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.members-sidebar__count {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #a3a3a3;
+}
+
+.members-sidebar__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-height: 18rem;
+    overflow-y: auto;
+}
+
+.members-sidebar__item {
+    margin: 0;
+}
+
+.members-sidebar__link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.5rem 0.375rem;
+    border-radius: 0.625rem;
+    color: #d1d1d1;
+    text-decoration: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.members-sidebar__link:hover {
+    background-color: rgba(230, 57, 70, 0.1);
+    color: #ffffff;
+}
+
+.members-sidebar__name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.members-sidebar__empty {
+    margin: 0;
+    padding: 0.5rem 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    color: #a3a3a3;
+}
+
+/* Desktop: sticky sidebar to the right; mobile accordion stays collapsed */
+@media (min-width: 1024px) {
+    .community-layout {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 2rem;
+    }
+
+    .community-layout__main {
+        flex: 1 1 0;
+    }
+
+    .members-sidebar {
+        position: sticky;
+        top: 5.5rem;
+        flex: 0 0 16.5rem;
+        width: 16.5rem;
+        max-height: calc(100vh - 6.5rem);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .members-sidebar__toggle {
+        display: none;
+    }
+
+    .members-sidebar__title {
+        display: flex;
+        flex-shrink: 0;
+    }
+
+    .members-sidebar__panel {
+        display: flex !important;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 0 0.75rem 0.875rem;
+    }
+
+    .members-sidebar__list {
+        max-height: none;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding-right: 0.25rem;
+    }
+}

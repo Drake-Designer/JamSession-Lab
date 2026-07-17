@@ -1,0 +1,18 @@
+{% comment %}
+Small circular avatar. Expects ``avatar_user`` (User).
+Optional: ``avatar_size`` class modifier (default user-avatar--sm).
+{% endcomment %}
+<span class="user-avatar {{ avatar_size|default:'user-avatar--sm' }}" aria-hidden="true">
+    {% if avatar_user.display_profile_picture_url %}
+    <img
+        src="{{ avatar_user.display_profile_picture_url }}"
+        alt=""
+        class="user-avatar__image"
+        width="28"
+        height="28"
+        loading="lazy"
+    >
+    {% else %}
+    {{ avatar_user.public_display_name|slice:":1"|upper }}
+    {% endif %}
+</span>

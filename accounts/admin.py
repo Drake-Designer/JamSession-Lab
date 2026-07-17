@@ -93,6 +93,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                 ),
                 "fields": (
                     ("is_active", "is_staff", "is_superuser"),
+                    "force_member_badge",
                     "groups",
                     "user_permissions",
                 ),
@@ -132,7 +133,14 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
         "display_is_staff",
         "display_is_active",
     )
-    list_filter = ("county", "is_email_verified", "is_staff", "is_active", "is_superuser")
+    list_filter = (
+        "county",
+        "is_email_verified",
+        "is_staff",
+        "is_active",
+        "is_superuser",
+        "force_member_badge",
+    )
     search_fields = ("username", "display_name", "email", "first_name", "last_name")
     readonly_fields = (
         "last_login",

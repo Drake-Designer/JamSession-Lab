@@ -37,7 +37,10 @@
 
                 <div class="min-w-0 flex-1">
                     <h1 class="break-words text-3xl font-extrabold tracking-tight text-jam-white">
-                        {{ profile_user.display_name|default:profile_user.username }}
+                        <span class="profile-header__name-row">
+                            {{ profile_user.public_display_name }}
+                            {% include "accounts/partials/user_badge.html" with badge_user=profile_user %}
+                        </span>
                     </h1>
 
                     <p class="mt-2 text-sm text-jam-muted-on-grey">

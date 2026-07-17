@@ -2130,3 +2130,169 @@ class CommunityCloudinaryCleanupSignalTests(TestCase):
             self.post.save(update_fields=["title"])
 
         mock_destroy.assert_not_called()
+
+
+class CommunityMembersSidebarTests(TestCase):
+    def setUp(self):
+        self.author = _make_user("sidebar_author")
+
+    def test_list_includes_members_sorted_case_insensitive(self):
+        zeta = _make_user("zeta_member")
+        User.objects.filter(pk=zeta.pk).update(display_name="zeta")
+        beta = _make_user("alpha_member")
+        User.objects.filter(pk=beta.pk).update(display_name="Beta")
+        alpha = _make_user("gamma_member")
+        User.objects.filter(pk=alpha.pk).update(display_name="alpha")
+
+        response = self.client.get(reverse("community:list"))
+
+        self.assertEqual(response.status_code, 200)
+        members = list(response.context["community_members"])
+        names = [member.public_display_name for member in members]
+        self.assertEqual(names, sorted(names, key=str.casefold))
+        self.assertEqual(names[0].casefold(), "alpha")
+        self.assertContains(response, "members-sidebar")
+        self.assertContains(response, "Members")
+
+    def test_sidebar_present_on_detail_and_create(self):
+        post = _make_post(
+            self.author, title="Sidebar Post", status=ApprovalStatus.APPROVED
+        )
+        detail = self.client.get(reverse("community:post_detail", args=[post.slug]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn("community_members", detail.context)
+        self.assertContains(detail, "members-sidebar")
+
+        self.client.force_login(self.author)
+        create = self.client.get(reverse("community:post_create"))
+        self.assertEqual(create.status_code, 200)
+        self.assertIn("community_members", create.context)
+        self.assertContains(create, "members-sidebar")
+
+    def test_author_name_links_to_profile_on_list_and_detail(self):
+        post = _make_post(
+            self.author, title="Linkable Author", status=ApprovalStatus.APPROVED
+        )
+        profile_url = reverse(
+            "accounts:profile_detail", args=[self.author.username]
+        )
+
+        list_response = self.client.get(reverse("community:list"))
+        self.assertContains(list_response, profile_url)
+        self.assertContains(list_response, f"@{self.author.public_display_name}")
+        self.assertContains(list_response, self.author.badge_info.label)
+
+        detail_response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+        self.assertContains(detail_response, profile_url)
+
+    def test_comment_author_links_to_profile(self):
+        post = _make_post(
+            self.author, title="Comment Link Post", status=ApprovalStatus.APPROVED
+        )
+        commenter = _make_user("comment_linker")
+        CommunityComment.objects.create(
+            post=post,
+            author=commenter,
+            body="Hello from the sidebar era.",
+            status=ApprovalStatus.APPROVED,
+        )
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+        profile_url = reverse(
+            "accounts:profile_detail", args=[commenter.username]
+        )
+        self.assertContains(response, profile_url)
+        self.assertContains(response, f"@{commenter.public_display_name}")
+
+    def test_deleted_author_shows_no_badge(self):
+        post = _make_post(
+            self.author, title="Orphan Post", status=ApprovalStatus.APPROVED
+        )
+        self.author.delete()
+
+        response = self.client.get(reverse("community:list"))
+        self.assertContains(response, "Deleted account")
+        self.assertNotContains(response, 'class="user-badge')
+
+    def test_sidebar_query_count_does_not_grow_with_member_count(self):
+        """
+        badge_info / avatars use only User columns — no per-member queries.
+
+        Query count for community:list (empty feed) must stay constant when
+        scaling from 10 to 50 members.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def member_list_query_count():
+            with CaptureQueriesContext(connection) as captured:
+                response = self.client.get(reverse("community:list"))
+                self.assertEqual(response.status_code, 200)
+                # Force template access to members + badges in the response body.
+                self.assertContains(response, "members-sidebar")
+                self.assertContains(response, "user-badge")
+            return len(captured)
+
+        for index in range(10):
+            _make_user(f"perf10_{index:02d}")
+
+        queries_with_10 = member_list_query_count()
+
+        for index in range(40):
+            _make_user(f"perf50_{index:02d}")
+
+        queries_with_50 = member_list_query_count()
+
+        self.assertEqual(
+            queries_with_10,
+            queries_with_50,
+            msg=(
+                f"Sidebar queries grew with member count: "
+                f"{queries_with_10} (10 members) vs {queries_with_50} (50 members)"
+            ),
+        )
+        # Sanity ceiling: empty list page should stay cheap (sessions + members).
+        self.assertLessEqual(
+            queries_with_50,
+            12,
+            msg=f"Unexpectedly high query count for empty list: {queries_with_50}",
+        )
+        # Documented baseline for reviewers (constant across 10 and 50 members).
+        self.assertGreaterEqual(queries_with_50, 1)
+
+    def test_mobile_accordion_markup_is_present_for_alpine(self):
+        """
+        No Selenium/Playwright in this project — assert the Alpine accordion
+        contract in the rendered HTML so open/close wiring cannot regress silently.
+        """
+        response = self.client.get(reverse("community:list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'x-data="membersSidebar()"')
+        self.assertContains(response, "members-sidebar__toggle")
+        self.assertContains(response, 'aria-controls="community-members-panel"')
+        self.assertContains(response, ':aria-expanded="open.toString()"')
+        self.assertContains(
+            response, ":class=\"{ 'members-sidebar__panel--open': open }\""
+        )
+        self.assertContains(response, "community/js/community.js")
+
+    def test_create_form_uses_stacked_layout_below_desktop(self):
+        """
+        Below 1024px the CSS keeps community-layout as a column, so the sidebar
+        sits under the form and does not squeeze the multi-field create form.
+        """
+        self.client.force_login(self.author)
+        response = self.client.get(reverse("community:post_create"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="community-layout"')
+        self.assertContains(response, "community-layout__main")
+        self.assertContains(response, "members-sidebar")
+        # Form keeps a readable max width until the desktop two-column breakpoint.
+        self.assertContains(response, "max-w-2xl")
+        self.assertContains(response, 'name="title"')
+        self.assertContains(response, 'name="cover_image"')
+        self.assertContains(response, 'name="files"')

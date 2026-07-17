@@ -3,6 +3,13 @@
     position: relative;
 }
 
+.profile-header__name-row {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
 .profile-completion {
     position: relative;
     display: flex;

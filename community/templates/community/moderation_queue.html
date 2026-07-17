@@ -27,7 +27,7 @@
                     <article class="moderation-item">
                         <div class="moderation-item__meta">
                             <span class="community-card__author">
-                                {% if post.author %}@{{ post.author.display_name|default:post.author.username }}{% else %}Deleted account{% endif %}
+                                {% include "accounts/partials/user_credit.html" with credit_user=post.author %}
                             </span>
                             <span class="community-card__dot" aria-hidden="true">&middot;</span>
                             <time datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|date:"j M Y, H:i" }}</time>
@@ -84,7 +84,7 @@
                     <article class="moderation-item">
                         <div class="moderation-item__meta">
                             <span class="community-card__author">
-                                {% if comment.author %}@{{ comment.author.display_name|default:comment.author.username }}{% else %}Deleted account{% endif %}
+                                {% include "accounts/partials/user_credit.html" with credit_user=comment.author %}
                             </span>
                             <span class="community-card__dot" aria-hidden="true">&middot;</span>
                             <time datetime="{{ comment.created_at|date:'c' }}">{{ comment.created_at|date:"j M Y, H:i" }}</time>
@@ -142,7 +142,7 @@
                     <article class="moderation-item">
                         <div class="moderation-item__meta">
                             <span class="community-card__author">
-                                {% if item.uploaded_by %}@{{ item.uploaded_by.display_name|default:item.uploaded_by.username }}{% else %}Deleted account{% endif %}
+                                {% include "accounts/partials/user_credit.html" with credit_user=item.uploaded_by %}
                             </span>
                             <span class="community-card__dot" aria-hidden="true">&middot;</span>
                             <time datetime="{{ item.created_at|date:'c' }}">{{ item.created_at|date:"j M Y, H:i" }}</time>

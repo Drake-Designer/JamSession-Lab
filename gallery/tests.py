@@ -608,3 +608,43 @@ class MediaTypeSyncTests(TestCase):
         self.assertEqual(item.media_type, MediaType.IMAGE)
         item.refresh_from_db()
         self.assertEqual(item.media_type, MediaType.IMAGE)
+
+
+class GalleryUploaderCreditLinkTests(TestCase):
+    def test_uploader_name_links_to_profile_with_badge(self):
+        uploader = _make_user("gallery_uploader")
+        GalleryItem.objects.create(
+            uploaded_by=uploader,
+            file="image/upload/v1/credit_photo.jpg",
+            media_type=MediaType.IMAGE,
+            title="Credit Photo",
+            status=ApprovalStatus.APPROVED,
+        )
+
+        response = self.client.get(reverse("gallery:list"))
+        profile_url = reverse(
+            "accounts:profile_detail", args=[uploader.username]
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, profile_url)
+        self.assertContains(response, f"@{uploader.public_display_name}")
+        self.assertContains(response, uploader.badge_info.label)
+        self.assertContains(response, "gallery-item__credit-row")
+
+    def test_deleted_uploader_shows_deleted_account_without_badge(self):
+        uploader = _make_user("gone_uploader")
+        GalleryItem.objects.create(
+            uploaded_by=uploader,
+            file="image/upload/v1/orphan_photo.jpg",
+            media_type=MediaType.IMAGE,
+            title="Orphan Photo",
+            status=ApprovalStatus.APPROVED,
+        )
+        uploader.delete()
+
+        response = self.client.get(reverse("gallery:list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Deleted account")
+        self.assertContains(response, "Orphan Photo")
+        self.assertNotContains(response, 'class="user-badge')

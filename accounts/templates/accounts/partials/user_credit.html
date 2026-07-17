@@ -1,0 +1,18 @@
+{% comment %}
+Public author credit: profile link + optional @ prefix + membership badge.
+
+Expects ``credit_user`` (User or None).
+Optional: ``hide_at`` — when true, omit the @ prefix before the name.
+When credit_user is None, shows "Deleted account" with no badge and no link.
+{% endcomment %}
+<span class="user-credit">
+    {% if credit_user %}
+    <a
+        href="{% url 'accounts:profile_detail' credit_user.username %}"
+        class="user-credit__link"
+    >{% if not hide_at %}@{% endif %}{{ credit_user.public_display_name }}</a>
+    {% include "accounts/partials/user_badge.html" with badge_user=credit_user %}
+    {% else %}
+    <span class="user-credit__deleted">Deleted account</span>
+    {% endif %}
+</span>

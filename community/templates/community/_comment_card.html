@@ -3,10 +3,10 @@ Single comment card. Expects: comment, user.
 Optional: show_delete (default false) — only post_detail passes True so the
 delete control never appears if this partial is reused elsewhere.
 {% endcomment %}
-<article class="community-comment">
+<article class="community-comment" id="comment-{{ comment.pk }}">
     <div class="community-comment__meta">
         <span class="community-comment__author">
-            {% if comment.author %}@{{ comment.author.display_name|default:comment.author.username }}{% else %}Deleted account{% endif %}
+            {% include "accounts/partials/user_credit.html" with credit_user=comment.author %}
         </span>
         <span class="community-card__dot" aria-hidden="true">&middot;</span>
         <time datetime="{{ comment.created_at|date:'c' }}">{{ comment.created_at|date:"j M Y, H:i" }}</time>

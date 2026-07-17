@@ -1,0 +1,7 @@
+{% comment %}
+Membership badge pill. Expects ``badge_user`` (User instance).
+Renders nothing when badge_user is None (deleted account).
+{% endcomment %}
+{% if badge_user %}
+<span class="user-badge {{ badge_user.badge_info.css_class }}">{{ badge_user.badge_info.label }}</span>
+{% endif %}

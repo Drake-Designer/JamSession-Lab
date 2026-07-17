@@ -1,0 +1,60 @@
+{% comment %}
+Community members sidebar. Expects community_members + community_members_count
+from community.context_processors.community_members.
+{% endcomment %}
+<aside
+    class="members-sidebar"
+    x-data="membersSidebar()"
+    aria-label="Community members"
+>
+    <button
+        type="button"
+        class="members-sidebar__toggle"
+        @click="toggle()"
+        :aria-expanded="open.toString()"
+        aria-controls="community-members-panel"
+    >
+        <span class="members-sidebar__toggle-label">
+            Members ({{ community_members_count }})
+        </span>
+        <svg
+            class="members-sidebar__chevron"
+            :class="{ 'members-sidebar__chevron--open': open }"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+        >
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
+        </svg>
+    </button>
+
+    <div
+        id="community-members-panel"
+        class="members-sidebar__panel"
+        :class="{ 'members-sidebar__panel--open': open }"
+    >
+        <h2 class="members-sidebar__title">
+            Members
+            <span class="members-sidebar__count">{{ community_members_count }}</span>
+        </h2>
+
+        {% if community_members %}
+        <ul class="members-sidebar__list">
+            {% for member in community_members %}
+            <li class="members-sidebar__item">
+                <a
+                    href="{% url 'accounts:profile_detail' member.username %}"
+                    class="members-sidebar__link"
+                >
+                    {% include "accounts/partials/user_avatar.html" with avatar_user=member %}
+                    <span class="members-sidebar__name">{{ member.public_display_name }}</span>
+                    {% include "accounts/partials/user_badge.html" with badge_user=member %}
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="members-sidebar__empty">No members yet.</p>
+        {% endif %}
+    </div>
+</aside>

@@ -1,11 +1,14 @@
 import math
 import uuid
+from collections import namedtuple
+from datetime import timedelta
 
 from cloudinary_storage.storage import MediaCloudinaryStorage
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from jamsession.cloudinary_delivery import web_image_url
@@ -21,6 +24,10 @@ from .constants import (
 from .upload_paths import profile_picture_upload_path
 from .validators import calculate_age, phone_number_validator, validate_profile_picture
 
+
+# Single source of truth for public membership badges (label + CSS class).
+BadgeInfo = namedtuple("BadgeInfo", ["label", "css_class"])
+MEMBER_BADGE_DAYS = 30
 
 # Fields that count toward profile completion (equal weight). Labels match
 # ProfileEditForm / edit template wording for highlight UI consistency.
@@ -149,11 +156,49 @@ class User(AbstractUser):
     # When the user ticked the Terms of Service checkbox at registration.
     terms_accepted_at = models.DateTimeField(null=True, blank=True)
 
+    force_member_badge = models.BooleanField(
+        _("force Member badge"),
+        default=False,
+        help_text=_(
+            "If enabled, shows 'Member' badge instead of 'New Member' even if "
+            "joined less than 30 days ago."
+        ),
+    )
+
     @property
     def age(self):
         if self.date_of_birth is None:
             return None
         return calculate_age(self.date_of_birth)
+
+    @property
+    def badge_info(self):
+        """
+        Public membership badge for this user.
+
+        Precedence (strict, no exceptions):
+        1. superuser → Founder
+        2. staff (non-superuser) → STAFF
+        3. force_member_badge or joined ≥ 30 days → Member
+        4. otherwise → New Member
+        """
+        if self.is_superuser:
+            return BadgeInfo(label="Founder", css_class="badge-founder")
+        if self.is_staff:
+            return BadgeInfo(label="STAFF", css_class="badge-staff")
+        joined_at = self.date_joined or timezone.now()
+        is_established = (timezone.now() - joined_at) >= timedelta(
+            days=MEMBER_BADGE_DAYS
+        )
+        if self.force_member_badge or is_established:
+            return BadgeInfo(label="Member", css_class="badge-member")
+        return BadgeInfo(label="New Member", css_class="badge-new-member")
+
+    @property
+    def public_display_name(self):
+        """Name shown publicly; falls back to username if display_name is blank."""
+        name = (self.display_name or "").strip()
+        return name or self.username
 
     @property
     def display_profile_picture_url(self):

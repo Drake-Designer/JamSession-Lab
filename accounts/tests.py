@@ -1538,3 +1538,155 @@ class TermsPagesTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Contact Us")
         self.assertContains(response, "jamsessionlab")
+
+
+class UserBadgeInfoTests(TestCase):
+    """badge_info is the single source of truth for membership badges."""
+
+    def _make_user(self, username, **kwargs):
+        defaults = {
+            "username": username,
+            "email": f"{username}@example.com",
+            "password": "jam-session-test-pass1",
+            "display_name": username,
+        }
+        defaults.update(kwargs)
+        return User.objects.create_user(**defaults)
+
+    def test_superuser_is_founder_regardless_of_date_joined(self):
+        user = self._make_user(
+            "founder",
+            is_superuser=True,
+            is_staff=True,
+        )
+        user.date_joined = timezone.now()
+        user.save(update_fields=["date_joined"])
+
+        info = user.badge_info
+        self.assertEqual(info.label, "Founder")
+        self.assertEqual(info.css_class, "badge-founder")
+
+    def test_superuser_with_is_staff_true_is_always_founder_not_staff(self):
+        """
+        createsuperuser sets both is_superuser and is_staff True.
+
+        Precedence must remain superuser > staff so the badge is Founder.
+        """
+        user = self._make_user(
+            "founder_staff",
+            is_superuser=True,
+            is_staff=True,
+        )
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.is_staff)
+        self.assertEqual(user.badge_info.label, "Founder")
+        self.assertEqual(user.badge_info.css_class, "badge-founder")
+        self.assertNotEqual(user.badge_info.label, "STAFF")
+
+    def test_staff_non_superuser_is_staff_regardless_of_date_joined(self):
+        user = self._make_user("staffer", is_staff=True, is_superuser=False)
+        user.date_joined = timezone.now()
+        user.save(update_fields=["date_joined"])
+
+        info = user.badge_info
+        self.assertEqual(info.label, "STAFF")
+        self.assertEqual(info.css_class, "badge-staff")
+
+    def test_new_member_within_thirty_days(self):
+        from datetime import timedelta
+
+        user = self._make_user("newbie")
+        user.date_joined = timezone.now() - timedelta(days=10)
+        user.force_member_badge = False
+        user.save(update_fields=["date_joined", "force_member_badge"])
+
+        info = user.badge_info
+        self.assertEqual(info.label, "New Member")
+        self.assertEqual(info.css_class, "badge-new-member")
+
+    def test_member_after_thirty_days(self):
+        from datetime import timedelta
+
+        user = self._make_user("veteran")
+        user.date_joined = timezone.now() - timedelta(days=30)
+        user.force_member_badge = False
+        user.save(update_fields=["date_joined", "force_member_badge"])
+
+        info = user.badge_info
+        self.assertEqual(info.label, "Member")
+        self.assertEqual(info.css_class, "badge-member")
+
+    def test_force_member_badge_overrides_new_member(self):
+        from datetime import timedelta
+
+        user = self._make_user("promoted")
+        user.date_joined = timezone.now() - timedelta(days=5)
+        user.force_member_badge = True
+        user.save(update_fields=["date_joined", "force_member_badge"])
+
+        info = user.badge_info
+        self.assertEqual(info.label, "Member")
+        self.assertEqual(info.css_class, "badge-member")
+
+    def test_profile_page_renders_membership_badge(self):
+        user = self._make_user("badge_profile")
+        response = self.client.get(
+            reverse("accounts:profile_detail", args=[user.username])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "user-badge")
+        self.assertContains(response, user.badge_info.label)
+
+
+class ActiveMembersOrderingTests(TestCase):
+    def test_members_sorted_case_insensitive_with_empty_display_name_fallback(self):
+        from accounts.members import get_active_members
+
+        charlie = User.objects.create_user(
+            username="charlie_user",
+            email="charlie@example.com",
+            password="jam-session-test-pass1",
+            display_name="charlie",
+        )
+        alice = User.objects.create_user(
+            username="alice_user",
+            email="alice@example.com",
+            password="jam-session-test-pass1",
+            display_name="Alice",
+        )
+        empty = User.objects.create_user(
+            username="zeta_fallback",
+            email="zeta@example.com",
+            password="jam-session-test-pass1",
+            display_name="temp_empty",
+        )
+        # Bypass form validation to simulate a blank nickname in the DB.
+        User.objects.filter(pk=empty.pk).update(display_name="")
+        empty.refresh_from_db()
+
+        inactive = User.objects.create_user(
+            username="inactive_user",
+            email="inactive@example.com",
+            password="jam-session-test-pass1",
+            display_name="zzz_inactive",
+            is_active=False,
+        )
+
+        ordered = list(get_active_members())
+        names = [member.public_display_name for member in ordered]
+
+        self.assertIn(alice, ordered)
+        self.assertIn(charlie, ordered)
+        self.assertIn(empty, ordered)
+        self.assertNotIn(inactive, ordered)
+        self.assertEqual(names, sorted(names, key=str.casefold))
+        # Blank display_name falls back to username for sorting and display.
+        self.assertEqual(empty.public_display_name, "zeta_fallback")
+        self.assertLess(
+            names.index("Alice"),
+            names.index("charlie"),
+        )
+        self.assertLess(
+            names.index("charlie"),
+            names.index("zeta_fallback"),
+        )
