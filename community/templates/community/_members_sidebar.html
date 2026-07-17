@@ -12,6 +12,7 @@ from community.context_processors.community_members.
         class="members-sidebar__toggle"
         @click="toggle()"
         :aria-expanded="open.toString()"
+        aria-expanded="false"
         aria-controls="community-members-panel"
     >
         <span class="members-sidebar__toggle-label">

@@ -548,6 +548,10 @@
     gap: 0.25rem;
     max-height: 18rem;
     overflow-y: auto;
+    /* Keep touch/wheel scroll inside the panel on mobile (iOS/Android). */
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
 }
 
 .members-sidebar__item {
