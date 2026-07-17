@@ -315,3 +315,13 @@ STORAGES = {
 }
 
 MEDIA_URL = "/media/"
+
+# Production-only HTTPS hardening. Left off when DEBUG=True so local
+# development on http://127.0.0.1:8000 keeps working.
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
