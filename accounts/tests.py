@@ -18,7 +18,10 @@ from jamsession.moderation import ApprovalStatus
 from .forms import RegistrationForm
 from .models import SocialLink, User
 from .social_platforms import detect_social_platform
-from .validators import UNDERAGE_ERROR_MESSAGE
+from .validators import (
+    UNDERAGE_ERROR_MESSAGE,
+    YEARS_OF_EXPERIENCE_EXCEED_AGE_MESSAGE,
+)
 
 
 def social_links_formset_data(urls=None, existing_ids=None):
@@ -85,6 +88,8 @@ def valid_registration_data(**overrides):
         "county": "dublin",
         "town_city": "Swords",
         "instruments": ["electric_guitar", "vocals"],
+        "years_of_experience": "5",
+        "experience_level": "intermediate",
         "accept_terms": "on",
     }
     data.update(overrides)
@@ -101,8 +106,40 @@ class RegistrationFormTests(TestCase):
         self.assertEqual(user.username, "aoife_b")
         self.assertEqual(user.email, "aoife@example.com")
         self.assertEqual(user.instruments, ["electric_guitar", "vocals"])
+        self.assertEqual(user.years_of_experience, 5)
+        self.assertEqual(user.experience_level, "intermediate")
+        self.assertEqual(
+            user.experience_started_year,
+            timezone.localdate().year - 5,
+        )
         self.assertIsNotNone(user.terms_accepted_at)
         self.assertFalse(user.is_email_verified)
+
+    def test_years_of_experience_is_required(self):
+        form = RegistrationForm(
+            data=valid_registration_data(years_of_experience="")
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("years_of_experience", form.errors)
+
+    def test_experience_level_is_required(self):
+        form = RegistrationForm(data=valid_registration_data(experience_level=""))
+        self.assertFalse(form.is_valid())
+        self.assertIn("experience_level", form.errors)
+
+    def test_years_of_experience_cannot_exceed_age(self):
+        form = RegistrationForm(
+            data=valid_registration_data(
+                date_of_birth="2005-01-01",
+                years_of_experience="40",
+            )
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("years_of_experience", form.errors)
+        self.assertIn(
+            str(YEARS_OF_EXPERIENCE_EXCEED_AGE_MESSAGE),
+            [str(error) for error in form.errors["years_of_experience"]],
+        )
 
     def test_under_18_is_rejected(self):
         today = timezone.localdate()
@@ -203,6 +240,50 @@ class RegistrationFormTests(TestCase):
         self.assertTrue(second.is_valid(), msg=second.errors.as_json())
         user = second.save()
         self.assertEqual(user.username, "aoife_b2")
+
+
+class YearsOfExperienceAutoIncrementTests(TestCase):
+    """Years of experience are derived from a start year and rise each 1 January."""
+
+    def test_declared_years_store_start_year_and_increment_on_new_year(self):
+        user = User(
+            username="pippo",
+            email="pippo@example.com",
+            date_of_birth=date(2000, 2, 5),
+        )
+        with patch(
+            "accounts.validators.timezone.localdate",
+            return_value=date(2026, 7, 18),
+        ):
+            user.years_of_experience = 10
+
+        self.assertEqual(user.experience_started_year, 2016)
+
+        with patch(
+            "accounts.validators.timezone.localdate",
+            return_value=date(2026, 7, 18),
+        ):
+            self.assertEqual(user.years_of_experience, 10)
+
+        with patch(
+            "accounts.validators.timezone.localdate",
+            return_value=date(2027, 1, 1),
+        ):
+            self.assertEqual(user.years_of_experience, 11)
+
+    def test_property_uses_validator_helpers_consistently(self):
+        from .validators import (
+            experience_started_year_from_years,
+            years_of_experience_from_started_year,
+        )
+
+        today = date(2026, 7, 18)
+        started = experience_started_year_from_years(10, today=today)
+        self.assertEqual(started, 2016)
+        self.assertEqual(
+            years_of_experience_from_started_year(started, today=date(2027, 1, 1)),
+            11,
+        )
 
 
 class RegistrationViewTests(TestCase):
@@ -652,7 +733,7 @@ class ProfileMyPostsTests(TestCase):
 
 
 class ProfileReviewItemsTests(TestCase):
-    """Staff-only Review Items + Admin Tool controls on the owner profile."""
+    """Staff-only REVIEW / ADMIN TOOL / EVENTS controls on the owner profile."""
 
     def setUp(self):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
@@ -672,31 +753,38 @@ class ProfileReviewItemsTests(TestCase):
         )
         self.queue_url = reverse("community:moderation_queue")
         self.admin_tool_url = reverse("community:admin_tool")
+        self.events_manage_url = reverse("events:manage")
 
-    def test_non_staff_owner_does_not_see_review_or_admin_tool(self):
+    def test_non_staff_owner_does_not_see_staff_tools(self):
         self.client.force_login(self.regular)
         response = self.client.get(self.regular_profile_url)
 
-        self.assertFalse(response.context["show_review_items"])
-        self.assertNotContains(response, "Review Items")
-        self.assertNotContains(response, "Admin Tool")
+        self.assertFalse(response.context["show_staff_tools"])
+        self.assertContains(response, "Edit profile")
+        self.assertContains(response, "profile-edit-btn")
+        self.assertNotContains(response, "REVIEW")
+        self.assertNotContains(response, "ADMIN TOOL")
+        self.assertNotContains(response, "EVENTS")
         self.assertNotContains(response, self.queue_url)
         self.assertNotContains(response, self.admin_tool_url)
+        self.assertNotContains(response, self.events_manage_url)
 
-    def test_staff_with_zero_pending_sees_disabled_review_and_admin_tool(self):
+    def test_staff_with_zero_pending_hides_review_but_shows_admin_and_events(self):
         self.client.force_login(self.staff)
         response = self.client.get(self.staff_profile_url)
 
-        self.assertTrue(response.context["show_review_items"])
+        self.assertTrue(response.context["show_staff_tools"])
         self.assertEqual(response.context["pending_review_count"], 0)
-        self.assertContains(response, "Review Items")
-        self.assertContains(response, "Nothing to review")
-        self.assertContains(response, "profile-review-items--disabled")
+        self.assertContains(response, "Edit profile")
+        self.assertContains(response, "profile-edit-btn")
+        self.assertNotContains(response, "REVIEW")
         self.assertNotContains(response, f'href="{self.queue_url}"')
-        self.assertContains(response, "Admin Tool")
+        self.assertContains(response, "ADMIN TOOL")
         self.assertContains(response, f'href="{self.admin_tool_url}"')
+        self.assertContains(response, "EVENTS")
+        self.assertContains(response, f'href="{self.events_manage_url}"')
 
-    def test_staff_with_pending_items_sees_active_link_and_correct_count(self):
+    def test_staff_with_pending_items_sees_review_link_and_correct_count(self):
         author = self.regular
         CommunityPost.objects.create(
             author=author,
@@ -735,13 +823,14 @@ class ProfileReviewItemsTests(TestCase):
 
         # 2 pending posts + 1 pending comment + 1 pending gallery item
         self.assertEqual(response.context["pending_review_count"], 4)
-        self.assertContains(response, "Review Items")
+        self.assertContains(response, "REVIEW")
         self.assertContains(response, f'href="{self.queue_url}"')
-        self.assertContains(response, "profile-review-items--active")
+        self.assertContains(response, "profile-staff-btn--review")
         self.assertContains(response, ">4<")
-        self.assertNotContains(response, "Nothing to review")
-        self.assertContains(response, "Admin Tool")
+        self.assertContains(response, "ADMIN TOOL")
         self.assertContains(response, f'href="{self.admin_tool_url}"')
+        self.assertContains(response, "EVENTS")
+        self.assertContains(response, f'href="{self.events_manage_url}"')
 
 
 class ProfileEditTests(TestCase):
@@ -760,8 +849,8 @@ class ProfileEditTests(TestCase):
             "other_instrument": "",
             "preferred_genres": [],
             "other_genre": "",
-            "years_of_experience": "",
-            "experience_level": "",
+            "years_of_experience": "5",
+            "experience_level": "intermediate",
             "bio": "",
         }
         data.update(social_links_formset_data())
@@ -806,6 +895,22 @@ class ProfileEditTests(TestCase):
         self.assertContains(
             response, "Please choose a town or city in the selected county."
         )
+
+    def test_edit_requires_years_of_experience(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(years_of_experience=""),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required")
+
+    def test_edit_requires_experience_level(self):
+        response = self.client.post(
+            self.edit_url,
+            data=self._edit_data(experience_level=""),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required")
 
     def test_edit_rejects_taken_display_name(self):
         other = User.objects.create_user(
@@ -1205,7 +1310,7 @@ class ProfileCompletionTests(TestCase):
             town_city="",
             instruments=[],
             preferred_genres=[],
-            years_of_experience=None,
+            experience_started_year=None,
             experience_level="",
             bio="",
         )
@@ -1254,24 +1359,23 @@ class ProfileCompletionTests(TestCase):
         )
 
     def test_partial_profile_percentage_after_registration(self):
-        # Registration fills display_name, phone, county, town, instruments.
-        self.assertEqual(self.user.profile_completion_percentage, round(5 / 11 * 100))
-        self.assertEqual(self.user.profile_completion_percentage, 45)
+        # Registration fills display_name, phone, county, town, instruments,
+        # years of experience, and experience level.
+        self.assertEqual(self.user.profile_completion_percentage, round(7 / 11 * 100))
+        self.assertEqual(self.user.profile_completion_percentage, 64)
         expected_missing = {
             "Profile picture",
             "Preferred music genres",
-            "Years of experience",
-            "Experience level",
             "Bio",
             "Social / music links",
         }
         self.assertEqual(set(self.user.missing_fields), expected_missing)
 
-    def test_six_of_eleven_fields_rounds_correctly(self):
+    def test_eight_of_eleven_fields_rounds_correctly(self):
         self.user.bio = "Almost there."
         self.user.save(update_fields=["bio"])
-        self.assertEqual(self.user.profile_completion_percentage, round(6 / 11 * 100))
-        self.assertEqual(self.user.profile_completion_percentage, 55)
+        self.assertEqual(self.user.profile_completion_percentage, round(8 / 11 * 100))
+        self.assertEqual(self.user.profile_completion_percentage, 73)
         self.assertNotIn("Bio", self.user.missing_fields)
 
     def test_complete_profile_is_one_hundred_percent(self):
@@ -1284,7 +1388,7 @@ class ProfileCompletionTests(TestCase):
 
     def test_zero_years_of_experience_counts_as_filled(self):
         self.user.years_of_experience = 0
-        self.user.save(update_fields=["years_of_experience"])
+        self.user.save(update_fields=["experience_started_year"])
         self.assertNotIn("years_of_experience", self.user.missing_field_keys)
 
     def test_completion_ring_hidden_from_visitors(self):
@@ -1298,7 +1402,7 @@ class ProfileCompletionTests(TestCase):
         response = self.client.get(self.profile_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "profile-completion--incomplete")
-        self.assertContains(response, "Profile 45% complete")
+        self.assertContains(response, "Profile 64% complete")
         edit_with_highlight = f"{self.edit_url}?highlight_missing=1"
         self.assertContains(response, f'href="{edit_with_highlight}"')
         self.assertContains(response, "stroke-dasharray")

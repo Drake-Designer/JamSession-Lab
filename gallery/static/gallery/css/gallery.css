@@ -1,3 +1,23 @@
+/* Photos left / videos right on wide screens */
+.gallery-columns {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    align-items: start;
+}
+
+@media (min-width: 1024px) {
+    .gallery-columns {
+        grid-template-columns: 1fr 1fr;
+        gap: 2.5rem 3rem;
+    }
+
+    /* Single column when only photos or only videos are present */
+    .gallery-columns:has(.gallery-section:only-child) {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Gallery sections */
 .gallery-section__title {
     margin-bottom: 1.5rem;
@@ -10,8 +30,22 @@
 /* Gallery grid — larger uniform cards */
 .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
-    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+    /* Two-column layout: keep cards readable within each half */
+    .gallery-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+        gap: 1.5rem;
+    }
+
+    /* Full width when only one media type is present */
+    .gallery-columns:has(.gallery-section:only-child) .gallery-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+        gap: 2rem;
+    }
 }
 
 .gallery-item {
@@ -305,8 +339,12 @@ body.gallery-lightbox-open {
 }
 
 @media (max-width: 768px) {
+    .gallery-columns {
+        gap: 2.5rem;
+    }
+
     .gallery-grid {
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+        grid-template-columns: 1fr;
         gap: 1.5rem;
     }
 

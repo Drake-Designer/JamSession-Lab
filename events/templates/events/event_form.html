@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — {% if is_edit %}Edit Event{% else %}Create Event{% endif %}{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'accounts/css/forms.css' %}">
+    <link rel="stylesheet" href="{% static 'events/css/event_form.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <div class="text-center" data-aos="fade-up">
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    {% if is_edit %}Edit Event{% else %}Create Event{% endif %}
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    {% if is_edit %}
+                    Update the venue, times, poster, or registration settings.
+                    {% else %}
+                    Add a new JamSession Lab event. The title is generated from the venue name.
+                    {% endif %}
+                </p>
+            </div>
+
+            <form
+                method="post"
+                enctype="multipart/form-data"
+                class="jam-form mt-10 space-y-6 rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8"
+                data-aos="fade-up"
+            >
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="rounded-xl border border-jam-red/50 bg-jam-black px-4 py-3">
+                    {% for error in form.non_field_errors %}
+                    <p class="form-field__error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% include "accounts/_form_field.html" with field=form.venue_name %}
+                {% include "accounts/_form_field.html" with field=form.address %}
+                {% include "accounts/_form_field.html" with field=form.location_url %}
+                {% include "accounts/_form_field.html" with field=form.starts_at %}
+                {% include "accounts/_form_field.html" with field=form.ends_at %}
+                {% include "accounts/_form_field.html" with field=form.poster %}
+                {% include "accounts/_form_field.html" with field=form.description %}
+                {% include "accounts/_form_field.html" with field=form.is_active %}
+                {% include "accounts/_form_field.html" with field=form.registrations_open %}
+
+                <div class="flex flex-wrap gap-3 pt-2">
+                    <button
+                        type="submit"
+                        class="inline-flex items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black transition hover:bg-jam-red-hover"
+                    >
+                        {% if is_edit %}Save changes{% else %}Create event{% endif %}
+                    </button>
+                    {% if event %}
+                    <a
+                        href="{% url 'events:detail' event.pk %}"
+                        class="inline-flex items-center justify-center rounded-xl border border-jam-grey-light px-6 py-3 text-base font-semibold text-jam-white"
+                    >
+                        Cancel
+                    </a>
+                    {% else %}
+                    <a
+                        href="{% url 'events:manage' %}"
+                        class="inline-flex items-center justify-center rounded-xl border border-jam-grey-light px-6 py-3 text-base font-semibold text-jam-white"
+                    >
+                        Cancel
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </section>
+{% endblock %}

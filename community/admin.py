@@ -228,6 +228,8 @@ class CommunityPostAdmin(ModelAdmin):
                     "author",
                     "body",
                     "cover_image",
+                    "cover_focus_x",
+                    "cover_focus_y",
                 ),
             },
         ),

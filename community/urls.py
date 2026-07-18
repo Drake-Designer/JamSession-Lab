@@ -8,9 +8,11 @@ urlpatterns = [
     path("", views.post_list, name="list"),
     path("post/new/", views.post_create, name="post_create"),
     path("post/<slug:slug>/", views.post_detail, name="post_detail"),
+    path("post/<slug:slug>/edit/", views.post_edit, name="post_edit"),
     path("post/<slug:slug>/delete/", views.post_delete, name="post_delete"),
     path("post/<slug:slug>/like/", views.like_toggle, name="like_toggle"),
     path("post/<slug:slug>/comment/", views.comment_add, name="comment_add"),
+    path("comment/<int:pk>/edit/", views.comment_edit, name="comment_edit"),
     path("comment/<int:pk>/delete/", views.comment_delete, name="comment_delete"),
     path("moderate/", views.moderation_queue, name="moderation_queue"),
     path(

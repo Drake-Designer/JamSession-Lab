@@ -42,7 +42,9 @@
                                     src="{{ post.cover_display_url }}"
                                     alt=""
                                     loading="lazy"
-                                    class="community-card__cover-image h-40 w-full object-cover sm:h-48 lg:h-56"
+                                    class="community-card__cover-image"
+                                    data-cover-focus-x="{{ post.cover_focus_x }}"
+                                    data-cover-focus-y="{{ post.cover_focus_y }}"
                                 >
                                 {% endif %}
                             </div>
@@ -109,4 +111,8 @@
 
 {% block alpine_components %}
     <script src="{% static 'community/js/community.js' %}"></script>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'community/js/cover-focus.js' %}"></script>
 {% endblock %}

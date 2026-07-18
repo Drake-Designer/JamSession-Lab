@@ -31,8 +31,9 @@
             {% endif %}
 
             {% if has_gallery_content %}
+            <div class="gallery-columns mt-14" data-aos="fade-up" data-aos-delay="120">
                 {% if photo_items %}
-                <section class="gallery-section mt-14" data-aos="fade-up" data-aos-delay="120">
+                <section class="gallery-section">
                     <h2 class="gallery-section__title">Photos</h2>
                     <div class="gallery-grid">
                         {% for item in photo_items %}
@@ -43,7 +44,7 @@
                 {% endif %}
 
                 {% if video_items %}
-                <section class="gallery-section{% if photo_items %} mt-16 sm:mt-20{% else %} mt-14{% endif %}" data-aos="fade-up" data-aos-delay="160">
+                <section class="gallery-section">
                     <h2 class="gallery-section__title">Videos</h2>
                     <div class="gallery-grid">
                         {% for item in video_items %}
@@ -52,6 +53,7 @@
                     </div>
                 </section>
                 {% endif %}
+            </div>
             {% else %}
             <div class="gallery-empty mt-14" data-aos="fade-up" data-aos-delay="150">
                 <p>No approved gallery items yet. Check back soon.</p>
@@ -60,44 +62,7 @@
         </div>
     </section>
 
-    <div
-        id="gallery-lightbox"
-        class="gallery-lightbox"
-        role="dialog"
-        aria-modal="true"
-        aria-hidden="true"
-        aria-label="Gallery viewer"
-    >
-        <button type="button" class="gallery-lightbox__close" aria-label="Close gallery viewer">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M18 6 6 18M6 6l12 12"/>
-            </svg>
-        </button>
-
-        <button type="button" class="gallery-lightbox__nav gallery-lightbox__nav--prev" aria-label="Previous item">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="m15 18-6-6 6-6"/>
-            </svg>
-        </button>
-
-        <div class="gallery-lightbox__dialog">
-            <div class="gallery-lightbox__stage">
-                <img class="gallery-lightbox__image" alt="" hidden>
-                <video class="gallery-lightbox__video" controls playsinline preload="auto" hidden></video>
-            </div>
-            <div class="gallery-lightbox__meta">
-                <p class="gallery-lightbox__title" hidden></p>
-                <p class="gallery-lightbox__caption" hidden></p>
-                <p class="gallery-lightbox__credit" hidden></p>
-            </div>
-        </div>
-
-        <button type="button" class="gallery-lightbox__nav gallery-lightbox__nav--next" aria-label="Next item">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="m9 18 6-6-6-6"/>
-            </svg>
-        </button>
-    </div>
+    {% include "gallery/_lightbox.html" %}
 {% endblock %}
 
 {% block extra_scripts %}

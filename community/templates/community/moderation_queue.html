@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load community_extras %}
 
 {% block title %}JamSession Lab — Review Items{% endblock %}
 
@@ -34,7 +35,7 @@
                         </div>
 
                         <h3 class="moderation-item__title">{{ post.title }}</h3>
-                        <p class="moderation-item__body">{{ post.body|linebreaksbr }}</p>
+                        <p class="moderation-item__body">{{ post.body|urlize_blank|linebreaksbr }}</p>
 
                         {% if post.media.all %}
                         <div class="moderation-media-list">
@@ -92,7 +93,7 @@
                             <span>on <a href="{% url 'community:post_detail' comment.post.slug %}" class="moderation-item__post-link">{{ comment.post.title }}</a></span>
                         </div>
 
-                        <p class="moderation-item__body">{{ comment.body|linebreaksbr }}</p>
+                        <p class="moderation-item__body">{{ comment.body|urlize_blank|linebreaksbr }}</p>
 
                         {% if comment.media.all %}
                         <div class="moderation-media-list">

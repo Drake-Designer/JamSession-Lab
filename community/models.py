@@ -70,6 +70,18 @@ class CommunityPost(ModeratedContent):
         null=True,
         validators=[validate_gallery_file_size, validate_gallery_file_type],
     )
+    # Percentages (0–100) for CSS object-position when the cover is cropped
+    # to a fixed frame — so authors can keep faces in view.
+    cover_focus_x = models.FloatField(
+        _("cover focus X"),
+        default=50,
+        help_text=_("Horizontal focal point as a percentage (0 = left, 100 = right)."),
+    )
+    cover_focus_y = models.FloatField(
+        _("cover focus Y"),
+        default=50,
+        help_text=_("Vertical focal point as a percentage (0 = top, 100 = bottom)."),
+    )
     slug = models.SlugField(max_length=220, unique=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -106,14 +118,19 @@ class CommunityPost(ModeratedContent):
 
     @property
     def cover_display_url(self):
-        """Card thumbnail URL (filled crop) — empty when no cover is set."""
+        """
+        Card thumbnail URL — scaled, not hard-cropped.
+
+        Cropping is done in CSS with object-fit/object-position so the
+        author's cover_focus_x/y still apply on list cards.
+        """
         if not self.cover_image:
             return ""
         return web_image_url(
             self.cover_image,
             width=900,
-            height=675,
-            crop="fill",
+            crop="limit",
+            quality="auto",
         )
 
     @property
@@ -127,6 +144,11 @@ class CommunityPost(ModeratedContent):
             crop="limit",
             quality="auto:best",
         )
+
+    @property
+    def cover_focus_style(self):
+        """CSS object-position value derived from the stored focal point."""
+        return f"{self.cover_focus_x:g}% {self.cover_focus_y:g}%"
 
 
 class CommunityPostMedia(models.Model):

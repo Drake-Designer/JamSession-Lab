@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.forms import BaseInlineFormSet, inlineformset_factory
 from django.urls import reverse
@@ -21,7 +22,12 @@ from .constants import (
 )
 from .models import SocialLink, User
 from .social_platforms import MAX_SOCIAL_LINKS
-from .validators import validate_minimum_age, validate_profile_picture
+from .validators import (
+    MAX_YEARS_OF_EXPERIENCE,
+    validate_minimum_age,
+    validate_profile_picture,
+    validate_years_of_experience_against_age,
+)
 from .widgets import ProfilePictureInput
 
 # Shared Tailwind classes so every input matches the brand-dark style.
@@ -37,6 +43,30 @@ SIZED_INPUT_CLASSES = (
     "focus:border-jam-red focus:outline-none focus:ring-1 focus:ring-jam-red"
 )
 SELECT_CLASSES = TEXT_INPUT_CLASSES
+
+YEARS_OF_EXPERIENCE_HELP_TEXT = _(
+    "How many years you have been playing (0–%(max)s). "
+    "This increases automatically by one year every 1 January."
+) % {"max": MAX_YEARS_OF_EXPERIENCE}
+
+
+def years_of_experience_form_field(*, required=True):
+    """Shared integer field shown on registration and profile edit."""
+    return forms.IntegerField(
+        label=_("Years of experience"),
+        required=required,
+        min_value=0,
+        max_value=MAX_YEARS_OF_EXPERIENCE,
+        help_text=YEARS_OF_EXPERIENCE_HELP_TEXT,
+        widget=forms.NumberInput(
+            attrs={
+                "class": TEXT_INPUT_CLASSES,
+                "min": "0",
+                "max": str(MAX_YEARS_OF_EXPERIENCE),
+                "inputmode": "numeric",
+            },
+        ),
+    )
 
 
 def generate_unique_username(display_name):
@@ -90,6 +120,13 @@ class RegistrationForm(UserCreationForm):
             "required": _("Please select at least one instrument."),
         },
     )
+    years_of_experience = years_of_experience_form_field(required=True)
+    experience_level = forms.ChoiceField(
+        label=_("Experience level"),
+        required=True,
+        choices=[("", _("Select your level"))] + list(ExperienceLevel.choices),
+        widget=forms.Select(attrs={"class": SELECT_CLASSES}),
+    )
     accept_terms = forms.BooleanField(
         required=True,
         error_messages={
@@ -110,6 +147,7 @@ class RegistrationForm(UserCreationForm):
             "town_city",
             "instruments",
             "other_instrument",
+            "experience_level",
         )
         widgets = {
             "first_name": forms.TextInput(attrs={"class": TEXT_INPUT_CLASSES}),
@@ -214,12 +252,21 @@ class RegistrationForm(UserCreationForm):
                     _("Please choose a town or city in the selected county."),
                 )
 
+        years = cleaned_data.get("years_of_experience")
+        date_of_birth = cleaned_data.get("date_of_birth")
+        if years is not None and date_of_birth is not None:
+            try:
+                validate_years_of_experience_against_age(years, date_of_birth)
+            except ValidationError as exc:
+                self.add_error("years_of_experience", exc)
+
         return cleaned_data
 
     def save(self, commit=True):
         user = super().save(commit=False)
         user.username = generate_unique_username(user.display_name)
         user.terms_accepted_at = timezone.now()
+        user.years_of_experience = self.cleaned_data["years_of_experience"]
         if commit:
             user.save()
         return user
@@ -305,9 +352,10 @@ class ProfileEditForm(forms.ModelForm):
         choices=MusicGenre.choices,
         widget=forms.CheckboxSelectMultiple,
     )
+    years_of_experience = years_of_experience_form_field(required=True)
     experience_level = forms.ChoiceField(
         label=_("Experience level"),
-        required=False,
+        required=True,
         choices=[("", _("Select your level"))] + list(ExperienceLevel.choices),
         widget=forms.Select(attrs={"class": SELECT_CLASSES}),
     )
@@ -324,7 +372,6 @@ class ProfileEditForm(forms.ModelForm):
             "other_instrument",
             "preferred_genres",
             "other_genre",
-            "years_of_experience",
             "experience_level",
             "bio",
         )
@@ -358,14 +405,6 @@ class ProfileEditForm(forms.ModelForm):
                     "maxlength": str(OTHER_GENRE_MAX_LENGTH),
                 },
             ),
-            "years_of_experience": forms.NumberInput(
-                attrs={
-                    "class": TEXT_INPUT_CLASSES,
-                    "min": "0",
-                    "max": "80",
-                    "inputmode": "numeric",
-                },
-            ),
             "bio": forms.Textarea(attrs={"class": TEXT_INPUT_CLASSES, "rows": 5}),
         }
         labels = {
@@ -373,7 +412,6 @@ class ProfileEditForm(forms.ModelForm):
             "phone_number": _("Phone number"),
             "other_instrument": _("Other instrument"),
             "other_genre": _("Other genre"),
-            "years_of_experience": _("Years of experience"),
             "bio": _("Bio"),
         }
         help_texts = {
@@ -389,7 +427,10 @@ class ProfileEditForm(forms.ModelForm):
         self.fields["phone_number"].required = True
         self.fields["other_instrument"].required = False
         self.fields["other_genre"].required = False
-        self.fields["years_of_experience"].required = False
+        if self.instance and self.instance.pk:
+            self.fields["years_of_experience"].initial = (
+                self.instance.years_of_experience
+            )
         self.fields["profile_picture"].widget.attrs[
             "data-immediate-remove-url"
         ] = reverse("accounts:profile_picture_remove")
@@ -457,7 +498,25 @@ class ProfileEditForm(forms.ModelForm):
                     _("Please choose a town or city in the selected county."),
                 )
 
+        years = cleaned_data.get("years_of_experience")
+        if years is not None:
+            try:
+                validate_years_of_experience_against_age(
+                    years,
+                    self.instance.date_of_birth,
+                )
+            except ValidationError as exc:
+                self.add_error("years_of_experience", exc)
+
         return cleaned_data
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.years_of_experience = self.cleaned_data["years_of_experience"]
+        if commit:
+            user.save()
+            self.save_m2m()
+        return user
 
 
 class SocialLinkForm(forms.ModelForm):

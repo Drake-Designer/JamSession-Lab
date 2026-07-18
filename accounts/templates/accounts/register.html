@@ -20,6 +20,17 @@
                 </p>
             </div>
 
+            {% if show_event_rsvp_banner %}
+            <div
+                class="mt-8 rounded-2xl border border-jam-red/40 bg-jam-grey px-4 py-3 text-sm text-jam-white"
+                data-aos="fade-up"
+                role="status"
+            >
+                To register for an event you need to create your JamSession Lab account first.
+                After signing up you will be taken back to the event registration form.
+            </div>
+            {% endif %}
+
             <form
                 method="post"
                 id="registration-form"
@@ -29,6 +40,9 @@
                 novalidate
             >
                 {% csrf_token %}
+                {% if next %}
+                <input type="hidden" name="next" value="{{ next }}">
+                {% endif %}
 
                 {% if form.non_field_errors %}
                 <div class="rounded-xl border border-jam-red/50 bg-jam-black px-4 py-3">
@@ -74,6 +88,11 @@
 
                 <div id="other-instrument-field">
                     {% include "accounts/_form_field.html" with field=form.other_instrument %}
+                </div>
+
+                <div class="profile-edit-experience-grid">
+                    {% include "accounts/_form_field.html" with field=form.years_of_experience %}
+                    {% include "accounts/_form_field.html" with field=form.experience_level %}
                 </div>
 
                 <div class="form-field border-t border-jam-grey-light pt-6">

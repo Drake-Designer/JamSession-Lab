@@ -193,14 +193,15 @@
             </div>
 
             <div class="mx-auto mt-10 max-w-2xl" data-aos="fade-up" data-aos-delay="150">
+                {% if next_event %}
                 <article class="overflow-hidden rounded-2xl border border-jam-grey-light border-l-4 border-l-jam-red bg-jam-black shadow-2xl shadow-black/50">
                     <div class="flex flex-wrap items-start justify-between gap-4 px-6 py-5 sm:px-8">
                         <div>
-                            <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Coming Soon</p>
-                            <h3 class="mt-1 text-2xl font-bold text-jam-white sm:text-3xl">Summer Jam Session 2026</h3>
+                            <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Next up</p>
+                            <h3 class="mt-1 text-2xl font-bold text-jam-white sm:text-3xl">{{ next_event.title }}</h3>
                         </div>
                         <span class="inline-flex shrink-0 items-center rounded-lg bg-jam-red px-3 py-1.5 text-sm font-bold text-jam-black">
-                            15 Aug 2026
+                            {{ next_event.starts_at|date:"j M Y" }}
                         </span>
                     </div>
 
@@ -211,7 +212,7 @@
                             </svg>
                             <div>
                                 <p class="text-sm font-medium text-jam-muted">Date &amp; Time</p>
-                                <p class="text-base font-semibold text-jam-white">Saturday, 15 August 2026 · 7:00 PM</p>
+                                <p class="text-base font-semibold text-jam-white">{{ next_event.starts_at|date:"l, j F Y · g:i A" }}</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-3">
@@ -221,26 +222,45 @@
                             </svg>
                             <div>
                                 <p class="text-sm font-medium text-jam-muted">Venue</p>
-                                <p class="text-base font-semibold text-jam-white">The Sound House, Dublin</p>
+                                <p class="text-base font-semibold text-jam-white">{{ next_event.venue_name }}</p>
+                                <p class="text-sm text-jam-muted">{{ next_event.address }}</p>
                             </div>
                         </div>
-                        <div class="flex items-start gap-3">
-                            <svg class="mt-0.5 h-5 w-5 shrink-0 text-jam-red" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-                            </svg>
-                            <div>
-                                <p class="text-sm font-medium text-jam-muted">Spots available</p>
-                                <p class="text-base font-semibold text-jam-white">24 of 30 places remaining</p>
-                            </div>
-                        </div>
+                        {% if next_event.is_registration_allowed %}
+                            {% if user.is_authenticated %}
+                            <a
+                                href="{% url 'events:register' next_event.pk %}"
+                                class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black shadow-md transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-black"
+                            >
+                                Register for This Event
+                            </a>
+                            {% else %}
+                            <a
+                                href="{% url 'accounts:register' %}?next={% url 'events:register' next_event.pk %}"
+                                class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black shadow-md transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-black"
+                            >
+                                Register for This Event
+                            </a>
+                            {% endif %}
+                        {% else %}
                         <a
-                            href="#"
-                            class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black shadow-md transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-black"
+                            href="{% url 'events:detail' next_event.pk %}"
+                            class="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-jam-grey-light px-6 py-3 text-base font-bold text-jam-white transition hover:border-jam-red"
                         >
-                            Register for This Event
+                            View event details
                         </a>
+                        {% endif %}
                     </div>
                 </article>
+                {% else %}
+                <article class="overflow-hidden rounded-2xl border border-jam-grey-light border-l-4 border-l-jam-red bg-jam-black px-6 py-10 text-center shadow-2xl shadow-black/50 sm:px-8">
+                    <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Coming soon</p>
+                    <h3 class="mt-2 text-2xl font-bold text-jam-white">No upcoming events just yet</h3>
+                    <p class="mt-3 text-jam-muted-on-grey">
+                        Check back soon for the next JamSession Lab night.
+                    </p>
+                </article>
+                {% endif %}
             </div>
         </div>
     </section>

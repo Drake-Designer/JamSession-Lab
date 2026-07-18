@@ -51,6 +51,17 @@
     color: #d1d1d1;
 }
 
+.moderation-item__body a {
+    color: #e63946;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    word-break: break-word;
+}
+
+.moderation-item__body a:hover {
+    color: #ff4d5a;
+}
+
 /* Full-width media review — unlike the compact grid on the public pages,
    moderators need to see every attachment at a size that lets them judge it
    properly before approving or rejecting. */

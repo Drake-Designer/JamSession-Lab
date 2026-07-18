@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% load static %}
+{% load community_extras %}
 
 {% block title %}JamSession Lab — {{ post.title }}{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
+    <link rel="stylesheet" href="{% static 'gallery/css/gallery.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -18,12 +20,28 @@
             <article class="community-post mt-6" data-aos="fade-up" data-aos-delay="50">
                 <div class="community-post__cover{% if not post.cover_detail_url %} community-post__cover--fallback{% endif %}">
                     {% if post.cover_detail_url %}
-                    <img
-                        src="{{ post.cover_detail_url }}"
-                        alt=""
-                        loading="eager"
-                        class="community-post__cover-image h-48 w-full object-cover sm:h-64 lg:h-80"
+                    <button
+                        type="button"
+                        class="community-post__cover-trigger"
+                        data-gallery-group="photos"
+                        data-gallery-type="image"
+                        data-gallery-src="{{ post.cover_detail_url }}"
+                        data-gallery-fallback=""
+                        data-gallery-poster="{{ post.cover_detail_url }}"
+                        data-gallery-title="{{ post.title }}"
+                        data-gallery-caption=""
+                        data-gallery-credit="{% if post.author %}@{{ post.author.public_display_name }}{% else %}Deleted account{% endif %}"
+                        aria-label="View cover photo"
                     >
+                        <img
+                            src="{{ post.cover_detail_url }}"
+                            alt=""
+                            loading="eager"
+                            class="community-post__cover-image"
+                            data-cover-focus-x="{{ post.cover_focus_x }}"
+                            data-cover-focus-y="{{ post.cover_focus_y }}"
+                        >
+                    </button>
                     {% endif %}
                 </div>
 
@@ -44,12 +62,12 @@
                 </div>
 
                 <h1 class="community-post__title">{{ post.title }}</h1>
-                <p class="community-post__body">{{ post.body|linebreaksbr }}</p>
+                <p class="community-post__body">{{ post.body|urlize_blank|linebreaksbr }}</p>
 
                 {% if post.media.all %}
                 <div class="community-media-grid mt-6">
                     {% for media in post.media.all %}
-                        {% include "community/_media_item.html" with media=media %}
+                        {% include "community/_media_item.html" with media=media credit_user=post.author %}
                     {% endfor %}
                 </div>
                 {% endif %}
@@ -73,16 +91,19 @@
                     <span class="community-pill">{{ like_count }} like{{ like_count|pluralize }}</span>
                     {% endif %}
 
-                    {% if can_delete_post %}
-                    <form
-                        method="post"
-                        action="{% url 'community:post_delete' post.slug %}"
-                        class="js-confirm-delete"
-                        data-confirm-message="Delete this post? This cannot be undone."
-                    >
-                        {% csrf_token %}
-                        <button type="submit" class="community-link-button community-link-button--danger">Delete post</button>
-                    </form>
+                    {% if can_manage_post %}
+                    <div class="community-manage-actions">
+                        <a href="{% url 'community:post_edit' post.slug %}" class="community-link-button">Edit post</a>
+                        <form
+                            method="post"
+                            action="{% url 'community:post_delete' post.slug %}"
+                            class="js-confirm-delete"
+                            data-confirm-message="Delete this post? This cannot be undone."
+                        >
+                            {% csrf_token %}
+                            <button type="submit" class="community-link-button community-link-button--danger">Delete post</button>
+                        </form>
+                    </div>
                     {% endif %}
                     {% else %}
                     <span class="community-pill">{{ like_count }} like{{ like_count|pluralize }}</span>
@@ -98,9 +119,9 @@
                 <div class="community-comments__list">
                     {% for comment in comments %}
                         {% if is_staff_preview %}
-                        {% include "community/_comment_card.html" with comment=comment user=user show_delete=False %}
+                        {% include "community/_comment_card.html" with comment=comment user=user show_manage=False %}
                         {% else %}
-                        {% include "community/_comment_card.html" with comment=comment user=user show_delete=True %}
+                        {% include "community/_comment_card.html" with comment=comment user=user show_manage=True %}
                         {% endif %}
                     {% endfor %}
                 </div>
@@ -159,8 +180,15 @@
             </div>
         </div>
     </section>
+
+    {% include "gallery/_lightbox.html" %}
 {% endblock %}
 
 {% block alpine_components %}
     <script src="{% static 'community/js/community.js' %}"></script>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'gallery/js/gallery.js' %}"></script>
+    <script src="{% static 'community/js/cover-focus.js' %}"></script>
 {% endblock %}

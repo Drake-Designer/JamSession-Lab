@@ -19,10 +19,11 @@ POSTS_PER_PAGE = 10
 
 def _user_can_moderate_or_owns(user, author_id):
     """
-    Deletion permission rule, checked in the view (never trusting the template).
+    Edit/delete permission rule, checked in the view (never trusting the template).
 
     True for staff/superusers (moderators) or for the content's own author.
-    A None author_id (author account deleted) is only removable by moderators.
+    A None author_id (author account deleted) is only editable/removable by
+    moderators.
     """
     if user.is_staff or user.is_superuser:
         return True
@@ -115,11 +116,12 @@ def post_detail(request, slug):
         "comment_form": CommunityCommentForm(),
         "like_count": post.likes.count(),
         # Display-only helpers: buttons are hidden accordingly in the
-        # template, but post_delete/comment_delete re-check permissions
-        # themselves — the template never is the source of truth.
+        # template, but post_edit/post_delete (and comment counterparts)
+        # re-check permissions themselves — the template never is the
+        # source of truth.
         "user_has_liked": user.is_authenticated
         and post.likes.filter(user=user).exists(),
-        "can_delete_post": user.is_authenticated
+        "can_manage_post": user.is_authenticated
         and _user_can_moderate_or_owns(user, post.author_id),
     }
     return render(request, "community/post_detail.html", context)
@@ -143,7 +145,49 @@ def post_create(request):
     else:
         form = CommunityPostForm(user=request.user)
 
-    return render(request, "community/post_form.html", {"form": form})
+    return render(
+        request,
+        "community/post_form.html",
+        {"form": form, "is_edit": False},
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def post_edit(request, slug):
+    """
+    Edit a post — only its author or a staff/superuser moderator may do so.
+
+    Non-staff edits re-enter the approval queue; staff/superuser edits keep
+    the current moderation status.
+    """
+    post = get_object_or_404(CommunityPost, slug=slug)
+
+    if not _user_can_moderate_or_owns(request.user, post.author_id):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        form = CommunityPostForm(
+            request.POST, request.FILES, user=request.user, instance=post
+        )
+        if form.is_valid():
+            updated = form.save()
+            if updated.status == ApprovalStatus.APPROVED:
+                messages.success(request, _("Your post has been updated."))
+            else:
+                messages.success(
+                    request,
+                    _("Your changes have been submitted for approval."),
+                )
+            return redirect("community:post_detail", slug=updated.slug)
+    else:
+        form = CommunityPostForm(user=request.user, instance=post)
+
+    return render(
+        request,
+        "community/post_form.html",
+        {"form": form, "is_edit": True, "post": post},
+    )
 
 
 @login_required
@@ -221,6 +265,54 @@ def comment_delete(request, pk):
     comment.delete()
     messages.success(request, _("The comment has been deleted."))
     return redirect("community:post_detail", slug=post_slug)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def comment_edit(request, pk):
+    """
+    Edit a comment — only its author or a staff/superuser moderator may do so.
+
+    Non-staff edits re-enter the approval queue; staff/superuser edits keep
+    the current moderation status.
+    """
+    comment = get_object_or_404(
+        CommunityComment.objects.select_related("post"), pk=pk
+    )
+
+    if not _user_can_moderate_or_owns(request.user, comment.author_id):
+        raise PermissionDenied
+
+    post = comment.post
+
+    if request.method == "POST":
+        form = CommunityCommentForm(
+            request.POST,
+            request.FILES,
+            user=request.user,
+            post=post,
+            instance=comment,
+        )
+        if form.is_valid():
+            updated = form.save()
+            if updated.status == ApprovalStatus.APPROVED:
+                messages.success(request, _("Your comment has been updated."))
+            else:
+                messages.success(
+                    request,
+                    _("Your changes have been submitted for approval."),
+                )
+            return redirect("community:post_detail", slug=post.slug)
+    else:
+        form = CommunityCommentForm(
+            user=request.user, post=post, instance=comment
+        )
+
+    return render(
+        request,
+        "community/comment_form.html",
+        {"form": form, "comment": comment, "post": post},
+    )
 
 
 @login_required
@@ -442,7 +534,7 @@ def admin_post_preview(request, slug):
             "comment_form": None,
             "like_count": post.likes.count(),
             "user_has_liked": False,
-            "can_delete_post": True,
+            "can_manage_post": True,
         },
     )
 

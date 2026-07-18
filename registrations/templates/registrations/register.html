@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Register for {{ event.title }}{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'accounts/css/forms.css' %}">
+    <link rel="stylesheet" href="{% static 'registrations/css/register.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <div class="text-center" data-aos="fade-up">
+                <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Event registration</p>
+                <h1 class="mt-2 text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    {{ event.title }}
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    {{ event.starts_at|date:"l, j F Y · g:i A" }} · {{ event.venue_name }}
+                </p>
+            </div>
+
+            <div class="mt-8 rounded-2xl border border-jam-grey-light bg-jam-grey p-6" data-aos="fade-up">
+                <h2 class="text-sm font-medium uppercase tracking-wider text-jam-muted">Your profile (from account)</h2>
+                <dl class="mt-3 space-y-2 text-sm">
+                    <div class="flex flex-wrap gap-x-2">
+                        <dt class="text-jam-muted">Instruments:</dt>
+                        <dd class="font-semibold text-jam-white">
+                            {% if profile_instruments %}
+                                {{ profile_instruments|join:", " }}
+                            {% else %}
+                                Not set
+                            {% endif %}
+                        </dd>
+                    </div>
+                    <div class="flex flex-wrap gap-x-2">
+                        <dt class="text-jam-muted">Experience level:</dt>
+                        <dd class="font-semibold text-jam-white">
+                            {{ profile_level|default:"Not set" }}
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+
+            <form
+                method="post"
+                id="event-rsvp-form"
+                class="jam-form mt-8 space-y-6 rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8"
+                data-aos="fade-up"
+                novalidate
+            >
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="rounded-xl border border-jam-red/50 bg-jam-black px-4 py-3">
+                    {% for error in form.non_field_errors %}
+                    <p class="form-field__error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <fieldset class="space-y-4">
+                    <legend class="text-base font-semibold text-jam-white">
+                        Which session(s) would you like to join?
+                    </legend>
+                    <p class="text-sm text-jam-muted">
+                        Select all that apply — one session is guaranteed; additional selections depend on availability.
+                    </p>
+                    <div class="space-y-3">
+                        <label class="flex items-start gap-3 text-sm text-jam-white">
+                            {{ form.join_open_mic }}
+                            <span>{{ form.join_open_mic.label }}</span>
+                        </label>
+                        {% if form.join_open_mic.errors %}
+                        <p class="form-field__error">{{ form.join_open_mic.errors|striptags }}</p>
+                        {% endif %}
+                        <label class="flex items-start gap-3 text-sm text-jam-white">
+                            {{ form.join_open_jam }}
+                            <span>{{ form.join_open_jam.label }}</span>
+                        </label>
+                        {% if form.join_open_jam.errors %}
+                        <p class="form-field__error">{{ form.join_open_jam.errors|striptags }}</p>
+                        {% endif %}
+                    </div>
+                </fieldset>
+
+                <div id="originals-in-jam-block" class="space-y-4" hidden>
+                    <fieldset>
+                        <legend class="text-base font-semibold text-jam-white">
+                            {{ form.originals_choice.label }}
+                        </legend>
+                        <div class="mt-3 space-y-2">
+                            {% for radio in form.originals_choice %}
+                            <label class="flex items-center gap-3 text-sm text-jam-white">
+                                {{ radio.tag }}
+                                <span>{{ radio.choice_label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% if form.originals_choice.errors %}
+                        <p class="form-field__error">{{ form.originals_choice.errors|striptags }}</p>
+                        {% endif %}
+                    </fieldset>
+
+                    <div id="songs-block" class="space-y-4" hidden>
+                        <p class="text-sm text-jam-muted">
+                            Which original songs would you like to play with other musicians during the jam?
+                            Please include the title, key, and basic chords so they can easily follow along.
+                        </p>
+                        {{ song_formset.management_form }}
+                        <div id="songs-forms" class="space-y-4">
+                            {% for song_form in song_formset %}
+                            <div class="song-form rounded-xl border border-jam-grey-light bg-jam-black p-4 space-y-3">
+                                {% include "accounts/_form_field.html" with field=song_form.title %}
+                                {% include "accounts/_form_field.html" with field=song_form.song_key %}
+                                {% include "accounts/_form_field.html" with field=song_form.basic_chords %}
+                                {% if song_form.DELETE %}
+                                <label class="flex items-center gap-2 text-sm text-jam-muted">
+                                    {{ song_form.DELETE }}
+                                    <span>Remove this song</span>
+                                </label>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button
+                            type="button"
+                            id="add-song-btn"
+                            class="text-sm font-semibold text-jam-red hover:text-jam-red-hover"
+                        >
+                            Add another song
+                        </button>
+                    </div>
+                </div>
+
+                {% include "accounts/_form_field.html" with field=form.notes %}
+
+                <button
+                    type="submit"
+                    class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black transition hover:bg-jam-red-hover sm:w-auto"
+                >
+                    Submit registration
+                </button>
+            </form>
+        </div>
+    </section>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'registrations/js/register.js' %}"></script>
+{% endblock %}

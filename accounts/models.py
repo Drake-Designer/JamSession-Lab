@@ -22,7 +22,15 @@ from .constants import (
     MusicGenre,
 )
 from .upload_paths import profile_picture_upload_path
-from .validators import calculate_age, phone_number_validator, validate_profile_picture
+from .validators import (
+    MAX_YEARS_OF_EXPERIENCE,
+    calculate_age,
+    experience_started_year_from_years,
+    phone_number_validator,
+    validate_profile_picture,
+    validate_years_of_experience_against_age,
+    years_of_experience_from_started_year,
+)
 
 
 # Single source of truth for public membership badges (label + CSS class).
@@ -128,12 +136,21 @@ class User(AbstractUser):
         help_text=_("Specify your genre if you selected 'Other'."),
     )
 
-    years_of_experience = models.PositiveSmallIntegerField(
-        _("years of experience"),
+    # Stored as the calendar year the musician started playing. Public
+    # "years of experience" is derived as current_year - this value, so it
+    # increases automatically every 1 January without a cron job.
+    experience_started_year = models.PositiveSmallIntegerField(
+        _("experience started year"),
         blank=True,
         null=True,
-        validators=[MinValueValidator(0), MaxValueValidator(80)],
-        help_text=_("How many years you have been playing (0–80)."),
+        validators=[
+            MinValueValidator(1900),
+            MaxValueValidator(2100),
+        ],
+        help_text=_(
+            "Calendar year the musician started playing. Years of experience "
+            "are calculated from this value and increase each 1 January."
+        ),
     )
     experience_level = models.CharField(
         _("experience level"),
@@ -170,6 +187,33 @@ class User(AbstractUser):
         if self.date_of_birth is None:
             return None
         return calculate_age(self.date_of_birth)
+
+    @property
+    def years_of_experience(self):
+        """
+        Playing experience in full calendar years.
+
+        Increases automatically on 1 January each year (e.g. 10 in 2026 → 11
+        in 2027) because it is derived from experience_started_year.
+        """
+        return years_of_experience_from_started_year(self.experience_started_year)
+
+    @years_of_experience.setter
+    def years_of_experience(self, years):
+        """Accept a declared years value and store the matching start year."""
+        if years is None:
+            self.experience_started_year = None
+            return
+        years = int(years)
+        if years < 0 or years > MAX_YEARS_OF_EXPERIENCE:
+            raise ValidationError(
+                _(
+                    "Years of experience must be between 0 and %(max)s."
+                )
+                % {"max": MAX_YEARS_OF_EXPERIENCE}
+            )
+        validate_years_of_experience_against_age(years, self.date_of_birth)
+        self.experience_started_year = experience_started_year_from_years(years)
 
     @property
     def badge_info(self):
@@ -227,8 +271,8 @@ class User(AbstractUser):
         if field_key == "preferred_genres":
             return bool(self.preferred_genres)
         if field_key == "years_of_experience":
-            # 0 years is a valid answer — only null counts as missing.
-            return self.years_of_experience is not None
+            # 0 years is a valid answer — only a missing start year counts.
+            return self.experience_started_year is not None
         if field_key == "experience_level":
             return bool(self.experience_level)
         if field_key == "bio":

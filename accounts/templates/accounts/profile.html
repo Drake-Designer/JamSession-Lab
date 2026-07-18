@@ -18,22 +18,33 @@
                 class="profile-header flex flex-col flex-wrap items-center gap-5 rounded-2xl border border-jam-grey-light bg-jam-grey p-8 text-center sm:flex-row sm:items-start sm:text-left sm:p-10"
                 data-aos="fade-up"
             >
-                {% if profile_user.display_profile_picture_url %}
-                <img
-                    src="{{ profile_user.display_profile_picture_url }}"
-                    alt="Profile picture of {{ profile_user.display_name|default:profile_user.username }}"
-                    class="h-28 w-28 shrink-0 rounded-full border-2 border-jam-grey-light object-cover"
-                    width="112"
-                    height="112"
-                >
-                {% else %}
-                <div
-                    class="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-2 border-jam-grey-light bg-jam-black text-4xl font-extrabold text-jam-red"
-                    aria-hidden="true"
-                >
-                    {{ profile_user.display_name|default:profile_user.username|slice:":1"|upper }}
+                <div class="profile-header__avatar-col">
+                    {% if profile_user.display_profile_picture_url %}
+                    <img
+                        src="{{ profile_user.display_profile_picture_url }}"
+                        alt="Profile picture of {{ profile_user.display_name|default:profile_user.username }}"
+                        class="profile-header__avatar h-28 w-28 shrink-0 rounded-full border-2 border-jam-grey-light object-cover"
+                        width="112"
+                        height="112"
+                    >
+                    {% else %}
+                    <div
+                        class="profile-header__avatar flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-2 border-jam-grey-light bg-jam-black text-4xl font-extrabold text-jam-red"
+                        aria-hidden="true"
+                    >
+                        {{ profile_user.display_name|default:profile_user.username|slice:":1"|upper }}
+                    </div>
+                    {% endif %}
+
+                    {% if is_owner %}
+                    <a
+                        href="{% url 'accounts:profile_edit' %}"
+                        class="profile-edit-btn"
+                    >
+                        Edit profile
+                    </a>
+                    {% endif %}
                 </div>
-                {% endif %}
 
                 <div class="min-w-0 flex-1">
                     <h1 class="break-words text-3xl font-extrabold tracking-tight text-jam-white">
@@ -72,41 +83,29 @@
                     </ul>
                     {% endif %}
 
-                    {% if is_owner %}
-                    <div class="mt-4 flex flex-wrap justify-center gap-3 sm:justify-start">
-                        <a
-                            href="{% url 'accounts:profile_edit' %}"
-                            class="inline-flex items-center justify-center rounded-xl bg-jam-red px-6 py-2.5 text-sm font-bold text-jam-black transition hover:bg-jam-red-hover"
-                        >
-                            Edit Profile
-                        </a>
-
-                        {% if show_review_items %}
+                    {% if is_owner and show_staff_tools %}
+                    <div class="profile-staff-actions mt-4" aria-label="Staff tools">
                         {% if pending_review_count > 0 %}
                         <a
                             href="{% url 'community:moderation_queue' %}"
-                            class="profile-review-items profile-review-items--active"
+                            class="profile-staff-btn profile-staff-btn--review"
                         >
-                            Review Items
-                            <span class="profile-review-items__badge">{{ pending_review_count }}</span>
+                            REVIEW
+                            <span class="profile-staff-btn__badge">{{ pending_review_count }}</span>
                         </a>
-                        {% else %}
-                        <span
-                            class="profile-review-items profile-review-items--disabled"
-                            title="Nothing to review"
-                            aria-disabled="true"
-                        >
-                            Review Items
-                            <span class="profile-review-items__badge profile-review-items__badge--muted">0</span>
-                        </span>
                         {% endif %}
                         <a
                             href="{% url 'community:admin_tool' %}"
-                            class="profile-admin-tool"
+                            class="profile-staff-btn"
                         >
-                            Admin Tool
+                            ADMIN TOOL
                         </a>
-                        {% endif %}
+                        <a
+                            href="{% url 'events:manage' %}"
+                            class="profile-staff-btn"
+                        >
+                            EVENTS
+                        </a>
                     </div>
                     {% endif %}
                 </div>
@@ -259,6 +258,7 @@
                         {% endif %}
 
                         <div class="profile-posts__actions">
+                            <a href="{% url 'community:post_edit' post.slug %}" class="community-link-button">Edit</a>
                             <form
                                 method="post"
                                 action="{% url 'community:post_delete' post.slug %}"

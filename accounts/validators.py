@@ -70,3 +70,44 @@ def validate_minimum_age(date_of_birth):
 
     if calculate_age(date_of_birth) < MINIMUM_REGISTRATION_AGE:
         raise ValidationError(UNDERAGE_ERROR_MESSAGE)
+
+
+YEARS_OF_EXPERIENCE_EXCEED_AGE_MESSAGE = _(
+    "Years of experience cannot exceed your age."
+)
+
+MAX_YEARS_OF_EXPERIENCE = 80
+
+
+def experience_started_year_from_years(years, today=None):
+    """
+    Convert a declared years-of-experience value into a calendar start year.
+
+    Example: 10 years declared in 2026 → started in 2016. On 1 January 2027
+    the computed years become 11 automatically.
+    """
+    if years is None:
+        return None
+    if today is None:
+        today = timezone.localdate()
+    return today.year - int(years)
+
+
+def years_of_experience_from_started_year(started_year, today=None):
+    """Return full calendar years of experience from a start year."""
+    if started_year is None:
+        return None
+    if today is None:
+        today = timezone.localdate()
+    return max(0, today.year - int(started_year))
+
+
+def validate_years_of_experience_against_age(years, date_of_birth, today=None):
+    """Reject experience that would imply playing before the user was born."""
+    if years is None or date_of_birth is None:
+        return
+    if today is None:
+        today = timezone.localdate()
+    age = calculate_age(date_of_birth, today=today)
+    if years > age:
+        raise ValidationError(YEARS_OF_EXPERIENCE_EXCEED_AGE_MESSAGE)

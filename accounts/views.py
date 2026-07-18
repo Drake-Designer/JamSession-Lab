@@ -42,11 +42,29 @@ class LoginView(auth_views.LoginView):
     redirect_authenticated_user = True
 
 
+def _safe_next_url(request, candidate):
+    """Return candidate if it is a safe same-host path, else empty string."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    if candidate and url_has_allowed_host_and_scheme(
+        candidate, allowed_hosts={request.get_host()}
+    ):
+        return candidate
+    return ""
+
+
 @require_http_methods(["GET", "POST"])
 def register(request):
     """Public sign-up page."""
     if request.user.is_authenticated:
         return redirect("pages:home")
+
+    next_url = _safe_next_url(
+        request, request.POST.get("next") or request.GET.get("next")
+    )
+    show_event_rsvp_banner = "/events/" in next_url and next_url.rstrip("/").endswith(
+        "register"
+    )
 
     if request.method == "POST":
         form = RegistrationForm(request.POST)
@@ -56,6 +74,8 @@ def register(request):
             # Sign the new member in straight away — email verification is
             # prepared but not enforced yet.
             login(request, user)
+            if next_url:
+                return redirect(next_url)
             return redirect("accounts:welcome")
     else:
         form = RegistrationForm()
@@ -69,6 +89,8 @@ def register(request):
             # register.js to fill the dependent Town/City dropdown.
             "towns_by_county": TOWNS_BY_COUNTY,
             "selected_town": (request.POST.get("town_city") or ""),
+            "next": next_url,
+            "show_event_rsvp_banner": show_event_rsvp_banner,
         },
     )
 
@@ -130,13 +152,12 @@ def profile_detail(request, username):
             CommunityPost.objects.filter(author=profile_user).order_by("-created_at")
         )
 
-    # Staff/superuser owners see a "Review Items" entry on their own profile.
-    # No dedicated context processor exists for badge counts yet, so the
-    # pending total is computed here and passed to the template.
-    show_review_items = False
+    # Staff/superuser owners see REVIEW / ADMIN TOOL / EVENTS on their profile.
+    # REVIEW is shown in the template only when pending_review_count > 0.
+    show_staff_tools = False
     pending_review_count = 0
     if is_owner and (request.user.is_staff or request.user.is_superuser):
-        show_review_items = True
+        show_staff_tools = True
         pending_review_count = (
             CommunityPost.objects.filter(status=ApprovalStatus.PENDING).count()
             + CommunityComment.objects.filter(status=ApprovalStatus.PENDING).count()
@@ -160,7 +181,7 @@ def profile_detail(request, username):
             "social_links": social_links,
             "is_owner": is_owner,
             "my_posts": my_posts,
-            "show_review_items": show_review_items,
+            "show_staff_tools": show_staff_tools,
             "pending_review_count": pending_review_count,
             # Owner-only completion ring — visitors never see this.
             "profile_completion_percentage": (

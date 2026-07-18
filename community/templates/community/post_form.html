@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — Start a Discussion{% endblock %}
+{% block title %}JamSession Lab — {% if is_edit %}Edit Post{% else %}Start a Discussion{% endif %}{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
@@ -14,14 +14,22 @@
                 <div class="community-layout__main">
                     <div class="mx-auto max-w-2xl text-center lg:mx-0 lg:max-w-none lg:text-left" data-aos="fade-up">
                         <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
-                            Start a Discussion
+                            {% if is_edit %}Edit Post{% else %}Start a Discussion{% endif %}
                         </h1>
                         <p class="mt-4 text-lg text-jam-muted">
+                            {% if is_edit %}
+                            Update your title, body, cover image, or add more photos and videos.
+                            {% else %}
                             Ask a question, share a story, or post about an upcoming session.
                             You can attach photos or videos too.
+                            {% endif %}
                         </p>
                         <p class="mt-3 text-sm text-jam-muted-dark">
+                            {% if is_edit %}
+                            If you are not staff, your changes will be reviewed before they appear publicly again.
+                            {% else %}
                             Your post will be reviewed before it appears publicly.
+                            {% endif %}
                         </p>
                     </div>
 
@@ -61,9 +69,48 @@
                         <div class="community-form__field{% if form.cover_image.errors %} community-form__field--error{% endif %}">
                             <label for="{{ form.cover_image.id_for_label }}">{{ form.cover_image.label }}</label>
                             {{ form.cover_image }}
+                            {{ form.cover_focus_x }}
+                            {{ form.cover_focus_y }}
                             {% if form.cover_image.help_text %}
                             <p class="mt-2 text-sm text-jam-muted-dark">{{ form.cover_image.help_text }}</p>
                             {% endif %}
+                            {% if is_edit and post.cover_image %}
+                            <p class="mt-2 text-sm text-jam-muted-dark">
+                                Leave empty to keep the current cover image. You can still move the crop frame below.
+                            </p>
+                            {% endif %}
+                            <div
+                                id="cover-focus-picker"
+                                class="cover-focus"
+                                hidden
+                                {% if is_edit and post.cover_detail_url %}data-existing-cover-url="{{ post.cover_detail_url }}"{% endif %}
+                            >
+                                <p class="cover-focus__hint">
+                                    Drag the bright frame over the photo. Everything outside it is cropped; the frame is what visitors will see.
+                                </p>
+                                <div id="cover-focus-workspace" class="cover-focus__workspace">
+                                    <img id="cover-focus-preview" class="cover-focus__image" alt="Full cover photo" draggable="false">
+                                    <div
+                                        id="cover-focus-crop"
+                                        class="cover-focus__crop"
+                                        role="slider"
+                                        tabindex="0"
+                                        aria-label="Drag to choose the visible part of the cover"
+                                    >
+                                        <span class="cover-focus__crop-label">Visible area</span>
+                                    </div>
+                                </div>
+                                <div class="cover-focus__legend" aria-hidden="true">
+                                    <span class="cover-focus__legend-item cover-focus__legend-item--kept">Visible</span>
+                                    <span class="cover-focus__legend-item cover-focus__legend-item--cut">Cropped</span>
+                                </div>
+                                <div class="cover-focus__result">
+                                    <p class="cover-focus__result-label">How it will look on the site</p>
+                                    <div class="cover-focus__result-frame">
+                                        <img id="cover-focus-result-image" class="cover-focus__result-image" alt="Cover preview on the site" draggable="false">
+                                    </div>
+                                </div>
+                            </div>
                             {% if form.cover_image.errors %}
                             <ul class="errorlist">
                                 {% for error in form.cover_image.errors %}
@@ -74,7 +121,9 @@
                         </div>
 
                         <div class="community-form__field{% if form.files.errors %} community-form__field--error{% endif %}">
-                            <label for="{{ form.files.id_for_label }}">{{ form.files.label }}</label>
+                            <label for="{{ form.files.id_for_label }}">
+                                {% if is_edit %}Add more photos or videos (optional){% else %}{{ form.files.label }}{% endif %}
+                            </label>
                             {{ form.files }}
                             {% if form.files.help_text %}
                             <p class="mt-2 text-sm text-jam-muted-dark">{{ form.files.help_text }}</p>
@@ -98,11 +147,17 @@
 
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                             <button type="submit" class="community-submit-button">
-                                Submit for Approval
+                                {% if is_edit %}Save Changes{% else %}Submit for Approval{% endif %}
                             </button>
+                            {% if is_edit %}
+                            <a href="{% url 'community:post_detail' post.slug %}" class="text-center text-sm font-medium text-jam-muted transition hover:text-jam-red">
+                                Cancel
+                            </a>
+                            {% else %}
                             <a href="{% url 'community:list' %}" class="text-center text-sm font-medium text-jam-muted transition hover:text-jam-red">
                                 Back to Community
                             </a>
+                            {% endif %}
                         </div>
                     </form>
                 </div>
@@ -115,4 +170,8 @@
 
 {% block alpine_components %}
     <script src="{% static 'community/js/community.js' %}"></script>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'community/js/cover-focus.js' %}"></script>
 {% endblock %}

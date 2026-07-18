@@ -1,4 +1,7 @@
 from django.shortcuts import render
+from django.utils import timezone
+
+from events.models import Event
 
 from .models import HomeCarouselSlide
 
@@ -6,10 +9,18 @@ from .models import HomeCarouselSlide
 def home(request):
     """Render the public home page."""
     carousel_slides = HomeCarouselSlide.objects.filter(is_active=True).order_by("order")
+    next_event = (
+        Event.objects.filter(is_active=True, starts_at__gt=timezone.now())
+        .order_by("starts_at")
+        .first()
+    )
     return render(
         request,
         "pages/home.html",
-        {"carousel_slides": carousel_slides},
+        {
+            "carousel_slides": carousel_slides,
+            "next_event": next_event,
+        },
     )
 
 

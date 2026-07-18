@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Registered for {{ event.title }}{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <div class="rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up">
+                <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">You're in</p>
+                <h1 class="mt-2 text-3xl font-bold text-jam-red">Registration confirmed</h1>
+                <p class="mt-4 text-jam-muted-on-grey">
+                    You are registered for
+                    <span class="font-semibold text-jam-white">{{ event.title }}</span>
+                    on {{ event.starts_at|date:"l, j F Y · g:i A" }}.
+                </p>
+
+                <dl class="mt-8 space-y-3 text-sm">
+                    <div>
+                        <dt class="text-jam-muted">Sessions</dt>
+                        <dd class="mt-1 font-semibold text-jam-white">
+                            {% if registration.join_open_mic %}Open Mic{% endif %}
+                            {% if registration.join_open_mic and registration.join_open_jam %} · {% endif %}
+                            {% if registration.join_open_jam %}Open Jam{% endif %}
+                        </dd>
+                    </div>
+                    {% if registration.join_open_jam %}
+                    <div>
+                        <dt class="text-jam-muted">Originals in jam</dt>
+                        <dd class="mt-1 font-semibold text-jam-white">
+                            {% if registration.wants_originals_in_jam %}Yes{% else %}No{% endif %}
+                        </dd>
+                    </div>
+                    {% endif %}
+                    {% if registration.songs.all %}
+                    <div>
+                        <dt class="text-jam-muted">Songs</dt>
+                        <dd class="mt-1 space-y-2">
+                            {% for song in registration.songs.all %}
+                            <div class="rounded-lg border border-jam-grey-light bg-jam-black px-3 py-2 text-jam-white">
+                                <p class="font-semibold">{{ song.title }} ({{ song.song_key }})</p>
+                                <p class="text-jam-muted">{{ song.basic_chords }}</p>
+                            </div>
+                            {% endfor %}
+                        </dd>
+                    </div>
+                    {% endif %}
+                    {% if registration.notes %}
+                    <div>
+                        <dt class="text-jam-muted">Notes</dt>
+                        <dd class="mt-1 text-jam-white">{{ registration.notes }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+
+                <div class="mt-8 flex flex-wrap gap-3">
+                    <a
+                        href="{% url 'events:detail' event.pk %}"
+                        class="inline-flex items-center justify-center rounded-xl border border-jam-grey-light px-6 py-3 text-base font-semibold text-jam-white"
+                    >
+                        Back to event
+                    </a>
+                    <form method="post" action="{% url 'events:cancel' event.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{% url 'events:detail' event.pk %}">
+                        <button
+                            type="submit"
+                            class="inline-flex items-center justify-center rounded-xl px-6 py-3 text-base font-semibold text-jam-muted underline-offset-2 hover:text-jam-red hover:underline"
+                        >
+                            Cancel registration
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+{% endblock %}

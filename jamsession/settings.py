@@ -73,6 +73,8 @@ INSTALLED_APPS = [
     "pages",
     "gallery",
     "community",
+    "events.apps.EventsConfig",
+    "registrations.apps.RegistrationsConfig",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -155,6 +157,24 @@ UNFOLD = {
                         "icon": "chat",
                         "link": reverse_lazy(
                             "admin:community_communitycomment_changelist"
+                        ),
+                    },
+                ],
+            },
+            {
+                "title": _("Events"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("All events"),
+                        "icon": "event",
+                        "link": reverse_lazy("admin:events_event_changelist"),
+                    },
+                    {
+                        "title": _("Registrations"),
+                        "icon": "how_to_reg",
+                        "link": reverse_lazy(
+                            "admin:registrations_eventregistration_changelist"
                         ),
                     },
                 ],

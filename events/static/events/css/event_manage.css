@@ -1,0 +1,92 @@
+.event-manage__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    border-radius: 1rem;
+    border: 1px solid #262626;
+    background-color: #1a1a1a;
+    padding: 1.25rem 1.5rem;
+}
+
+.event-manage__main {
+    min-width: 0;
+    flex: 1 1 16rem;
+}
+
+.event-manage__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+}
+
+.event-manage__pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    border: 1px solid #404040;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #a3a3a3;
+}
+
+.event-manage__pill--active {
+    border-color: rgba(34, 197, 94, 0.5);
+    color: #22c55e;
+}
+
+.event-manage__pill--inactive,
+.event-manage__pill--closed {
+    border-color: rgba(230, 57, 70, 0.45);
+    color: #e63946;
+}
+
+.event-manage__title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.event-manage__title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.event-manage__title a:hover {
+    color: #e63946;
+}
+
+.event-manage__when,
+.event-manage__where {
+    margin-top: 0.35rem;
+    font-size: 0.875rem;
+    color: #a3a3a3;
+}
+
+.event-manage__actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.event-manage__action {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.event-manage__action:hover {
+    color: #e63946;
+}
+
+.event-manage__action--danger:hover {
+    color: #ff4d5a;
+}

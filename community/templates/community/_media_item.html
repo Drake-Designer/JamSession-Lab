@@ -1,8 +1,58 @@
-{# Single media attachment (image or video). Expects: media. #}
-<div class="community-media-item">
-    {% if media.media_type == "video" %}
-    <video src="{{ media.display_url }}" controls playsinline preload="metadata" class="community-media-item__video"></video>
-    {% else %}
-    <img src="{{ media.display_url }}" alt="" loading="lazy" class="community-media-item__image">
-    {% endif %}
-</div>
+{% comment %}
+Single media attachment (image or video) that opens the shared gallery lightbox.
+Expects: media
+Optional: credit_user (author shown in the lightbox credit line)
+{% endcomment %}
+{% if media.media_type == "video" %}
+<button
+    type="button"
+    class="community-media-item community-media-item--trigger community-media-item--video"
+    data-gallery-group="videos"
+    data-gallery-type="video"
+    data-gallery-src="{{ media.display_url }}"
+    data-gallery-fallback=""
+    data-gallery-poster=""
+    data-gallery-title=""
+    data-gallery-caption=""
+    data-gallery-credit="{% if credit_user %}@{{ credit_user.public_display_name }}{% else %}Deleted account{% endif %}"
+    aria-label="Play video"
+>
+    <video
+        src="{{ media.display_url }}"
+        muted
+        playsinline
+        preload="metadata"
+        class="community-media-item__video"
+        tabindex="-1"
+        aria-hidden="true"
+    ></video>
+    <span class="community-media-item__play" aria-hidden="true">
+        <span class="community-media-item__play-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M8 5v14l11-7z"/>
+            </svg>
+        </span>
+    </span>
+</button>
+{% else %}
+<button
+    type="button"
+    class="community-media-item community-media-item--trigger"
+    data-gallery-group="photos"
+    data-gallery-type="image"
+    data-gallery-src="{{ media.display_url }}"
+    data-gallery-fallback=""
+    data-gallery-poster="{{ media.display_url }}"
+    data-gallery-title=""
+    data-gallery-caption=""
+    data-gallery-credit="{% if credit_user %}@{{ credit_user.public_display_name }}{% else %}Deleted account{% endif %}"
+    aria-label="View photo"
+>
+    <img
+        src="{{ media.display_url }}"
+        alt=""
+        loading="lazy"
+        class="community-media-item__image"
+    >
+</button>
+{% endif %}

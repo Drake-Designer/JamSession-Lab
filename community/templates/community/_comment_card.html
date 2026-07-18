@@ -1,7 +1,8 @@
+{% load community_extras %}
 {% comment %}
 Single comment card. Expects: comment, user.
-Optional: show_delete (default false) — only post_detail passes True so the
-delete control never appears if this partial is reused elsewhere.
+Optional: show_manage (default false) — only post_detail passes True so the
+edit/delete controls never appear if this partial is reused elsewhere.
 {% endcomment %}
 <article class="community-comment" id="comment-{{ comment.pk }}">
     <div class="community-comment__meta">
@@ -12,28 +13,31 @@ delete control never appears if this partial is reused elsewhere.
         <time datetime="{{ comment.created_at|date:'c' }}">{{ comment.created_at|date:"j M Y, H:i" }}</time>
     </div>
 
-    <p class="community-comment__body">{{ comment.body|linebreaksbr }}</p>
+    <p class="community-comment__body">{{ comment.body|urlize_blank|linebreaksbr }}</p>
 
     {% if comment.media.all %}
     <div class="community-media-grid community-media-grid--compact">
         {% for media in comment.media.all %}
-            {% include "community/_media_item.html" with media=media %}
+            {% include "community/_media_item.html" with media=media credit_user=comment.author %}
         {% endfor %}
     </div>
     {% endif %}
 
-    {# UX-only: the real permission check lives in comment_delete() server-side. #}
-    {% if show_delete and user.is_authenticated %}
+    {# UX-only: the real permission check lives in comment_edit/comment_delete server-side. #}
+    {% if show_manage and user.is_authenticated %}
     {% if user.is_staff or user.is_superuser or comment.author_id == user.id %}
-    <form
-        method="post"
-        action="{% url 'community:comment_delete' comment.pk %}"
-        class="community-comment__delete js-confirm-delete"
-        data-confirm-message="Delete this comment?"
-    >
-        {% csrf_token %}
-        <button type="submit" class="community-link-button community-link-button--danger">Delete</button>
-    </form>
+    <div class="community-comment__actions">
+        <a href="{% url 'community:comment_edit' comment.pk %}" class="community-link-button">Edit</a>
+        <form
+            method="post"
+            action="{% url 'community:comment_delete' comment.pk %}"
+            class="js-confirm-delete"
+            data-confirm-message="Delete this comment?"
+        >
+            {% csrf_token %}
+            <button type="submit" class="community-link-button community-link-button--danger">Delete</button>
+        </form>
+    </div>
     {% endif %}
     {% endif %}
 </article>

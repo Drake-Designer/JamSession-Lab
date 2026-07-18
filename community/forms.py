@@ -43,12 +43,19 @@ class CommunityMediaMixin:
         return files
 
     def _save_media(self, media_model, parent_field_name, parent):
-        for index, uploaded_file in enumerate(self.cleaned_data.get("files") or []):
+        files = self.cleaned_data.get("files") or []
+        if not files:
+            return
+
+        existing = media_model.objects.filter(
+            **{parent_field_name: parent}
+        ).count()
+        for index, uploaded_file in enumerate(files):
             media_model.objects.create(
                 **{parent_field_name: parent},
                 file=uploaded_file,
                 media_type=_media_type_for(uploaded_file),
-                order=index,
+                order=existing + index,
             )
 
 
@@ -56,11 +63,32 @@ class CommunityPostForm(CommunityMediaMixin, forms.ModelForm):
     cover_image = forms.FileField(
         label=_("Cover image (optional)"),
         required=False,
-        widget=forms.ClearableFileInput(attrs={"accept": "image/*"}),
+        widget=forms.ClearableFileInput(
+            attrs={
+                "accept": "image/*",
+                "id": "id_cover_image",
+                "data-cover-focus-input": "true",
+            }
+        ),
         help_text=_(
             "Optional header image shown on the community list and at the top "
-            "of your post. Photos only, maximum 100 MB."
+            "of your post. Photos only, maximum 100 MB. After choosing a photo, "
+            "drag the bright frame to choose exactly what stays visible."
         ),
+    )
+    cover_focus_x = forms.FloatField(
+        required=False,
+        min_value=0,
+        max_value=100,
+        initial=50,
+        widget=forms.HiddenInput(attrs={"id": "id_cover_focus_x"}),
+    )
+    cover_focus_y = forms.FloatField(
+        required=False,
+        min_value=0,
+        max_value=100,
+        initial=50,
+        widget=forms.HiddenInput(attrs={"id": "id_cover_focus_y"}),
     )
     files = MultipleGalleryFileField(
         label=_("Photos or videos (optional)"),
@@ -71,11 +99,14 @@ class CommunityPostForm(CommunityMediaMixin, forms.ModelForm):
 
     class Meta:
         model = CommunityPost
-        fields = ["title", "body"]
+        fields = ["title", "body", "cover_focus_x", "cover_focus_y"]
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
         super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields["cover_focus_x"].initial = self.instance.cover_focus_x
+            self.fields["cover_focus_y"].initial = self.instance.cover_focus_y
 
     def clean_cover_image(self):
         cover = self.cleaned_data.get("cover_image")
@@ -97,19 +128,37 @@ class CommunityPostForm(CommunityMediaMixin, forms.ModelForm):
             )
         return cover
 
+    def clean_cover_focus_x(self):
+        value = self.cleaned_data.get("cover_focus_x")
+        return 50.0 if value is None else value
+
+    def clean_cover_focus_y(self):
+        value = self.cleaned_data.get("cover_focus_y")
+        return 50.0 if value is None else value
+
     def clean_files(self):
         return self._clean_media_files()
 
     def save(self, commit=True):
+        is_edit = self.instance.pk is not None
         post = super().save(commit=False)
 
-        if self.user:
+        if is_edit:
+            # Keep the original author. Non-staff edits go back through
+            # moderation so changed text/media is reviewed again; staff/
+            # superuser edits leave the current status untouched.
+            if self.user and not (self.user.is_staff or self.user.is_superuser):
+                post.apply_initial_moderation(self.user)
+        elif self.user:
             post.author = self.user
             post.apply_initial_moderation(self.user)
 
         cover = self.cleaned_data.get("cover_image")
         if cover:
             post.cover_image = cover
+
+        post.cover_focus_x = self.cleaned_data["cover_focus_x"]
+        post.cover_focus_y = self.cleaned_data["cover_focus_y"]
 
         if commit:
             post.save()
@@ -142,12 +191,19 @@ class CommunityCommentForm(CommunityMediaMixin, forms.ModelForm):
         return self._clean_media_files()
 
     def save(self, commit=True):
+        is_edit = self.instance.pk is not None
         comment = super().save(commit=False)
-        comment.post = self.post
 
-        if self.user:
-            comment.author = self.user
-            comment.apply_initial_moderation(self.user)
+        if is_edit:
+            # Keep the original author and parent post. Non-staff edits
+            # re-enter the approval queue; staff/superuser edits keep status.
+            if self.user and not (self.user.is_staff or self.user.is_superuser):
+                comment.apply_initial_moderation(self.user)
+        else:
+            comment.post = self.post
+            if self.user:
+                comment.author = self.user
+                comment.apply_initial_moderation(self.user)
 
         if commit:
             comment.save()

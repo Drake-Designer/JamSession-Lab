@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Manage Events{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'events/css/event_manage.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-wrap items-end justify-between gap-4" data-aos="fade-up">
+                <div>
+                    <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Staff</p>
+                    <h1 class="mt-1 text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                        Events
+                    </h1>
+                    <p class="mt-3 text-jam-muted">
+                        Create, edit, or remove JamSession Lab events.
+                    </p>
+                </div>
+                <a
+                    href="{% url 'events:create' %}"
+                    class="inline-flex items-center justify-center rounded-xl bg-jam-red px-5 py-2.5 text-sm font-bold text-jam-black transition hover:bg-jam-red-hover"
+                >
+                    Create event
+                </a>
+            </div>
+
+            {% if events %}
+            <ul class="event-manage__list mt-10 space-y-4" data-aos="fade-up">
+                {% for event in events %}
+                <li class="event-manage__item">
+                    <div class="event-manage__main">
+                        <div class="event-manage__meta">
+                            {% if event.is_active %}
+                            <span class="event-manage__pill event-manage__pill--active">Active</span>
+                            {% else %}
+                            <span class="event-manage__pill event-manage__pill--inactive">Inactive</span>
+                            {% endif %}
+                            {% if event.registrations_open %}
+                            <span class="event-manage__pill">Registrations open</span>
+                            {% else %}
+                            <span class="event-manage__pill event-manage__pill--closed">Registrations closed</span>
+                            {% endif %}
+                        </div>
+                        <h2 class="event-manage__title">
+                            <a href="{% url 'events:detail' event.pk %}">{{ event.title }}</a>
+                        </h2>
+                        <p class="event-manage__when">
+                            {{ event.starts_at|date:"l, j F Y · g:i A" }}
+                            –
+                            {{ event.ends_at|date:"g:i A" }}
+                        </p>
+                        <p class="event-manage__where">{{ event.venue_name }} · {{ event.address }}</p>
+                    </div>
+                    <div class="event-manage__actions">
+                        <a href="{% url 'events:detail' event.pk %}" class="event-manage__action">View</a>
+                        <a href="{% url 'events:attendees' event.pk %}" class="event-manage__action">Attendees</a>
+                        <a href="{% url 'events:edit' event.pk %}" class="event-manage__action">Edit</a>
+                        <a href="{% url 'events:delete' event.pk %}" class="event-manage__action event-manage__action--danger">Delete</a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="mt-10 rounded-2xl border border-jam-grey-light bg-jam-grey px-6 py-10 text-center" data-aos="fade-up">
+                <p class="text-jam-muted-on-grey">No events yet.</p>
+                <a
+                    href="{% url 'events:create' %}"
+                    class="mt-4 inline-flex items-center justify-center rounded-xl bg-jam-red px-5 py-2.5 text-sm font-bold text-jam-black transition hover:bg-jam-red-hover"
+                >
+                    Create your first event
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+{% endblock %}

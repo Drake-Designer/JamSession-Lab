@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Edit Comment{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div class="community-layout">
+                <div class="community-layout__main">
+                    <a href="{% url 'community:post_detail' post.slug %}" class="community-back-link" data-aos="fade-up">&larr; Back to post</a>
+
+                    <div class="mx-auto max-w-2xl text-center lg:mx-0 lg:max-w-none lg:text-left mt-6" data-aos="fade-up" data-aos-delay="50">
+                        <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                            Edit Comment
+                        </h1>
+                        <p class="mt-4 text-lg text-jam-muted">
+                            Update your reply on &ldquo;{{ post.title }}&rdquo;.
+                        </p>
+                        <p class="mt-3 text-sm text-jam-muted-dark">
+                            If you are not staff, your changes will be reviewed before they appear publicly again.
+                        </p>
+                    </div>
+
+                    <form
+                        method="post"
+                        enctype="multipart/form-data"
+                        class="community-form mt-10 max-w-2xl rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8 lg:max-w-none"
+                        data-aos="fade-up"
+                        data-aos-delay="100"
+                    >
+                        {% csrf_token %}
+
+                        <div class="community-form__field{% if form.body.errors %} community-form__field--error{% endif %}">
+                            <label for="{{ form.body.id_for_label }}">{{ form.body.label }}</label>
+                            {{ form.body }}
+                            {% if form.body.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.body.errors %}
+                                <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+
+                        <div class="community-form__field{% if form.files.errors %} community-form__field--error{% endif %}">
+                            <label for="{{ form.files.id_for_label }}">Add more photos or videos (optional)</label>
+                            {{ form.files }}
+                            {% if form.files.help_text %}
+                            <p class="mt-2 text-sm text-jam-muted-dark">{{ form.files.help_text }}</p>
+                            {% endif %}
+                            {% if form.files.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.files.errors %}
+                                <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+
+                        {% if form.non_field_errors %}
+                        <ul class="errorlist">
+                            {% for error in form.non_field_errors %}
+                            <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+
+                        <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <button type="submit" class="community-submit-button">Save Changes</button>
+                            <a href="{% url 'community:post_detail' post.slug %}#comment-{{ comment.pk }}" class="text-center text-sm font-medium text-jam-muted transition hover:text-jam-red">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+
+                {% include "community/_members_sidebar.html" %}
+            </div>
+        </div>
+    </section>
+{% endblock %}
+
+{% block alpine_components %}
+    <script src="{% static 'community/js/community.js' %}"></script>
+{% endblock %}

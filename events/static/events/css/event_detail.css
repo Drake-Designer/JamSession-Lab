@@ -1,0 +1,33 @@
+.event-detail__description {
+    line-height: 1.6;
+}
+
+.event-detail__staff-link,
+.event-detail__staff-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    border: 1px solid #2a2a2a;
+    background: #000;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fff;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.event-detail__staff-link:hover,
+.event-detail__staff-btn:hover {
+    border-color: #e63946;
+    color: #e63946;
+}
+
+.event-detail__staff-link--danger:hover {
+    border-color: #e63946;
+    color: #e63946;
+}
+
+.event-detail__staff-btn {
+    cursor: pointer;
+}

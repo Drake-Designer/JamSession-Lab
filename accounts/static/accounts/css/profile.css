@@ -3,11 +3,120 @@
     position: relative;
 }
 
+.profile-header__avatar-col {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.75rem;
+    width: 7rem;
+}
+
+.profile-header__avatar {
+    display: block;
+}
+
+.profile-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 7rem;
+    box-sizing: border-box;
+    border-radius: 0.625rem;
+    background-color: #e63946;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #000000;
+    text-align: center;
+    text-decoration: none;
+    transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.profile-edit-btn:hover {
+    background-color: #ff4d5a;
+}
+
+@media (min-width: 640px) {
+    .profile-header__avatar-col {
+        width: 7.5rem;
+    }
+
+    .profile-edit-btn {
+        max-width: 7.5rem;
+        font-size: 0.8125rem;
+        padding: 0.45rem 0.75rem;
+    }
+}
+
 .profile-header__name-row {
     display: inline-flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 0.5rem;
+}
+
+.profile-staff-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+}
+
+@media (min-width: 640px) {
+    .profile-staff-actions {
+        justify-content: flex-start;
+    }
+}
+
+.profile-staff-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border-radius: 0.75rem;
+    border: 1px solid #262626;
+    padding: 0.55rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #ffffff;
+    background-color: #111111;
+    text-decoration: none;
+    transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.profile-staff-btn:hover {
+    border-color: #e63946;
+    color: #ff4d5a;
+    background-color: rgba(230, 57, 70, 0.08);
+}
+
+.profile-staff-btn--review {
+    border-color: #e63946;
+    color: #e63946;
+    background-color: rgba(230, 57, 70, 0.08);
+}
+
+.profile-staff-btn--review:hover {
+    background-color: rgba(230, 57, 70, 0.16);
+    color: #ff4d5a;
+}
+
+.profile-staff-btn__badge {
+    display: inline-flex;
+    min-width: 1.35rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background-color: #e63946;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #000000;
 }
 
 .profile-completion {
@@ -70,78 +179,6 @@
     display: block;
     width: 1.125rem;
     height: 1.125rem;
-}
-
-/* Staff "Review Items" control on the owner profile header */
-.profile-review-items {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    border-radius: 0.75rem;
-    border: 1px solid #262626;
-    padding: 0.625rem 1.25rem;
-    font-size: 0.875rem;
-    font-weight: 700;
-    text-decoration: none;
-    transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
-}
-
-.profile-review-items--active {
-    border-color: #e63946;
-    color: #e63946;
-    background-color: rgba(230, 57, 70, 0.08);
-}
-
-.profile-review-items--active:hover {
-    background-color: rgba(230, 57, 70, 0.16);
-    color: #ff4d5a;
-}
-
-.profile-review-items--disabled {
-    border-color: #262626;
-    color: #737373;
-    background-color: #111111;
-    cursor: not-allowed;
-}
-
-.profile-review-items__badge {
-    display: inline-flex;
-    min-width: 1.5rem;
-    align-items: center;
-    justify-content: center;
-    border-radius: 9999px;
-    background-color: #e63946;
-    padding: 0.125rem 0.45rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #000000;
-}
-
-.profile-review-items__badge--muted {
-    background-color: #262626;
-    color: #a3a3a3;
-}
-
-/* Staff Admin Tool entry — always clickable when shown */
-.profile-admin-tool {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 0.75rem;
-    border: 1px solid #262626;
-    padding: 0.625rem 1.25rem;
-    font-size: 0.875rem;
-    font-weight: 700;
-    color: #ffffff;
-    background-color: #111111;
-    text-decoration: none;
-    transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
-}
-
-.profile-admin-tool:hover {
-    border-color: #e63946;
-    color: #ff4d5a;
-    background-color: rgba(230, 57, 70, 0.08);
 }
 
 /* Public social / music links — compact responsive chip row */
@@ -379,7 +416,11 @@
 }
 
 .profile-posts__actions {
+    display: flex;
     flex: 0 0 auto;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
 .profile-posts__empty {

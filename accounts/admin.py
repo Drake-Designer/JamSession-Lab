@@ -8,6 +8,10 @@ from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationFo
 
 from .constants import Instrument, MusicGenre
 from .models import SocialLink, User
+from .validators import (
+    MAX_YEARS_OF_EXPERIENCE,
+    validate_years_of_experience_against_age,
+)
 from .widgets import ProfilePictureInput
 
 
@@ -26,6 +30,16 @@ class AdminUserChangeForm(UserChangeForm):
         required=False,
         widget=forms.CheckboxSelectMultiple,
     )
+    years_of_experience = forms.IntegerField(
+        label=_("Years of experience"),
+        required=False,
+        min_value=0,
+        max_value=MAX_YEARS_OF_EXPERIENCE,
+        help_text=_(
+            "Increases automatically by one year every 1 January "
+            "(derived from the stored start year)."
+        ),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -33,6 +47,29 @@ class AdminUserChangeForm(UserChangeForm):
             self.fields["profile_picture"].widget = ProfilePictureInput(
                 attrs={"accept": "image/*,.heic,.heif"},
             )
+        if self.instance and self.instance.pk:
+            self.fields["years_of_experience"].initial = (
+                self.instance.years_of_experience
+            )
+
+    def clean_years_of_experience(self):
+        years = self.cleaned_data.get("years_of_experience")
+        if years is None:
+            return years
+        validate_years_of_experience_against_age(
+            years,
+            self.cleaned_data.get("date_of_birth") or self.instance.date_of_birth,
+        )
+        return years
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        years = self.cleaned_data.get("years_of_experience")
+        user.years_of_experience = years
+        if commit:
+            user.save()
+            self.save_m2m()
+        return user
 
 
 class SocialLinkInline(TabularInline):
@@ -40,6 +77,9 @@ class SocialLinkInline(TabularInline):
     extra = 0
     fields = ("url", "order")
     ordering = ("order", "pk")
+    tab = True
+    verbose_name = "social_link"
+    verbose_name_plural = _("Social / music links")
 
 
 @admin.register(User)
@@ -80,6 +120,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                     "preferred_genres",
                     "other_genre",
                     ("years_of_experience", "experience_level"),
+                    "experience_started_year",
                     "bio",
                 ),
             },
@@ -89,10 +130,16 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
             {
                 "classes": ["tab"],
                 "description": _(
-                    "Control site access. Only change these if you know what they do."
+                    "Access flags and Django permissions. "
+                    "Turning on Staff automatically adds the user to the Staff group "
+                    "(carousel, gallery, community, events, and user profile edits — "
+                    "not user deletion). Superuser bypasses all permission checks and "
+                    "is the only role that can delete user accounts."
                 ),
                 "fields": (
-                    ("is_active", "is_staff", "is_superuser"),
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
                     "force_member_badge",
                     "groups",
                     "user_permissions",
@@ -131,6 +178,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
         "display_instruments",
         "display_is_verified",
         "display_is_staff",
+        "display_is_superuser",
         "display_is_active",
     )
     list_filter = (
@@ -146,14 +194,77 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
         "last_login",
         "date_joined",
         "display_age",
+        "experience_started_year",
         "terms_accepted_at",
     )
     filter_horizontal = ("groups", "user_permissions")
     ordering = ("username",)
 
     class Media:
-        css = {"all": ("accounts/css/profile_picture_widget.css",)}
+        css = {
+            "all": (
+                "accounts/css/profile_picture_widget.css",
+                "accounts/css/admin_permissions.css",
+            )
+        }
         js = ("accounts/js/instrument_toggle.js",)
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        permission_help = {
+            "is_active": _(
+                "Off = account disabled (cannot log in). Prefer this over deleting."
+            ),
+            "is_staff": _(
+                "On = site moderator (REVIEW, ADMIN TOOL, EVENTS) and admin access "
+                "via the Staff group: carousel, gallery, community, events, and "
+                "editing user profiles. Staff cannot delete user accounts."
+            ),
+            "is_superuser": _(
+                "On = full access to every admin page and every action, including "
+                "deleting users. Shows the Founder badge on the site."
+            ),
+            "force_member_badge": _(
+                "Regular members only. If on, shows “Member” instead of “New Member” "
+                "even if they joined less than 30 days ago. Hidden for staff/superuser."
+            ),
+            "groups": _(
+                "Staff users are auto-added to the Staff group when Staff status is on. "
+                "You can still add other groups here if needed."
+            ),
+            "user_permissions": _(
+                "Extra individual permissions for this user only. "
+                "Usually unnecessary for staff — the Staff group already covers "
+                "carousel, gallery, community, events, and profile edits."
+            ),
+        }
+        for field_name, help_text in permission_help.items():
+            if field_name in form.base_fields:
+                form.base_fields[field_name].help_text = help_text
+        return form
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = super().get_fieldsets(request, obj)
+        hide_force_member = obj is not None and (obj.is_staff or obj.is_superuser)
+        if not hide_force_member:
+            return fieldsets
+
+        trimmed = []
+        for name, options in fieldsets:
+            fields = options.get("fields")
+            if fields and "force_member_badge" in fields:
+                options = {
+                    **options,
+                    "fields": tuple(
+                        field for field in fields if field != "force_member_badge"
+                    ),
+                }
+            trimmed.append((name, options))
+        return trimmed
+
+    def has_delete_permission(self, request, obj=None):
+        """Only superusers may delete user accounts."""
+        return bool(request.user.is_superuser)
 
     @staticmethod
     def _user_initials(user):
@@ -199,6 +310,10 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
     @display(description=_("Staff"), boolean=True, ordering="is_staff")
     def display_is_staff(self, obj):
         return obj.is_staff
+
+    @display(description=_("Superuser"), boolean=True, ordering="is_superuser")
+    def display_is_superuser(self, obj):
+        return obj.is_superuser
 
     @display(description=_("Active"), boolean=True, ordering="is_active")
     def display_is_active(self, obj):

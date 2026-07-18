@@ -51,6 +51,7 @@ from .models import (
     CommunityPost,
     CommunityPostMedia,
 )
+from .templatetags.community_extras import urlize_blank
 
 User = get_user_model()
 
@@ -133,6 +134,29 @@ def _make_post(author, **overrides):
     }
     defaults.update(overrides)
     return CommunityPost.objects.create(**defaults)
+
+
+class CommunityUrlizeBlankFilterTests(TestCase):
+    def test_http_url_becomes_blank_target_link(self):
+        result = urlize_blank("See https://example.com/jam for details")
+
+        self.assertIn('href="https://example.com/jam"', result)
+        self.assertIn('target="_blank"', result)
+        self.assertIn('rel="nofollow noopener noreferrer"', result)
+        self.assertIn("https://example.com/jam", result)
+
+    def test_plain_text_without_url_is_unchanged(self):
+        result = urlize_blank("No links here")
+
+        self.assertEqual(result, "No links here")
+        self.assertNotIn("<a ", result)
+
+    def test_html_in_body_is_escaped(self):
+        result = urlize_blank('<script>alert("x")</script> https://safe.example')
+
+        self.assertNotIn("<script>", result)
+        self.assertIn("&lt;script&gt;", result)
+        self.assertIn('href="https://safe.example"', result)
 
 
 class CommunityPostModelTests(TestCase):
@@ -578,6 +602,9 @@ class CommunityPostDetailViewTests(TestCase):
         )
 
         self.assertContains(response, "community-media-item__image")
+        self.assertContains(response, 'data-gallery-group="photos"')
+        self.assertContains(response, 'id="gallery-lightbox"')
+        self.assertContains(response, "gallery/js/gallery.js")
 
     def test_author_sees_the_delete_button_on_their_own_post(self):
         post = _make_post(self.author, status=ApprovalStatus.APPROVED)
@@ -701,12 +728,16 @@ class CommunityPostCreateViewTests(TestCase):
                     "title": "With cover",
                     "body": "Header photo",
                     "cover_image": _make_image_file(name="cover.jpg"),
+                    "cover_focus_x": "35",
+                    "cover_focus_y": "20",
                 },
             )
 
         post = CommunityPost.objects.get()
         self.assertTrue(post.cover_image)
         self.assertTrue(post.cover_display_url)
+        self.assertEqual(post.cover_focus_x, 35.0)
+        self.assertEqual(post.cover_focus_y, 20.0)
 
     def test_post_with_invalid_cover_image_is_rejected_and_saves_nothing(self):
         self.client.force_login(self.user)
@@ -735,7 +766,12 @@ class CommunityPostCoverFormTests(TestCase):
 
     def test_form_accepts_a_valid_cover_image(self):
         form = CommunityPostForm(
-            data={"title": "Covered jam", "body": "Body"},
+            data={
+                "title": "Covered jam",
+                "body": "Body",
+                "cover_focus_x": "40",
+                "cover_focus_y": "25",
+            },
             files={"cover_image": _make_image_file(name="hero.jpg")},
             user=self.user,
         )
@@ -748,6 +784,19 @@ class CommunityPostCoverFormTests(TestCase):
             post = form.save()
 
         self.assertTrue(post.cover_image)
+        self.assertEqual(post.cover_focus_x, 40.0)
+        self.assertEqual(post.cover_focus_y, 25.0)
+
+    def test_form_defaults_cover_focus_to_centre(self):
+        form = CommunityPostForm(
+            data={"title": "No focus sent", "body": "Body"},
+            user=self.user,
+        )
+
+        self.assertTrue(form.is_valid(), msg=form.errors.as_json())
+        post = form.save()
+        self.assertEqual(post.cover_focus_x, 50.0)
+        self.assertEqual(post.cover_focus_y, 50.0)
         self.assertEqual(post.author, self.user)
 
     def test_form_rejects_an_invalid_cover_image(self):
@@ -861,9 +910,11 @@ class CommunityCommentCreateViewTests(TestCase):
             reverse("community:post_detail", args=[self.post.slug])
         )
         delete_url = reverse("community:comment_delete", args=[comment.pk])
+        edit_url = reverse("community:comment_edit", args=[comment.pk])
 
         self.assertContains(response, comment.body)
         self.assertContains(response, f'action="{delete_url}"')
+        self.assertContains(response, f'href="{edit_url}"')
 
     def test_other_user_does_not_see_the_comment_delete_button(self):
         comment = CommunityComment.objects.create(
@@ -879,8 +930,10 @@ class CommunityCommentCreateViewTests(TestCase):
             reverse("community:post_detail", args=[self.post.slug])
         )
         delete_url = reverse("community:comment_delete", args=[comment.pk])
+        edit_url = reverse("community:comment_edit", args=[comment.pk])
 
         self.assertNotContains(response, f'action="{delete_url}"')
+        self.assertNotContains(response, f'href="{edit_url}"')
 
     def test_comment_card_template_comment_does_not_leak_into_html(self):
         """
@@ -916,10 +969,10 @@ class CommunityCommentCreateViewTests(TestCase):
 
 class CommunityUiPermissionConsistencyTests(TestCase):
     """
-    UI placement rules for delete/like controls:
+    UI placement rules for edit/delete/like controls:
 
-    - Comment delete and like toggle: only on community:post_detail
-    - Post delete: on community:post_detail and the owner's profile "My posts"
+    - Comment edit/delete and like toggle: only on community:post_detail
+    - Post edit/delete: on community:post_detail and the owner's profile "My posts"
     """
 
     def setUp(self):
@@ -939,20 +992,24 @@ class CommunityUiPermissionConsistencyTests(TestCase):
         self.comment_delete_url = reverse(
             "community:comment_delete", args=[self.comment.pk]
         )
+        self.comment_edit_url = reverse(
+            "community:comment_edit", args=[self.comment.pk]
+        )
         self.post_delete_url = reverse(
             "community:post_delete", args=[self.post.slug]
         )
+        self.post_edit_url = reverse(
+            "community:post_edit", args=[self.post.slug]
+        )
         self.like_url = reverse("community:like_toggle", args=[self.post.slug])
 
-    def test_post_detail_shows_comment_delete_like_and_post_delete(self):
+    def test_post_detail_shows_comment_manage_like_and_post_manage(self):
         self.client.force_login(self.author)
-        # Author owns the post; staff-or-owner can also delete others' comments
-        # only when staff — so log in as commenter for comment delete, author
-        # for post delete. Cover both roles across two requests.
         author_response = self.client.get(
             reverse("community:post_detail", args=[self.post.slug])
         )
         self.assertContains(author_response, f'action="{self.post_delete_url}"')
+        self.assertContains(author_response, f'href="{self.post_edit_url}"')
         self.assertContains(author_response, f'action="{self.like_url}"')
 
         self.client.force_login(self.commenter)
@@ -962,24 +1019,32 @@ class CommunityUiPermissionConsistencyTests(TestCase):
         self.assertContains(
             commenter_response, f'action="{self.comment_delete_url}"'
         )
+        self.assertContains(
+            commenter_response, f'href="{self.comment_edit_url}"'
+        )
         self.assertContains(commenter_response, f'action="{self.like_url}"')
         self.assertNotContains(
             commenter_response, f'action="{self.post_delete_url}"'
         )
+        self.assertNotContains(
+            commenter_response, f'href="{self.post_edit_url}"'
+        )
 
-    def test_post_list_has_no_comment_delete_like_toggle_or_post_delete(self):
+    def test_post_list_has_no_comment_manage_like_toggle_or_post_manage(self):
         self.client.force_login(self.author)
 
         response = self.client.get(reverse("community:list"))
 
         self.assertContains(response, self.post.title)
         self.assertNotContains(response, f'action="{self.comment_delete_url}"')
+        self.assertNotContains(response, f'href="{self.comment_edit_url}"')
         self.assertNotContains(response, f'action="{self.post_delete_url}"')
+        self.assertNotContains(response, f'href="{self.post_edit_url}"')
         self.assertNotContains(response, f'action="{self.like_url}"')
         self.assertNotContains(response, "community:comment_delete")
         self.assertNotContains(response, "community:like_toggle")
 
-    def test_owner_profile_has_post_delete_but_not_comment_delete_or_like(self):
+    def test_owner_profile_has_post_manage_but_not_comment_manage_or_like(self):
         self.client.force_login(self.author)
 
         response = self.client.get(
@@ -990,7 +1055,9 @@ class CommunityUiPermissionConsistencyTests(TestCase):
 
         self.assertContains(response, "My posts")
         self.assertContains(response, f'action="{self.post_delete_url}"')
+        self.assertContains(response, f'href="{self.post_edit_url}"')
         self.assertNotContains(response, f'action="{self.comment_delete_url}"')
+        self.assertNotContains(response, f'href="{self.comment_edit_url}"')
         self.assertNotContains(response, f'action="{self.like_url}"')
 
 
@@ -1163,6 +1230,164 @@ class CommunityCommentDeletePermissionTests(TestCase):
             reverse("community:post_detail", args=[self.post.slug]),
         )
         self.assertFalse(CommunityComment.objects.filter(pk=comment.pk).exists())
+
+
+class CommunityPostEditPermissionTests(TestCase):
+    def setUp(self):
+        self.author = _make_user("edit_post_author")
+        self.other = _make_user("edit_post_other")
+        self.staff = _make_user("edit_post_staff", is_staff=True)
+
+    def test_edit_requires_login(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+
+        response = self.client.get(
+            reverse("community:post_edit", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+
+    def test_author_can_edit_own_post_and_returns_to_pending(self):
+        post = _make_post(
+            self.author,
+            title="Original title",
+            body="Original body",
+            status=ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(self.author)
+
+        response = self.client.post(
+            reverse("community:post_edit", args=[post.slug]),
+            {"title": "Updated title", "body": "Updated body"},
+        )
+
+        post.refresh_from_db()
+        self.assertRedirects(
+            response, reverse("community:post_detail", args=[post.slug])
+        )
+        self.assertEqual(post.title, "Updated title")
+        self.assertEqual(post.body, "Updated body")
+        self.assertEqual(post.author_id, self.author.id)
+        self.assertEqual(post.status, ApprovalStatus.PENDING)
+
+    def test_other_user_cannot_edit_another_users_post(self):
+        post = _make_post(
+            self.author,
+            title="Keep me",
+            status=ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(self.other)
+
+        response = self.client.post(
+            reverse("community:post_edit", args=[post.slug]),
+            {"title": "Hijacked", "body": "Nope"},
+        )
+
+        post.refresh_from_db()
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(post.title, "Keep me")
+        self.assertEqual(post.status, ApprovalStatus.APPROVED)
+
+    def test_staff_can_edit_another_users_post_without_losing_approval(self):
+        post = _make_post(
+            self.author,
+            title="Staff edit me",
+            body="Before",
+            status=ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:post_edit", args=[post.slug]),
+            {"title": "Staff edited", "body": "After"},
+        )
+
+        post.refresh_from_db()
+        self.assertRedirects(
+            response, reverse("community:post_detail", args=[post.slug])
+        )
+        self.assertEqual(post.title, "Staff edited")
+        self.assertEqual(post.body, "After")
+        self.assertEqual(post.author_id, self.author.id)
+        self.assertEqual(post.status, ApprovalStatus.APPROVED)
+
+
+class CommunityCommentEditPermissionTests(TestCase):
+    def setUp(self):
+        self.post_author = _make_user("editc_post_author")
+        self.comment_author = _make_user("editc_author")
+        self.other = _make_user("editc_other")
+        self.staff = _make_user("editc_staff", is_staff=True)
+        self.post = _make_post(self.post_author, status=ApprovalStatus.APPROVED)
+
+    def _make_comment(self, body="A comment"):
+        return CommunityComment.objects.create(
+            post=self.post,
+            author=self.comment_author,
+            body=body,
+            status=ApprovalStatus.APPROVED,
+        )
+
+    def test_edit_requires_login(self):
+        comment = self._make_comment()
+
+        response = self.client.get(
+            reverse("community:comment_edit", args=[comment.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+
+    def test_author_can_edit_own_comment_and_returns_to_pending(self):
+        comment = self._make_comment(body="Original comment")
+        self.client.force_login(self.comment_author)
+
+        response = self.client.post(
+            reverse("community:comment_edit", args=[comment.pk]),
+            {"body": "Updated comment"},
+        )
+
+        comment.refresh_from_db()
+        self.assertRedirects(
+            response,
+            reverse("community:post_detail", args=[self.post.slug]),
+        )
+        self.assertEqual(comment.body, "Updated comment")
+        self.assertEqual(comment.author_id, self.comment_author.id)
+        self.assertEqual(comment.status, ApprovalStatus.PENDING)
+
+    def test_other_user_cannot_edit_another_users_comment(self):
+        comment = self._make_comment(body="Keep me")
+        self.client.force_login(self.other)
+
+        response = self.client.post(
+            reverse("community:comment_edit", args=[comment.pk]),
+            {"body": "Hijacked"},
+        )
+
+        comment.refresh_from_db()
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(comment.body, "Keep me")
+        self.assertEqual(comment.status, ApprovalStatus.APPROVED)
+
+    def test_staff_can_edit_another_users_comment_without_losing_approval(self):
+        comment = self._make_comment(body="Before")
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("community:comment_edit", args=[comment.pk]),
+            {"body": "After"},
+        )
+
+        comment.refresh_from_db()
+        self.assertRedirects(
+            response,
+            reverse("community:post_detail", args=[self.post.slug]),
+        )
+        self.assertEqual(comment.body, "After")
+        self.assertEqual(comment.author_id, self.comment_author.id)
+        self.assertEqual(comment.status, ApprovalStatus.APPROVED)
 
 
 class CommunityPostAdminActionsTests(TestCase):

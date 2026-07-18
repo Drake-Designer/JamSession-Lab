@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — {{ event.title }}{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'events/css/event_detail.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="event-detail bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+            <div class="text-center" data-aos="fade-up">
+                {% if not event.is_active %}
+                <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Inactive</p>
+                {% elif event.is_upcoming %}
+                <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Upcoming event</p>
+                {% else %}
+                <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Past event</p>
+                {% endif %}
+                <h1 class="mt-2 text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    {{ event.title }}
+                </h1>
+            </div>
+
+            {% if event.poster %}
+            <div class="event-detail__poster mt-8 overflow-hidden rounded-2xl border border-jam-grey-light" data-aos="fade-up">
+                <img
+                    src="{{ event.display_poster_url }}"
+                    alt="Poster for {{ event.title }}"
+                    class="h-auto w-full object-cover"
+                >
+            </div>
+            {% endif %}
+
+            <article class="mt-10 space-y-6 rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up">
+                <div>
+                    <p class="text-sm font-medium text-jam-muted">Date &amp; time</p>
+                    <p class="mt-1 text-base font-semibold text-jam-white">
+                        {{ event.starts_at|date:"l, j F Y · g:i A" }}
+                        –
+                        {{ event.ends_at|date:"g:i A" }}
+                    </p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-jam-muted">Venue</p>
+                    <p class="mt-1 text-base font-semibold text-jam-white">{{ event.venue_name }}</p>
+                    <p class="mt-1 text-sm text-jam-muted-on-grey">{{ event.address }}</p>
+                    <a
+                        href="{{ event.location_url }}"
+                        class="mt-2 inline-flex text-sm font-semibold text-jam-red hover:text-jam-red-hover"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Open in Google Maps
+                    </a>
+                </div>
+                {% if event.description %}
+                <div>
+                    <p class="text-sm font-medium text-jam-muted">About this event</p>
+                    <div class="event-detail__description mt-2 text-base text-jam-white">
+                        {{ event.description|linebreaksbr }}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="event-detail__actions border-t border-jam-grey-light pt-6">
+                    {% if is_registered %}
+                        <p class="mb-4 text-sm text-jam-muted-on-grey">
+                            You are registered for this event.
+                        </p>
+                        <a
+                            href="{% url 'events:register_confirmation' event.pk %}"
+                            class="inline-flex w-full items-center justify-center rounded-xl border border-jam-grey-light px-6 py-3 text-base font-bold text-jam-white transition hover:border-jam-red sm:w-auto"
+                        >
+                            View your registration
+                        </a>
+                        <form method="post" action="{% url 'events:cancel' event.pk %}" class="mt-3 inline-flex w-full sm:ml-3 sm:mt-0 sm:w-auto">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{% url 'events:detail' event.pk %}">
+                            <button
+                                type="submit"
+                                class="inline-flex w-full items-center justify-center rounded-xl bg-transparent px-6 py-3 text-base font-semibold text-jam-muted underline-offset-2 hover:text-jam-red hover:underline sm:w-auto"
+                            >
+                                Cancel registration
+                            </button>
+                        </form>
+                    {% elif user.is_authenticated %}
+                        {% if event.is_registration_allowed %}
+                        <a
+                            href="{% url 'events:register' event.pk %}"
+                            class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black shadow-md transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-black sm:w-auto"
+                        >
+                            Register for This Event
+                        </a>
+                        {% else %}
+                        <p class="text-sm font-semibold text-jam-muted-on-grey">
+                            Registrations are currently closed.
+                        </p>
+                        {% endif %}
+                    {% else %}
+                        <a
+                            href="{% url 'accounts:register' %}?next={% url 'events:register' event.pk %}"
+                            class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black shadow-md transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-black sm:w-auto"
+                        >
+                            Register for This Event
+                        </a>
+                        <p class="mt-3 text-sm text-jam-muted">
+                            You need a JamSession Lab account to register for events.
+                        </p>
+                    {% endif %}
+                </div>
+            </article>
+
+            {% if user.is_staff or user.is_superuser %}
+            <div class="event-detail__staff mt-8 rounded-2xl border border-jam-grey-light bg-jam-grey p-6" data-aos="fade-up">
+                <h2 class="text-lg font-bold text-jam-white">Staff tools</h2>
+                <div class="mt-4 flex flex-wrap gap-3">
+                    <a href="{% url 'events:edit' event.pk %}" class="event-detail__staff-link">Edit</a>
+                    <a href="{% url 'events:attendees' event.pk %}" class="event-detail__staff-link">Attendees</a>
+                    <a href="{% url 'events:delete' event.pk %}" class="event-detail__staff-link event-detail__staff-link--danger">Delete</a>
+                    <form method="post" action="{% url 'events:toggle_active' event.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="event-detail__staff-btn">
+                            {% if event.is_active %}Deactivate{% else %}Activate{% endif %}
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'events:toggle_registrations' event.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="event-detail__staff-btn">
+                            {% if event.registrations_open %}Close registrations{% else %}Open registrations{% endif %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+{% endblock %}
