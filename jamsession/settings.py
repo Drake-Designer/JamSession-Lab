@@ -346,11 +346,11 @@ STORAGES = {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": "jamsession.storage.NonStrictStaticFilesStorage",
     },
 }
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATICFILES_STORAGE = "jamsession.storage.NonStrictStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 
