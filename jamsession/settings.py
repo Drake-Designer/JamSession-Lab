@@ -330,11 +330,20 @@ cloudinary.config(
     secure=True,
 )
 
-# Email — verification links are printed to the runserver terminal for now.
-# TODO: switch to real SMTP backend (SendGrid/Mailgun) once domain and email
-# service are set up.
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = "JamSession Lab <noreply@jamsessionlab.ie>"
+# Email — SMTP via Brevo for transactional mail (verification, password reset,
+# notifications).
+# TODO: once the jamsessionlab.ie domain is active and verified in Brevo,
+# use it as the From address for all outbound email.
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp-relay.brevo.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+EMAIL_USE_TLS = True
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL",
+    "JamSession Lab <noreply@jamsessionlab.ie>",
+)
 
 # Invitation link to the community WhatsApp group, shown after registration
 # and included in the welcome email. Replace with the real group link.
