@@ -1,0 +1,596 @@
+/* Admin Tool — staff bulk management page */
+
+.admin-tool {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 5.5rem 1rem 6rem;
+    color: #ffffff;
+}
+
+@media (min-width: 640px) {
+    .admin-tool {
+        padding: 6.5rem 1.5rem 3rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .admin-tool {
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+}
+
+/* Page header */
+.admin-tool__header {
+    margin-bottom: 2.5rem;
+}
+
+.admin-tool__title {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #e63946;
+}
+
+@media (min-width: 640px) {
+    .admin-tool__title {
+        font-size: 2.25rem;
+    }
+}
+
+.admin-tool__subtitle {
+    margin-top: 0.75rem;
+    max-width: 40rem;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #a3a3a3;
+}
+
+/* Sticky / fixed selection bar — top on desktop, bottom on mobile */
+.admin-tool-bar {
+    z-index: 40;
+    border: 1px solid #262626;
+    background-color: rgba(26, 26, 26, 0.96);
+    backdrop-filter: blur(8px);
+}
+
+.admin-tool-bar.is-hidden {
+    display: none;
+}
+
+@media (max-width: 639px) {
+    .admin-tool-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        border-radius: 1rem 1rem 0 0;
+        padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+}
+
+@media (min-width: 640px) {
+    .admin-tool-bar {
+        position: sticky;
+        top: 4.5rem;
+        margin-bottom: 1.5rem;
+        border-radius: 0.875rem;
+    }
+}
+
+.admin-tool-bar__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+}
+
+@media (min-width: 640px) {
+    .admin-tool-bar__inner {
+        padding: 0.875rem 1.25rem;
+    }
+}
+
+.admin-tool-bar__count {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #ffffff;
+    white-space: nowrap;
+}
+
+.admin-tool-bar__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    flex-shrink: 0;
+}
+
+.admin-tool-bar__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.admin-tool-bar__btn--cancel {
+    background-color: transparent;
+    border-color: #262626;
+    color: #d1d1d1;
+}
+
+.admin-tool-bar__btn--cancel:hover {
+    border-color: #737373;
+    color: #ffffff;
+}
+
+.admin-tool-bar__btn--delete {
+    background-color: #e63946;
+    color: #000000;
+}
+
+.admin-tool-bar__btn--delete:hover {
+    background-color: #ff4d5a;
+}
+
+/* Sections */
+.admin-tool-section {
+    margin-top: 2.5rem;
+}
+
+.admin-tool-section__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.admin-tool-section__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.admin-tool-select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.admin-tool-select-all__input {
+    width: 1.125rem;
+    height: 1.125rem;
+    accent-color: #e63946;
+    cursor: pointer;
+}
+
+.admin-tool-select-all__label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #a3a3a3;
+}
+
+.admin-tool-empty {
+    border: 1px dashed #262626;
+    border-radius: 0.875rem;
+    padding: 1.5rem;
+    font-size: 0.9375rem;
+    color: #a3a3a3;
+    text-align: center;
+}
+
+/* List rows — desktop grid */
+.admin-tool-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.admin-tool-row {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto auto;
+    grid-template-areas:
+        "check thumb main status date actions";
+    align-items: center;
+    gap: 0.875rem 1rem;
+    padding: 1rem 1.125rem;
+    border: 1px solid #262626;
+    border-radius: 0.875rem;
+    background-color: #1a1a1a;
+    transition: border-color 0.2s ease;
+}
+
+.admin-tool-row:hover {
+    border-color: rgba(230, 57, 70, 0.35);
+}
+
+.admin-tool-row__check {
+    grid-area: check;
+}
+
+.admin-tool-row__thumb {
+    grid-area: thumb;
+}
+
+.admin-tool-row__main {
+    grid-area: main;
+    min-width: 0;
+}
+
+.admin-tool-row__status {
+    grid-area: status;
+}
+
+.admin-tool-row__date {
+    grid-area: date;
+    font-size: 0.8125rem;
+    color: #a3a3a3;
+    white-space: nowrap;
+}
+
+.admin-tool-row__actions {
+    grid-area: actions;
+    justify-self: end;
+}
+
+/* Comment rows — no thumb column */
+.admin-tool-row--comment {
+    grid-template-columns: auto 1fr auto auto auto;
+    grid-template-areas:
+        "check main status date actions";
+}
+
+/* Checkbox touch target */
+.admin-tool-check {
+    width: 1.125rem;
+    height: 1.125rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    margin: -0.8125rem;
+    padding: 0.8125rem;
+    accent-color: #e63946;
+    cursor: pointer;
+}
+
+@media (min-width: 640px) {
+    .admin-tool-check {
+        min-width: 0;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+    }
+}
+
+/* Thumbnail */
+.admin-tool-row__thumb-link,
+.admin-tool-row__thumb-button {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    width: 4.5rem;
+    height: 3.375rem;
+    border-radius: 0.5rem;
+    border: 1px solid #262626;
+    background-color: #000000;
+    flex-shrink: 0;
+}
+
+.admin-tool-row__thumb-button {
+    padding: 0;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.admin-tool-row__thumb-button:hover {
+    border-color: #e63946;
+}
+
+.admin-tool-row__thumb-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.admin-tool-row__thumb-fallback {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background:
+        linear-gradient(135deg, rgba(230, 57, 70, 0.28) 0%, transparent 55%),
+        linear-gradient(180deg, #1f1f1f 0%, #141414 100%);
+}
+
+.admin-tool-row__play-icon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.35);
+    color: #ffffff;
+    pointer-events: none;
+}
+
+/* Main content */
+.admin-tool-row__link {
+    display: block;
+    color: #ffffff;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.admin-tool-row__link:hover {
+    color: #e63946;
+}
+
+.admin-tool-row__preview {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    color: #ffffff;
+    transition: color 0.2s ease;
+}
+
+.admin-tool-row__preview:hover {
+    color: #e63946;
+}
+
+.admin-tool-row__title {
+    display: block;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-tool-row__excerpt {
+    display: block;
+    font-size: 0.9375rem;
+    line-height: 1.45;
+    color: inherit;
+}
+
+.admin-tool-row__author {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+    color: #a3a3a3;
+    min-width: 0;
+}
+
+.admin-tool-row__author .user-author-chip {
+    max-width: 100%;
+}
+
+.admin-tool-row__author .user-credit__link {
+    color: #d1d1d1;
+}
+
+.admin-tool-row__author .user-credit__link:hover {
+    color: #e63946;
+}
+
+.admin-tool-row__author .user-badge {
+    font-size: 0.5625rem;
+    padding: 0.1rem 0.4rem;
+}
+
+/* Delete button */
+.admin-tool-delete-form {
+    margin: 0;
+}
+
+.admin-tool-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0.5rem;
+    border: 1px solid #262626;
+    border-radius: 0.625rem;
+    background-color: transparent;
+    color: #a3a3a3;
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.admin-tool-delete-btn:hover {
+    border-color: #e63946;
+    color: #ff4d5a;
+    background-color: rgba(230, 57, 70, 0.12);
+}
+
+.admin-tool-delete-btn__icon {
+    display: block;
+}
+
+/* Tablet — hide date column */
+@media (max-width: 1023px) {
+    .admin-tool-row {
+        grid-template-columns: auto auto 1fr auto auto;
+        grid-template-areas:
+            "check thumb main status actions";
+    }
+
+    .admin-tool-row--comment {
+        grid-template-columns: auto 1fr auto auto;
+        grid-template-areas:
+            "check main status actions";
+    }
+
+    .admin-tool-row__date {
+        display: none;
+    }
+}
+
+/* Mobile — card stack */
+@media (max-width: 639px) {
+    .admin-tool {
+        padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0));
+    }
+
+    .admin-tool-row,
+    .admin-tool-row--comment {
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas:
+            "check main actions"
+            "thumb main actions"
+            "status status status";
+        gap: 0.75rem;
+        padding: 1rem;
+    }
+
+    .admin-tool-row__thumb-link,
+    .admin-tool-row__thumb-button {
+        width: 3.75rem;
+        height: 2.8125rem;
+    }
+
+    .admin-tool-row__status {
+        justify-self: start;
+    }
+
+    .admin-tool-row__title {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .admin-tool-bar__inner {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-tool-bar__actions {
+        width: 100%;
+    }
+
+    .admin-tool-bar__btn {
+        flex: 1;
+    }
+}
+
+/* Hidden bulk delete form — submitted programmatically */
+#admin-tool-bulk-form {
+    display: none;
+}
+
+/* Lightbox */
+body.admin-tool-lightbox-open {
+    overflow: hidden;
+}
+
+.admin-tool-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.admin-tool-lightbox[hidden] {
+    display: none;
+}
+
+.admin-tool-lightbox__backdrop {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    border: none;
+    background-color: rgba(0, 0, 0, 0.88);
+    cursor: pointer;
+}
+
+.admin-tool-lightbox__panel {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 56rem);
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    border-radius: 1rem;
+    border: 1px solid #262626;
+    background-color: #1a1a1a;
+    padding: 1rem;
+}
+
+.admin-tool-lightbox__close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid #262626;
+    border-radius: 9999px;
+    background-color: rgba(0, 0, 0, 0.65);
+    color: #ffffff;
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.admin-tool-lightbox__close:hover {
+    border-color: #e63946;
+    color: #e63946;
+}
+
+.admin-tool-lightbox__stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 12rem;
+    background-color: #000000;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+
+.admin-tool-lightbox__image,
+.admin-tool-lightbox__video {
+    display: block;
+    max-width: 100%;
+    max-height: min(70vh, 40rem);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+.admin-tool-lightbox__title {
+    margin-top: 0.875rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #ffffff;
+    text-align: center;
+}
+
+.admin-tool-lightbox__title[hidden],
+.admin-tool-lightbox__image[hidden],
+.admin-tool-lightbox__video[hidden] {
+    display: none;
+}

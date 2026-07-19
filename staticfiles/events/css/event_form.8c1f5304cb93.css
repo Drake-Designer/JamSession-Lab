@@ -1,0 +1,6 @@
+/* Event create/edit form — layout helpers beyond shared jam-form styles. */
+
+.event-form__title-preview {
+    color: #a3a3a3;
+    font-size: 0.875rem;
+}

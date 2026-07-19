@@ -1,0 +1,197 @@
+/* Lightweight SVG noise grain — echoes the logo's distressed texture */
+.hero-grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 128px 128px;
+}
+
+/* Swiper carousel — explicit min-height prevents collapse before images load */
+.jam-carousel {
+    min-height: 14rem;
+    background-color: #000000;
+}
+
+@media (min-width: 640px) {
+    .jam-carousel {
+        min-height: 18rem;
+    }
+}
+
+@media (min-width: 768px) {
+    .jam-carousel {
+        min-height: 24rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .jam-carousel {
+        min-height: 28rem;
+    }
+}
+
+/* Slide: full-width blur backdrop with sharp centred photo on top */
+.jam-carousel-slide {
+    position: relative;
+    height: 14rem;
+    overflow: hidden;
+    background-color: #000000;
+}
+
+@media (min-width: 640px) {
+    .jam-carousel-slide {
+        height: 18rem;
+    }
+}
+
+@media (min-width: 768px) {
+    .jam-carousel-slide {
+        height: 24rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .jam-carousel-slide {
+        height: 28rem;
+    }
+}
+
+.jam-carousel-slide__content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.jam-carousel-slide__backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.1);
+    filter: blur(22px) saturate(1.08) brightness(0.72);
+    pointer-events: none;
+}
+
+.jam-carousel-slide__image {
+    position: relative;
+    z-index: 1;
+    display: block;
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+/* Darken only the lower area so captions stay readable — photo above stays bright */
+.jam-carousel-slide__overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 45%;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.82) 0%,
+        rgba(0, 0, 0, 0.35) 60%,
+        transparent 100%
+    );
+}
+
+.jam-carousel-slide__caption {
+    position: absolute;
+    bottom: 1rem;
+    left: 1rem;
+    right: 1rem;
+    z-index: 3;
+    pointer-events: none;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #ffffff;
+}
+
+@media (min-width: 640px) {
+    .jam-carousel-slide__caption {
+        bottom: 1.5rem;
+        left: 1.5rem;
+        right: 1.5rem;
+        font-size: 1rem;
+    }
+}
+
+/* Swiper controls styled to match brand palette */
+.jam-carousel .swiper-pagination {
+    bottom: 0.625rem !important;
+}
+
+@media (min-width: 640px) {
+    .jam-carousel .swiper-pagination {
+        bottom: 1rem !important;
+    }
+}
+
+.jam-carousel .swiper-pagination-bullet {
+    width: 0.5rem;
+    height: 0.5rem;
+    background: #737373;
+    opacity: 1;
+}
+
+@media (min-width: 640px) {
+    .jam-carousel .swiper-pagination-bullet {
+        width: 0.625rem;
+        height: 0.625rem;
+    }
+}
+
+.jam-carousel .swiper-pagination-bullet-active {
+    background: #E63946;
+}
+
+.jam-carousel .swiper-button-prev,
+.jam-carousel .swiper-button-next {
+    --swiper-navigation-size: 1.75rem;
+    color: #E63946;
+    opacity: 0.9;
+}
+
+@media (min-width: 640px) {
+    .jam-carousel .swiper-button-prev,
+    .jam-carousel .swiper-button-next {
+        --swiper-navigation-size: 2.25rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .jam-carousel .swiper-button-prev,
+    .jam-carousel .swiper-button-next {
+        --swiper-navigation-size: 2.75rem;
+    }
+}
+
+.jam-carousel .swiper-button-prev:hover,
+.jam-carousel .swiper-button-next:hover {
+    color: #FF4D5A;
+    opacity: 1;
+}
+
+/* Keep captions clear of pagination dots on small screens */
+@media (max-width: 639px) {
+    .jam-carousel-slide__caption {
+        bottom: 2.25rem;
+        padding-right: 2.5rem;
+    }
+}
