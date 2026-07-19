@@ -330,12 +330,13 @@ cloudinary.config(
     secure=True,
 )
 
-# Email — SMTP via Brevo for transactional mail (verification, password reset,
-# notifications).
+# Email — transactional mail via Brevo.
 #
-# EMAIL_TIMEOUT is critical on Render: without it, a hung SMTP connect can
-# stall until Gunicorn's worker timeout (SIGKILL), which bypasses try/except
-# and returns a 500 even after the user row was created.
+# Preferred on Render: BREVO_API_KEY → HTTPS API (api.brevo.com). Outbound
+# SMTP to smtp-relay.brevo.com:587 often times out on the free instance.
+# SMTP settings below remain as a local/fallback path when no API key is set.
+#
+# EMAIL_TIMEOUT applies to both Brevo HTTP calls and SMTP connect/send.
 #
 # Override EMAIL_BACKEND via env for emergency fallback, e.g.:
 #   EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
@@ -343,8 +344,13 @@ cloudinary.config(
 # TODO: once jamsessionlab.ie is verified as a Brevo sender/domain, set
 # DEFAULT_FROM_EMAIL to "JamSession Lab <noreply@jamsessionlab.ie>".
 # Until then, use a Brevo-verified personal address (see Render env).
-# TODO: migrate transactional mail to Brevo HTTP API or a task queue so
-# web workers never open SMTP sockets during request handling.
+# TODO: replace background-thread delivery with a proper task queue
+# (Celery / Django-Q / RQ) when a broker is available on Render.
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
+BREVO_API_URL = os.environ.get(
+    "BREVO_API_URL",
+    "https://api.brevo.com/v3/smtp/email",
+)
 EMAIL_BACKEND = os.environ.get(
     "EMAIL_BACKEND",
     "django.core.mail.backends.smtp.EmailBackend",
@@ -354,7 +360,7 @@ EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
-# Fail fast if SMTP is unreachable (Render free → Brevo hangs were common).
+# Fail fast if SMTP/API is unreachable (Render free → Brevo SMTP hangs).
 EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
 DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL",
