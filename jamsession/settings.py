@@ -350,6 +350,8 @@ STORAGES = {
     },
 }
 
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
 MEDIA_URL = "/media/"
 
 # Align request-body / in-memory upload limits with the highest business
