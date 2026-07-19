@@ -332,14 +332,30 @@ cloudinary.config(
 
 # Email — SMTP via Brevo for transactional mail (verification, password reset,
 # notifications).
-# TODO: once the jamsessionlab.ie domain is active and verified in Brevo,
-# use it as the From address for all outbound email.
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+#
+# EMAIL_TIMEOUT is critical on Render: without it, a hung SMTP connect can
+# stall until Gunicorn's worker timeout (SIGKILL), which bypasses try/except
+# and returns a 500 even after the user row was created.
+#
+# Override EMAIL_BACKEND via env for emergency fallback, e.g.:
+#   EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+#
+# TODO: once jamsessionlab.ie is verified as a Brevo sender/domain, set
+# DEFAULT_FROM_EMAIL to "JamSession Lab <noreply@jamsessionlab.ie>".
+# Until then, use a Brevo-verified personal address (see Render env).
+# TODO: migrate transactional mail to Brevo HTTP API or a task queue so
+# web workers never open SMTP sockets during request handling.
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend",
+)
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp-relay.brevo.com")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
-EMAIL_USE_TLS = True
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+# Fail fast if SMTP is unreachable (Render free → Brevo hangs were common).
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
 DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL",
     "JamSession Lab <noreply@jamsessionlab.ie>",

@@ -1,4 +1,3 @@
-import logging
 import time
 
 from django.conf import settings
@@ -23,7 +22,7 @@ from jamsession.moderation import ApprovalStatus
 from registrations.models import EventRegistration, RsvpStatus
 
 from .constants import TOWNS_BY_COUNTY, Instrument, MusicGenre
-from .emails import send_verification_email
+from .emails import queue_verification_email, send_verification_email
 from .forms import (
     DeleteAccountForm,
     LoginForm,
@@ -89,13 +88,10 @@ def register(request):
         form = RegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            try:
-                send_verification_email(user, request)
-            except Exception:
-                logging.exception(
-                    "Failed to send verification email for user %s",
-                    user.pk,
-                )
+            # Non-blocking: SMTP hangs must not kill the Gunicorn worker or
+            # turn a successful signup into a 500. Failures are logged inside
+            # accounts.emails; the member can use "resend verification".
+            queue_verification_email(user, request)
             # Soft-block: stay signed in, but middleware restricts member
             # actions until the email is verified.
             login(request, user)
@@ -164,7 +160,19 @@ def resend_verification(request):
         return redirect("accounts:verification_required")
 
     request.user.regenerate_email_verification_token()
-    send_verification_email(request.user, request)
+    # Synchronous here so we can tell the user if delivery failed; EMAIL_TIMEOUT
+    # keeps a hung SMTP connect from exceeding the Gunicorn worker limit.
+    sent = send_verification_email(request.user, request)
+    if not sent:
+        messages.error(
+            request,
+            _(
+                "We could not send the verification email just now. "
+                "Please try again in a minute."
+            ),
+        )
+        return redirect("accounts:verification_required")
+
     request.session[RESEND_VERIFICATION_SESSION_KEY] = now
     messages.success(
         request,
