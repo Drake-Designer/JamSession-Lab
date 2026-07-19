@@ -1,0 +1,9 @@
+<form method="post" action="{% url 'accounts:resend_verification' %}" class="mt-4">
+    {% csrf_token %}
+    <button
+        type="submit"
+        class="inline-flex w-full items-center justify-center rounded-xl border border-jam-grey-light bg-jam-black px-6 py-3 text-base font-bold text-jam-white transition hover:border-jam-red hover:text-jam-red sm:w-auto"
+    >
+        Resend verification email
+    </button>
+</form>

@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load static %}
 
 {% block title %}JamSession Lab — Welcome{% endblock %}
 
@@ -11,8 +10,9 @@
                     Welcome to JamSession Lab, {{ user.display_name }}!
                 </h1>
                 <p class="mt-4 text-lg text-jam-muted">
-                    Your account has been created. You can now register for events and
-                    share your photos and videos in the gallery.
+                    Your account has been created. Please verify your email address
+                    before registering for events, editing your profile, or sharing
+                    in the community.
                 </p>
             </div>
 
@@ -23,10 +23,12 @@
             >
                 <h2 class="text-lg font-semibold text-jam-white">Verify your email</h2>
                 <p class="mt-2 text-sm leading-relaxed text-jam-muted">
-                    We have sent a verification link to <strong class="text-jam-white">{{ user.email }}</strong>.
+                    We have sent a verification link to
+                    <strong class="text-jam-white">{{ user.email }}</strong>.
                     Please check your inbox and click the link to confirm your address.
-                    You can keep using the site in the meantime.
+                    Member features stay locked until your email is verified.
                 </p>
+                {% include "accounts/partials/resend_verification_form.html" %}
             </div>
 
             <div

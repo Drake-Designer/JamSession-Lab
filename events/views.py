@@ -2,10 +2,13 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods, require_POST
 
 from registrations.models import EventRegistration, RsvpStatus
+from registrations.views import registration_list_context
 
 from .forms import EventForm
 from .models import Event
@@ -17,16 +20,55 @@ def _require_moderator(user):
         raise PermissionDenied
 
 
+def event_list(request):
+    """Public list of active events with key details and register/view CTAs."""
+    events = list(
+        Event.objects.filter(is_active=True).order_by("starts_at")
+    )
+    registered_event_ids = set()
+    if request.user.is_authenticated and events:
+        registered_event_ids = set(
+            EventRegistration.objects.filter(
+                user=request.user,
+                event_id__in=[event.pk for event in events],
+                rsvp_status=RsvpStatus.REGISTERED,
+            ).values_list("event_id", flat=True)
+        )
+
+    event_cards = [
+        {
+            "event": event,
+            "is_registered": event.pk in registered_event_ids,
+        }
+        for event in events
+    ]
+    return render(
+        request,
+        "events/event_list.html",
+        {"event_cards": event_cards},
+    )
+
+
 @login_required
 @require_http_methods(["GET"])
 def event_manage(request):
-    """Staff-only list of all events with create / edit / delete entry points."""
+    """Staff-only: inline event detail, tools, and attendee lists."""
     _require_moderator(request.user)
     events = Event.objects.order_by("-starts_at")
+    managed_events = []
+    for event in events:
+        lists = registration_list_context(event)
+        managed_events.append(
+            {
+                "event": event,
+                "registered_rows": lists["registered_rows"],
+                "cancelled_rows": lists["cancelled_rows"],
+            }
+        )
     return render(
         request,
         "events/event_manage.html",
-        {"events": events},
+        {"managed_events": managed_events},
     )
 
 
@@ -71,7 +113,7 @@ def event_create(request):
         if form.is_valid():
             event = form.save()
             messages.success(request, _("Event created successfully."))
-            return redirect("events:detail", pk=event.pk)
+            return redirect("events:manage")
     else:
         form = EventForm()
     return render(
@@ -92,7 +134,7 @@ def event_edit(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, _("Event updated successfully."))
-            return redirect("events:detail", pk=event.pk)
+            return redirect(f"{reverse('events:manage')}#event-{event.pk}")
     else:
         form = EventForm(instance=event)
     return render(
@@ -131,7 +173,7 @@ def event_toggle_active(request, pk):
         messages.success(request, _("Event is now active."))
     else:
         messages.success(request, _("Event is now inactive."))
-    return redirect("events:detail", pk=event.pk)
+    return redirect(f"{reverse('events:manage')}#event-{event.pk}")
 
 
 @login_required
@@ -146,4 +188,4 @@ def event_toggle_registrations(request, pk):
         messages.success(request, _("Registrations are now open."))
     else:
         messages.success(request, _("Registrations are now closed."))
-    return redirect("events:detail", pk=event.pk)
+    return redirect(f"{reverse('events:manage')}#event-{event.pk}")

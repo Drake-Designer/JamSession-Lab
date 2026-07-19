@@ -13,12 +13,25 @@
                 </p>
                 <div class="mt-8 flex flex-wrap gap-3">
                     <a
-                        href="{% url 'events:register_confirmation' event.pk %}"
+                        href="{% url 'events:register_edit' event.pk %}"
                         class="inline-flex items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black"
+                    >
+                        Edit registration
+                    </a>
+                    <a
+                        href="{% url 'events:register_confirmation' event.pk %}"
+                        class="inline-flex items-center justify-center rounded-xl border border-jam-grey-light px-6 py-3 text-base font-semibold text-jam-white"
                     >
                         View registration
                     </a>
-                    <form method="post" action="{% url 'events:cancel' event.pk %}">
+                    <form
+                        method="post"
+                        action="{% url 'events:cancel' event.pk %}"
+                        class="js-confirm-delete"
+                        data-confirm-message="Cancel your registration for this event?"
+                        data-confirm-label="Yes, cancel registration"
+                        data-cancel-label="Keep registration"
+                    >
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{% url 'events:detail' event.pk %}">
                         <button

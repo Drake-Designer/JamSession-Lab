@@ -26,6 +26,7 @@ def _make_user(username, *, is_staff=False, **extra):
         experience_level=extra.pop("experience_level", "intermediate"),
         other_instrument=extra.pop("other_instrument", ""),
         is_staff=is_staff,
+        is_email_verified=extra.pop("is_email_verified", True),
         **extra,
     )
 
@@ -203,6 +204,40 @@ class EventRegistrationFlowTests(TestCase):
                 first_registered_at=timezone.now(),
                 registered_at=timezone.now(),
             )
+
+    def test_edit_registration_updates_sessions(self):
+        self.client.login(username="player2", password="jam-session-test-pass1")
+        register_url = reverse("events:register", kwargs={"pk": self.event.pk})
+        self.client.post(register_url, _rsvp_post_data())
+        reg = EventRegistration.objects.get(user=self.user, event=self.event)
+        first_at = reg.first_registered_at
+        self.assertTrue(reg.join_open_mic)
+        self.assertTrue(reg.join_open_jam)
+
+        edit_url = reverse("events:register_edit", kwargs={"pk": self.event.pk})
+        get_response = self.client.get(edit_url)
+        self.assertEqual(get_response.status_code, 200)
+        self.assertContains(get_response, "Edit registration")
+        self.assertContains(get_response, "Save changes")
+
+        post_data = _rsvp_post_data()
+        post_data.pop("join_open_jam")
+        post_data["originals_choice"] = ""
+        post_data["notes"] = "Changed my mind — Open Mic only."
+        response = self.client.post(edit_url, post_data)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.url,
+            reverse("events:register_confirmation", kwargs={"pk": self.event.pk}),
+        )
+
+        reg.refresh_from_db()
+        self.assertTrue(reg.join_open_mic)
+        self.assertFalse(reg.join_open_jam)
+        self.assertIsNone(reg.wants_originals_in_jam)
+        self.assertEqual(reg.notes, "Changed my mind — Open Mic only.")
+        self.assertEqual(reg.first_registered_at, first_at)
+        self.assertEqual(reg.rsvp_status, RsvpStatus.REGISTERED)
 
     def test_cancel_post_only_and_rejoin_preserves_first_registered_at(self):
         self.client.login(username="player2", password="jam-session-test-pass1")

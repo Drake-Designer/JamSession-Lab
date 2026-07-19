@@ -6,6 +6,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from registrations.models import EventRegistration, RsvpStatus
+
 from .models import Event
 
 User = get_user_model()
@@ -21,6 +23,7 @@ def _make_user(username, *, is_staff=False, is_superuser=False, **extra):
         experience_level=extra.pop("experience_level", "intermediate"),
         is_staff=is_staff,
         is_superuser=is_superuser,
+        is_email_verified=extra.pop("is_email_verified", True),
         **extra,
     )
 
@@ -105,6 +108,30 @@ class EventViewTests(TestCase):
         response = self.client.get(reverse("pages:home"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.event.title)
+        self.assertContains(response, "Register")
+
+    def test_public_events_list_shows_active_events(self):
+        response = self.client.get(reverse("events:list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.event.title)
+        self.assertContains(response, "Register")
+
+    def test_home_shows_view_when_user_already_registered(self):
+        EventRegistration.objects.create(
+            user=self.member,
+            event=self.event,
+            join_open_mic=True,
+            rsvp_status=RsvpStatus.REGISTERED,
+            instruments_snapshot=["electric_guitar"],
+            experience_level_snapshot="intermediate",
+        )
+        self.client.login(username="member1", password="jam-session-test-pass1")
+        response = self.client.get(reverse("pages:home"))
+        self.assertContains(response, "View")
+        self.assertContains(
+            response, reverse("events:detail", kwargs={"pk": self.event.pk})
+        )
+        self.assertNotContains(response, f'href="{reverse("events:register", kwargs={"pk": self.event.pk})}"')
 
     def test_manage_requires_moderator(self):
         self.client.login(username="member1", password="jam-session-test-pass1")
@@ -117,6 +144,9 @@ class EventViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.event.title)
         self.assertContains(response, reverse("events:create"))
+        self.assertContains(response, "Registrations")
+        self.assertContains(response, "Cancellations")
+        self.assertContains(response, f'id="event-{self.event.pk}"')
 
     def test_staff_create_requires_moderator(self):
         self.client.login(username="member1", password="jam-session-test-pass1")

@@ -7,6 +7,7 @@ from . import views
 app_name = "events"
 
 urlpatterns = [
+    path("", views.event_list, name="list"),
     path("manage/", views.event_manage, name="manage"),
     path("create/", views.event_create, name="create"),
     path("<int:pk>/", views.event_detail, name="detail"),
@@ -19,6 +20,11 @@ urlpatterns = [
         name="toggle_registrations",
     ),
     path("<int:pk>/register/", registration_views.register, name="register"),
+    path(
+        "<int:pk>/register/edit/",
+        registration_views.edit_registration,
+        name="register_edit",
+    ),
     path(
         "<int:pk>/register/confirmation/",
         registration_views.register_confirmation,

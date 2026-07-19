@@ -96,6 +96,13 @@ def valid_registration_data(**overrides):
     return data
 
 
+def mark_email_verified(user):
+    """Mark a user as email-verified (needed for member-action tests)."""
+    user.is_email_verified = True
+    user.save(update_fields=["is_email_verified"])
+    return user
+
+
 class RegistrationFormTests(TestCase):
     def test_valid_data_creates_user(self):
         form = RegistrationForm(data=valid_registration_data())
@@ -322,9 +329,10 @@ class EmailVerificationTests(TestCase):
             reverse("accounts:register"),
             data=valid_registration_data(),
         )
+        self.client.logout()
         return User.objects.get(email="aoife@example.com")
 
-    def test_valid_token_verifies_email(self):
+    def test_valid_token_verifies_email_and_logs_in(self):
         user = self._register_user()
         self.assertFalse(user.is_email_verified)
 
@@ -335,14 +343,14 @@ class EmailVerificationTests(TestCase):
             )
         )
 
-        self.assertContains(response, "Email verified")
+        self.assertRedirects(response, reverse("pages:home"))
         user.refresh_from_db()
         self.assertTrue(user.is_email_verified)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), user.pk)
 
-    def test_already_verified_token_shows_notice(self):
+    def test_already_verified_token_redirects_home(self):
         user = self._register_user()
-        user.is_email_verified = True
-        user.save(update_fields=["is_email_verified"])
+        mark_email_verified(user)
 
         response = self.client.get(
             reverse(
@@ -351,7 +359,8 @@ class EmailVerificationTests(TestCase):
             )
         )
 
-        self.assertContains(response, "Already verified")
+        self.assertRedirects(response, reverse("pages:home"))
+        self.assertEqual(int(self.client.session["_auth_user_id"]), user.pk)
 
     def test_unknown_token_shows_invalid_link(self):
         response = self.client.get(
@@ -364,11 +373,108 @@ class EmailVerificationTests(TestCase):
         self.assertContains(response, "Invalid verification link")
 
 
+class EmailVerificationEnforcementTests(TestCase):
+    """Unverified members are soft-blocked from profiles and member actions."""
+
+    def setUp(self):
+        self.client.post(reverse("accounts:register"), data=valid_registration_data())
+        self.user = User.objects.get(email="aoife@example.com")
+        self.other = User.objects.create_user(
+            username="other_musician",
+            email="other@example.com",
+            password="jam-session-test-pass1",
+            display_name="Other Musician",
+            is_email_verified=True,
+        )
+        self.verification_url = reverse("accounts:verification_required")
+        self.other_profile_url = reverse(
+            "accounts:profile_detail", kwargs={"username": self.other.username}
+        )
+        self.own_profile_url = reverse(
+            "accounts:profile_detail", kwargs={"username": self.user.username}
+        )
+
+    def test_unverified_user_blocked_from_own_profile(self):
+        response = self.client.get(self.own_profile_url)
+        self.assertRedirects(response, self.verification_url)
+
+    def test_unverified_user_blocked_from_other_profile(self):
+        response = self.client.get(self.other_profile_url)
+        self.assertRedirects(response, self.verification_url)
+
+    def test_unverified_user_blocked_from_profile_edit(self):
+        response = self.client.get(reverse("accounts:profile_edit"))
+        self.assertRedirects(response, self.verification_url)
+
+    def test_unverified_user_blocked_from_gallery_upload(self):
+        response = self.client.get(reverse("gallery:upload"))
+        self.assertRedirects(response, self.verification_url)
+
+    def test_unverified_user_can_browse_home(self):
+        response = self.client.get(reverse("pages:home"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_anonymous_visitor_can_still_view_profiles(self):
+        self.client.logout()
+        response = self.client.get(self.own_profile_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Aoife B")
+
+    def test_verified_user_can_view_profiles(self):
+        mark_email_verified(self.user)
+        response = self.client.get(self.other_profile_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Other Musician")
+
+    def test_staff_bypasses_verification_gate(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        self.assertFalse(self.user.is_email_verified)
+
+        response = self.client.get(self.own_profile_url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_admin_can_mark_email_verified(self):
+        self.assertFalse(self.user.is_email_verified)
+        mark_email_verified(self.user)
+        response = self.client.get(reverse("accounts:profile_edit"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_resend_verification_sends_new_token(self):
+        old_token = self.user.email_verification_token
+        mail.outbox.clear()
+
+        response = self.client.post(reverse("accounts:resend_verification"))
+        self.assertRedirects(response, self.verification_url)
+
+        self.user.refresh_from_db()
+        self.assertNotEqual(self.user.email_verification_token, old_token)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(str(self.user.email_verification_token), mail.outbox[0].body)
+
+    def test_resend_verification_rate_limited(self):
+        self.client.post(reverse("accounts:resend_verification"))
+        mail.outbox.clear()
+
+        response = self.client.post(reverse("accounts:resend_verification"))
+        self.assertRedirects(response, self.verification_url)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_unverified_login_redirects_to_verification_required(self):
+        self.client.logout()
+        response = self.client.post(
+            reverse("accounts:login"),
+            data={"username": "aoife@example.com", "password": "brave-purple-drums!"},
+        )
+        self.assertRedirects(response, self.verification_url)
+
+
 class LoginLogoutTests(TestCase):
     def setUp(self):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
         self.client.logout()
         self.user = User.objects.get(email="aoife@example.com")
+        mark_email_verified(self.user)
 
     def test_login_with_email(self):
         response = self.client.post(
@@ -444,6 +550,7 @@ class ProfilePageTests(TestCase):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
         self.client.logout()
         self.user = User.objects.get(email="aoife@example.com")
+        mark_email_verified(self.user)
         self.profile_url = reverse(
             "accounts:profile_detail", kwargs={"username": self.user.username}
         )
@@ -464,7 +571,7 @@ class ProfilePageTests(TestCase):
     def test_owner_sees_edit_button(self):
         self.client.force_login(self.user)
         response = self.client.get(self.profile_url)
-        self.assertContains(response, "Edit Profile")
+        self.assertContains(response, "Edit profile")
 
     def test_unknown_username_returns_404(self):
         response = self.client.get(
@@ -578,11 +685,13 @@ class ProfileMyPostsTests(TestCase):
     def setUp(self):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
         self.owner = User.objects.get(email="aoife@example.com")
+        mark_email_verified(self.owner)
         self.other = User.objects.create_user(
             username="other_musician",
             email="other@example.com",
             password="jam-session-test-pass1",
             display_name="Other Musician",
+            is_email_verified=True,
         )
         self.profile_url = reverse(
             "accounts:profile_detail", kwargs={"username": self.owner.username}
@@ -738,6 +847,7 @@ class ProfileReviewItemsTests(TestCase):
     def setUp(self):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
         self.regular = User.objects.get(email="aoife@example.com")
+        mark_email_verified(self.regular)
         self.staff = User.objects.create_user(
             username="review_staff",
             email="review_staff@example.com",
@@ -837,6 +947,7 @@ class ProfileEditTests(TestCase):
     def setUp(self):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
         self.user = User.objects.get(email="aoife@example.com")
+        mark_email_verified(self.user)
         self.edit_url = reverse("accounts:profile_edit")
 
     def _edit_data(self, **overrides):
@@ -1291,6 +1402,7 @@ class ProfileCompletionTests(TestCase):
     def setUp(self):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
         self.user = User.objects.get(email="aoife@example.com")
+        mark_email_verified(self.user)
         self.profile_url = reverse(
             "accounts:profile_detail", kwargs={"username": self.user.username}
         )
@@ -1501,6 +1613,7 @@ class DeleteAccountTests(TestCase):
     def setUp(self):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
         self.user = User.objects.get(email="aoife@example.com")
+        mark_email_verified(self.user)
         self.delete_url = reverse("accounts:account_delete")
 
     def test_delete_requires_login(self):

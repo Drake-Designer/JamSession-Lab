@@ -12,6 +12,16 @@ urlpatterns = [
     # from LOGOUT_REDIRECT_URL in settings.
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("welcome/", views.welcome, name="welcome"),
+    path(
+        "verify-email/required/",
+        views.verification_required,
+        name="verification_required",
+    ),
+    path(
+        "verify-email/resend/",
+        views.resend_verification,
+        name="resend_verification",
+    ),
     path("profile/", views.my_profile, name="profile"),
     # Must come before profile/<username>/ so "edit" is not read as a username.
     path("profile/edit/", views.profile_edit, name="profile_edit"),

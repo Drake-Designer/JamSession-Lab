@@ -16,113 +16,13 @@
                     <h1 class="mt-1 text-3xl font-bold text-jam-red">{{ event.title }}</h1>
                     <p class="mt-2 text-jam-muted">Registrations and cancellations</p>
                 </div>
-                <a href="{% url 'events:detail' event.pk %}" class="text-sm font-semibold text-jam-red hover:text-jam-red-hover">
-                    Back to event
+                <a href="{% url 'events:manage' %}#event-{{ event.pk }}" class="text-sm font-semibold text-jam-red hover:text-jam-red-hover">
+                    Back to events
                 </a>
             </div>
 
-            <div class="staff-lists mt-10 space-y-12" data-aos="fade-up">
-                <section>
-                    <h2 class="text-xl font-bold text-jam-white">
-                        Registrations
-                        <span class="text-jam-muted">({{ registered_rows|length }})</span>
-                    </h2>
-                    {% if registered_rows %}
-                    <div class="staff-lists__table-wrap mt-4 overflow-x-auto">
-                        <table class="staff-lists__table">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Instrument</th>
-                                    <th>Level</th>
-                                    <th>Open Mic</th>
-                                    <th>Open Jam</th>
-                                    <th>Songs</th>
-                                    <th>Notes</th>
-                                    <th>Registered</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for row in registered_rows %}
-                                <tr>
-                                    <td>
-                                        {% include "accounts/partials/user_credit.html" with credit_user=row.registration.user %}
-                                    </td>
-                                    <td>{{ row.instrument_labels|join:", "|default:"—" }}</td>
-                                    <td>{{ row.level_label|default:"—" }}</td>
-                                    <td>{% if row.registration.join_open_mic %}Yes{% else %}No{% endif %}</td>
-                                    <td>{% if row.registration.join_open_jam %}Yes{% else %}No{% endif %}</td>
-                                    <td>
-                                        {% for song in row.registration.songs.all %}
-                                        <div class="staff-lists__song">
-                                            {{ song.title }} ({{ song.song_key }})
-                                        </div>
-                                        {% empty %}
-                                        —
-                                        {% endfor %}
-                                    </td>
-                                    <td>{{ row.registration.notes|default:"—"|truncatechars:80 }}</td>
-                                    <td>{{ row.registration.registered_at|date:"j M Y H:i" }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <p class="mt-4 text-jam-muted">No active registrations yet.</p>
-                    {% endif %}
-                </section>
-
-                <section>
-                    <h2 class="text-xl font-bold text-jam-white">
-                        Cancellations
-                        <span class="text-jam-muted">({{ cancelled_rows|length }})</span>
-                    </h2>
-                    {% if cancelled_rows %}
-                    <div class="staff-lists__table-wrap mt-4 overflow-x-auto">
-                        <table class="staff-lists__table">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Instrument</th>
-                                    <th>Level</th>
-                                    <th>Open Mic</th>
-                                    <th>Open Jam</th>
-                                    <th>Songs</th>
-                                    <th>Notes</th>
-                                    <th>Cancelled</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for row in cancelled_rows %}
-                                <tr>
-                                    <td>
-                                        {% include "accounts/partials/user_credit.html" with credit_user=row.registration.user %}
-                                    </td>
-                                    <td>{{ row.instrument_labels|join:", "|default:"—" }}</td>
-                                    <td>{{ row.level_label|default:"—" }}</td>
-                                    <td>{% if row.registration.join_open_mic %}Yes{% else %}No{% endif %}</td>
-                                    <td>{% if row.registration.join_open_jam %}Yes{% else %}No{% endif %}</td>
-                                    <td>
-                                        {% for song in row.registration.songs.all %}
-                                        <div class="staff-lists__song">
-                                            {{ song.title }} ({{ song.song_key }})
-                                        </div>
-                                        {% empty %}
-                                        —
-                                        {% endfor %}
-                                    </td>
-                                    <td>{{ row.registration.notes|default:"—"|truncatechars:80 }}</td>
-                                    <td>{{ row.registration.cancelled_at|date:"j M Y H:i"|default:"—" }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <p class="mt-4 text-jam-muted">No cancellations yet.</p>
-                    {% endif %}
-                </section>
+            <div class="mt-10" data-aos="fade-up">
+                {% include "registrations/partials/staff_lists_tables.html" %}
             </div>
         </div>
     </section>

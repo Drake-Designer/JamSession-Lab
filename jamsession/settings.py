@@ -54,6 +54,18 @@ elif DEBUG:
 else:
     ALLOWED_HOSTS = []
 
+# Comma-separated origins for CSRF (scheme + host), e.g.
+# "https://jamsessionlab.ie,https://www.jamsessionlab.ie,https://app.onrender.com".
+_csrf_trusted_origins_env = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").strip()
+if _csrf_trusted_origins_env:
+    CSRF_TRUSTED_ORIGINS = [
+        origin.strip()
+        for origin in _csrf_trusted_origins_env.split(",")
+        if origin.strip()
+    ]
+else:
+    CSRF_TRUSTED_ORIGINS = []
+
 
 # Application definition
 
@@ -196,10 +208,12 @@ UNFOLD = {
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "accounts.middleware.EmailVerificationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -291,6 +305,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 STATICFILES_DIRS = [
     BASE_DIR / "jamsession" / "static",
@@ -331,7 +346,7 @@ STORAGES = {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
     },
     "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
 
@@ -342,6 +357,10 @@ MEDIA_URL = "/media/"
 # bodies over the 2.5 MB default with a raw RequestDataTooBig before forms run.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104_857_600  # 100 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 104_857_600  # 100 MB
+
+# Trust X-Forwarded-Proto from the reverse proxy (e.g. Render). Harmless
+# locally when the header is absent.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Production-only HTTPS hardening. Left off when DEBUG=True so local
 # development on http://127.0.0.1:8000 keeps working.

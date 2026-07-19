@@ -51,6 +51,7 @@ def _make_user(username, *, is_staff=False, is_superuser=False):
         display_name=username,
         is_staff=is_staff,
         is_superuser=is_superuser,
+        is_email_verified=True,
     )
 
 

@@ -161,9 +161,8 @@ class User(AbstractUser):
 
     bio = models.TextField(_("bio"), blank=True)
 
-    # Email verification is prepared but not enforced yet. Once a real SMTP
-    # backend is configured, unverified accounts can be restricted by
-    # checking this flag.
+    # Unverified members are soft-blocked by EmailVerificationMiddleware
+    # until they confirm via the emailed link (or staff sets this in admin).
     is_email_verified = models.BooleanField(default=False)
     email_verification_token = models.UUIDField(
         default=uuid.uuid4,

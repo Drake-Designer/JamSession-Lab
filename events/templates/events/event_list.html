@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab — Events{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'events/css/event_list.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+            <div class="text-center" data-aos="fade-up">
+                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    Events
+                </h1>
+                <p class="mt-4 text-lg text-jam-muted">
+                    Upcoming and active JamSession Lab nights across Dublin.
+                </p>
+            </div>
+
+            {% if event_cards %}
+            <ul class="event-list mt-12 space-y-8">
+                {% for card in event_cards %}
+                {% with event=card.event %}
+                <li class="event-list__card" data-aos="fade-up">
+                    <article>
+                        <div class="event-list__header">
+                            <div>
+                                {% if event.is_upcoming %}
+                                <p class="event-list__eyebrow">Upcoming</p>
+                                {% else %}
+                                <p class="event-list__eyebrow">Past event</p>
+                                {% endif %}
+                                <h2 class="event-list__title">
+                                    <a href="{% url 'events:detail' event.pk %}">{{ event.title }}</a>
+                                </h2>
+                            </div>
+                            <span class="event-list__date-badge">
+                                {{ event.starts_at|date:"j M Y" }}
+                            </span>
+                        </div>
+
+                        {% if event.poster %}
+                        <a href="{% url 'events:detail' event.pk %}" class="event-list__poster">
+                            <img
+                                src="{{ event.display_poster_url }}"
+                                alt="Poster for {{ event.title }}"
+                            >
+                        </a>
+                        {% endif %}
+
+                        <div class="event-list__body">
+                            <div class="event-list__row">
+                                <p class="event-list__label">Date &amp; time</p>
+                                <p class="event-list__value">
+                                    {{ event.starts_at|date:"l, j F Y · g:i A" }}
+                                    –
+                                    {{ event.ends_at|date:"g:i A" }}
+                                </p>
+                            </div>
+                            <div class="event-list__row">
+                                <p class="event-list__label">Venue</p>
+                                <p class="event-list__value">
+                                    <a
+                                        href="{{ event.location_url }}"
+                                        class="event-list__venue-link"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >{{ event.venue_name }}</a>
+                                </p>
+                                <p class="event-list__sub">{{ event.address }}</p>
+                            </div>
+                            {% if event.description %}
+                            <div class="event-list__row">
+                                <p class="event-list__label">About this event</p>
+                                <p class="event-list__description">{{ event.description|truncatewords:40 }}</p>
+                            </div>
+                            {% endif %}
+
+                            <div class="event-list__actions">
+                                {% if card.is_registered %}
+                                <a
+                                    href="{% url 'events:detail' event.pk %}"
+                                    class="event-list__btn event-list__btn--secondary"
+                                >
+                                    View
+                                </a>
+                                {% elif event.is_registration_allowed %}
+                                    {% if user.is_authenticated %}
+                                    <a
+                                        href="{% url 'events:register' event.pk %}"
+                                        class="event-list__btn"
+                                    >
+                                        Register
+                                    </a>
+                                    {% else %}
+                                    <a
+                                        href="{% url 'accounts:register' %}?next={% url 'events:register' event.pk %}"
+                                        class="event-list__btn"
+                                    >
+                                        Register
+                                    </a>
+                                    {% endif %}
+                                {% else %}
+                                <a
+                                    href="{% url 'events:detail' event.pk %}"
+                                    class="event-list__btn event-list__btn--secondary"
+                                >
+                                    View
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </article>
+                </li>
+                {% endwith %}
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="event-list__empty mt-12" data-aos="fade-up">
+                <p class="event-list__eyebrow">Coming soon</p>
+                <h2 class="mt-2 text-2xl font-bold text-jam-white">No active events just yet</h2>
+                <p class="mt-3 text-jam-muted">
+                    Check back soon for the next JamSession Lab night.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+{% endblock %}

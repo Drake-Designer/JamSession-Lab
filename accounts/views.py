@@ -1,3 +1,5 @@
+import time
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout
@@ -7,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods, require_POST
 
@@ -16,6 +19,7 @@ from community.models import CommunityComment, CommunityPost
 from gallery.models import GalleryItem
 from jamsession.image_formats import convert_heic_upload_to_jpeg
 from jamsession.moderation import ApprovalStatus
+from registrations.models import EventRegistration, RsvpStatus
 
 from .constants import TOWNS_BY_COUNTY, Instrument, MusicGenre
 from .emails import send_verification_email
@@ -31,6 +35,9 @@ from .social_platforms import detect_social_platform
 from .validators import validate_profile_picture
 
 
+AUTH_BACKEND = "django.contrib.auth.backends.ModelBackend"
+RESEND_VERIFICATION_COOLDOWN_SECONDS = 60
+RESEND_VERIFICATION_SESSION_KEY = "email_verification_last_sent_at"
 SOCIAL_LINKS_FORMSET_PREFIX = "social_links"
 
 
@@ -40,6 +47,17 @@ class LoginView(auth_views.LoginView):
     template_name = "accounts/login.html"
     authentication_form = LoginForm
     redirect_authenticated_user = True
+
+    def get_success_url(self):
+        user = self.request.user
+        if (
+            user.is_authenticated
+            and not user.is_email_verified
+            and not user.is_staff
+            and not user.is_superuser
+        ):
+            return reverse("accounts:verification_required")
+        return super().get_success_url()
 
 
 def _safe_next_url(request, candidate):
@@ -71,8 +89,8 @@ def register(request):
         if form.is_valid():
             user = form.save()
             send_verification_email(user, request)
-            # Sign the new member in straight away — email verification is
-            # prepared but not enforced yet.
+            # Soft-block: stay signed in, but middleware restricts member
+            # actions until the email is verified.
             login(request, user)
             if next_url:
                 return redirect(next_url)
@@ -103,6 +121,49 @@ def welcome(request):
         "accounts/welcome.html",
         {"whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK},
     )
+
+
+@login_required
+def verification_required(request):
+    """Landing page for members who must verify their email before continuing."""
+    if request.user.is_email_verified:
+        return redirect("pages:home")
+    return render(
+        request,
+        "accounts/verification_required.html",
+        {"whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK},
+    )
+
+
+@login_required
+@require_POST
+def resend_verification(request):
+    """Re-send the verification email, with a simple session rate limit."""
+    if request.user.is_email_verified:
+        return redirect("pages:home")
+
+    now = time.time()
+    last_sent = request.session.get(RESEND_VERIFICATION_SESSION_KEY)
+    if (
+        last_sent is not None
+        and now - float(last_sent) < RESEND_VERIFICATION_COOLDOWN_SECONDS
+    ):
+        messages.warning(
+            request,
+            _(
+                "Please wait a minute before requesting another verification email."
+            ),
+        )
+        return redirect("accounts:verification_required")
+
+    request.user.regenerate_email_verification_token()
+    send_verification_email(request.user, request)
+    request.session[RESEND_VERIFICATION_SESSION_KEY] = now
+    messages.success(
+        request,
+        _("A new verification email has been sent. Please check your inbox."),
+    )
+    return redirect("accounts:verification_required")
 
 
 def _instrument_labels(user):
@@ -147,9 +208,18 @@ def profile_detail(request, username):
     # first. Comments are intentionally excluded — this is "My posts", not a
     # full activity feed. Delete buttons reuse community:post_delete.
     my_posts = []
+    my_event_registrations = []
     if is_owner:
         my_posts = list(
             CommunityPost.objects.filter(author=profile_user).order_by("-created_at")
+        )
+        my_event_registrations = list(
+            EventRegistration.objects.filter(
+                user=profile_user,
+                rsvp_status=RsvpStatus.REGISTERED,
+            )
+            .select_related("event")
+            .order_by("event__starts_at")
         )
 
     # Staff/superuser owners see REVIEW / ADMIN TOOL / EVENTS on their profile.
@@ -181,6 +251,7 @@ def profile_detail(request, username):
             "social_links": social_links,
             "is_owner": is_owner,
             "my_posts": my_posts,
+            "my_event_registrations": my_event_registrations,
             "show_staff_tools": show_staff_tools,
             "pending_review_count": pending_review_count,
             # Owner-only completion ring — visitors never see this.
@@ -356,22 +427,30 @@ def verify_email(request, token):
     """Confirm an email address from the link sent at registration."""
     user = User.objects.filter(email_verification_token=token).first()
 
-    verified = False
-    already_verified = False
+    if user is None:
+        return render(
+            request,
+            "accounts/email_verify_result.html",
+            {
+                "verified": False,
+                "already_verified": False,
+            },
+        )
 
-    if user is not None:
-        if user.is_email_verified:
-            already_verified = True
-        else:
-            user.is_email_verified = True
-            user.save(update_fields=["is_email_verified"])
-            verified = True
+    if user.is_email_verified:
+        messages.info(
+            request,
+            _("This email address has already been verified."),
+        )
+    else:
+        user.is_email_verified = True
+        user.save(update_fields=["is_email_verified"])
+        messages.success(
+            request,
+            _("Your email address has been verified. Welcome!"),
+        )
 
-    return render(
-        request,
-        "accounts/email_verify_result.html",
-        {
-            "verified": verified,
-            "already_verified": already_verified,
-        },
-    )
+    if not request.user.is_authenticated:
+        login(request, user, backend=AUTH_BACKEND)
+
+    return redirect("pages:home")

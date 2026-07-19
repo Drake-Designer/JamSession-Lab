@@ -62,6 +62,7 @@
                 <li><a href="{% url 'pages:about' %}" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">About</a></li>
                 <li><a href="{% url 'gallery:list' %}" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">Gallery</a></li>
                 <li><a href="{% url 'community:list' %}" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">Community</a></li>
+                <li><a href="{% url 'events:list' %}" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">Events</a></li>
             </ul>
 
             {# Desktop auth buttons #}
@@ -118,6 +119,7 @@
                 <li><a href="{% url 'pages:about' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">About</a></li>
                 <li><a href="{% url 'gallery:list' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Gallery</a></li>
                 <li><a href="{% url 'community:list' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Community</a></li>
+                <li><a href="{% url 'events:list' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Events</a></li>
                 <li class="border-t border-jam-grey-light pt-3">
                     <div class="flex flex-col gap-2">
                         {% if user.is_authenticated %}

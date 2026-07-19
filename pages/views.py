@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from events.models import Event
+from registrations.models import EventRegistration, RsvpStatus
 
 from .models import HomeCarouselSlide
 
@@ -14,12 +15,20 @@ def home(request):
         .order_by("starts_at")
         .first()
     )
+    is_registered_for_next_event = False
+    if request.user.is_authenticated and next_event is not None:
+        is_registered_for_next_event = EventRegistration.objects.filter(
+            user=request.user,
+            event=next_event,
+            rsvp_status=RsvpStatus.REGISTERED,
+        ).exists()
     return render(
         request,
         "pages/home.html",
         {
             "carousel_slides": carousel_slides,
             "next_event": next_event,
+            "is_registered_for_next_event": is_registered_for_next_event,
         },
     )
 

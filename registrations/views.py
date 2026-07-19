@@ -78,7 +78,7 @@ def _replace_songs(registration, song_formset, wants_originals):
             )
 
 
-def _render_register(request, event, form, song_formset):
+def _render_register(request, event, form, song_formset, *, is_edit=False):
     return render(
         request,
         "registrations/register.html",
@@ -86,12 +86,43 @@ def _render_register(request, event, form, song_formset):
             "event": event,
             "form": form,
             "song_formset": song_formset,
+            "is_edit": is_edit,
             "profile_instruments": _instrument_labels(
                 request.user.instruments, request.user.other_instrument
             ),
             "profile_level": _experience_level_label(request.user.experience_level),
         },
     )
+
+
+def _apply_registration_form(
+    registration, form, request, event, *, preserve_first_registered_at
+):
+    """Apply validated form data onto an EventRegistration instance."""
+    now = timezone.now()
+    registration.user = request.user
+    registration.event = event
+    registration.rsvp_status = RsvpStatus.REGISTERED
+    registration.join_open_mic = form.cleaned_data["join_open_mic"]
+    registration.join_open_jam = form.cleaned_data["join_open_jam"]
+    registration.notes = form.cleaned_data.get("notes") or ""
+    registration.wants_originals_in_jam = form.cleaned_data.get(
+        "wants_originals_in_jam"
+    )
+    if not registration.join_open_jam:
+        registration.wants_originals_in_jam = None
+    registration.instruments_snapshot = _snapshot_instruments(request.user)
+    registration.experience_level_snapshot = _snapshot_experience_level(
+        request.user
+    )
+    registration.registered_at = now
+    registration.cancelled_at = None
+    if preserve_first_registered_at is not None:
+        registration.first_registered_at = preserve_first_registered_at
+    elif registration.first_registered_at is None:
+        registration.first_registered_at = now
+    registration.save()
+    return registration
 
 
 @require_http_methods(["GET", "POST"])
@@ -167,30 +198,18 @@ def register(request, pk):
                         "events:register_confirmation", pk=locked_event.pk
                     )
 
-                now = timezone.now()
                 registration = form.save(commit=False)
-                registration.user = request.user
-                registration.event = locked_event
-                registration.rsvp_status = RsvpStatus.REGISTERED
-                registration.wants_originals_in_jam = form.cleaned_data.get(
-                    "wants_originals_in_jam"
-                )
-                if not registration.join_open_jam:
-                    registration.wants_originals_in_jam = None
-                registration.instruments_snapshot = _snapshot_instruments(
-                    request.user
-                )
-                registration.experience_level_snapshot = _snapshot_experience_level(
-                    request.user
-                )
-                registration.registered_at = now
-                registration.cancelled_at = None
                 if current is not None:
                     registration.pk = current.pk
-                    registration.first_registered_at = current.first_registered_at
-                else:
-                    registration.first_registered_at = now
-                registration.save()
+                _apply_registration_form(
+                    registration,
+                    form,
+                    request,
+                    locked_event,
+                    preserve_first_registered_at=(
+                        current.first_registered_at if current is not None else None
+                    ),
+                )
 
                 wants = bool(registration.wants_originals_in_jam)
                 _replace_songs(registration, song_formset, wants)
@@ -207,6 +226,69 @@ def register(request, pk):
         initial=initial_songs,
     )
     return _render_register(request, event, form, song_formset)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def edit_registration(request, pk):
+    """Let a registered member update their RSVP (sessions, songs, notes)."""
+    event = get_object_or_404(Event, pk=pk)
+    registration = get_object_or_404(
+        EventRegistration.objects.prefetch_related("songs"),
+        user=request.user,
+        event=event,
+        rsvp_status=RsvpStatus.REGISTERED,
+    )
+
+    if not event.is_upcoming:
+        messages.error(
+            request,
+            _("This event has already started or finished, so the registration "
+              "can no longer be changed."),
+        )
+        return redirect("events:register_confirmation", pk=event.pk)
+
+    if request.method == "POST":
+        song_formset = RegistrationSongFormSet(request.POST, prefix="songs")
+        form = EventRegistrationForm(
+            request.POST,
+            instance=registration,
+            event=event,
+            user=request.user,
+            song_formset=song_formset,
+        )
+        form_valid = form.is_valid()
+        formset_valid = song_formset.is_valid()
+        if form_valid and formset_valid:
+            first_registered_at = registration.first_registered_at
+            with transaction.atomic():
+                registration = form.save(commit=False)
+                _apply_registration_form(
+                    registration,
+                    form,
+                    request,
+                    event,
+                    preserve_first_registered_at=first_registered_at,
+                )
+                wants = bool(registration.wants_originals_in_jam)
+                _replace_songs(registration, song_formset, wants)
+            messages.success(request, _("Your registration has been updated."))
+            return redirect("events:register_confirmation", pk=event.pk)
+        return _render_register(
+            request, event, form, song_formset, is_edit=True
+        )
+
+    form = EventRegistrationForm(
+        instance=registration, event=event, user=request.user
+    )
+    initial_songs = song_formset_initial_from_registration(registration)
+    song_formset = RegistrationSongFormSet(
+        prefix="songs",
+        initial=initial_songs,
+    )
+    return _render_register(
+        request, event, form, song_formset, is_edit=True
+    )
 
 
 @login_required
@@ -260,12 +342,27 @@ def cancel(request, pk):
     return redirect(next_url)
 
 
-@login_required
-@require_http_methods(["GET"])
-def staff_lists(request, pk):
-    """Staff lists: Registered and Cancelled for one event."""
-    _require_moderator(request.user)
-    event = get_object_or_404(Event, pk=pk)
+def _enrich_registration_rows(registrations):
+    """Attach display labels for staff attendee tables."""
+    rows = []
+    for reg in registrations:
+        rows.append(
+            {
+                "registration": reg,
+                "instrument_labels": _instrument_labels(
+                    reg.instruments_snapshot,
+                    getattr(reg.user, "other_instrument", ""),
+                ),
+                "level_label": _experience_level_label(
+                    reg.experience_level_snapshot
+                ),
+            }
+        )
+    return rows
+
+
+def registration_list_context(event):
+    """Build registered/cancelled row context for one event (staff UI)."""
     registered = (
         EventRegistration.objects.filter(
             event=event, rsvp_status=RsvpStatus.REGISTERED
@@ -282,30 +379,17 @@ def staff_lists(request, pk):
         .prefetch_related("songs")
         .order_by("-cancelled_at")
     )
+    return {
+        "registered_rows": _enrich_registration_rows(registered),
+        "cancelled_rows": _enrich_registration_rows(cancelled),
+    }
 
-    def enrich(qs):
-        rows = []
-        for reg in qs:
-            rows.append(
-                {
-                    "registration": reg,
-                    "instrument_labels": _instrument_labels(
-                        reg.instruments_snapshot,
-                        getattr(reg.user, "other_instrument", ""),
-                    ),
-                    "level_label": _experience_level_label(
-                        reg.experience_level_snapshot
-                    ),
-                }
-            )
-        return rows
 
-    return render(
-        request,
-        "registrations/staff_lists.html",
-        {
-            "event": event,
-            "registered_rows": enrich(registered),
-            "cancelled_rows": enrich(cancelled),
-        },
-    )
+@login_required
+@require_http_methods(["GET"])
+def staff_lists(request, pk):
+    """Staff lists: Registered and Cancelled for one event."""
+    _require_moderator(request.user)
+    event = get_object_or_404(Event, pk=pk)
+    context = {"event": event, **registration_list_context(event)}
+    return render(request, "registrations/staff_lists.html", context)
