@@ -1,3 +1,4 @@
+import logging
 import time
 
 from django.conf import settings
@@ -88,7 +89,13 @@ def register(request):
         form = RegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            send_verification_email(user, request)
+            try:
+                send_verification_email(user, request)
+            except Exception:
+                logging.exception(
+                    "Failed to send verification email for user %s",
+                    user.pk,
+                )
             # Soft-block: stay signed in, but middleware restricts member
             # actions until the email is verified.
             login(request, user)
