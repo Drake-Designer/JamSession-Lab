@@ -330,41 +330,40 @@ cloudinary.config(
     secure=True,
 )
 
-# Email — transactional mail via Brevo.
+# Email — transactional mail via Resend.
 #
-# Preferred on Render: BREVO_API_KEY → HTTPS API (api.brevo.com). Outbound
-# SMTP to smtp-relay.brevo.com:587 often times out on the free instance.
+# Preferred on Render: RESEND_API_KEY → HTTPS API (api.resend.com). Outbound
+# SMTP often times out on the free instance; HTTPS avoids that.
 # SMTP settings below remain as a local/fallback path when no API key is set.
 #
-# EMAIL_TIMEOUT applies to both Brevo HTTP calls and SMTP connect/send.
+# EMAIL_TIMEOUT applies to both Resend HTTP calls and SMTP connect/send.
 #
 # Override EMAIL_BACKEND via env for emergency fallback, e.g.:
 #   EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
 #
-# TODO: once jamsessionlab.ie is verified as a Brevo sender/domain, set
-# DEFAULT_FROM_EMAIL to "JamSession Lab <noreply@jamsessionlab.ie>".
-# Until then, use a Brevo-verified personal address (see Render env).
+# Sender domain jamsessionlab.ie must be verified in the Resend dashboard
+# (SPF/DKIM DNS records) before production delivery works.
 # TODO: replace background-thread delivery with a proper task queue
 # (Celery / Django-Q / RQ) when a broker is available on Render.
-BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
-BREVO_API_URL = os.environ.get(
-    "BREVO_API_URL",
-    "https://api.brevo.com/v3/smtp/email",
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
+RESEND_API_URL = os.environ.get(
+    "RESEND_API_URL",
+    "https://api.resend.com/emails",
 )
 EMAIL_BACKEND = os.environ.get(
     "EMAIL_BACKEND",
     "django.core.mail.backends.smtp.EmailBackend",
 )
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp-relay.brevo.com")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.resend.com")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "resend")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", RESEND_API_KEY)
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
-# Fail fast if SMTP/API is unreachable (Render free → Brevo SMTP hangs).
+# Fail fast if SMTP/API is unreachable (Render free → SMTP hangs).
 EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
 DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL",
-    "JamSession Lab <noreply@jamsessionlab.ie>",
+    "JamSession Lab <staff@jamsessionlab.ie>",
 )
 
 # Invitation link to the community WhatsApp group, shown after registration

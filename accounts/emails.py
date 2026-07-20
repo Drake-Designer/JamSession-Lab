@@ -46,11 +46,11 @@ def _parse_from_email(from_email: str) -> tuple[str, str]:
     return name, address
 
 
-def _should_use_brevo_api() -> bool:
-    """Prefer Brevo HTTPS API in production when an API key is configured."""
+def _should_use_resend_api() -> bool:
+    """Prefer Resend HTTPS API in production when an API key is configured."""
     if getattr(settings, "TESTING", False):
         return False
-    if not getattr(settings, "BREVO_API_KEY", ""):
+    if not getattr(settings, "RESEND_API_KEY", ""):
         return False
     backend = settings.EMAIL_BACKEND or ""
     # Honour emergency / local console override.
@@ -97,7 +97,7 @@ def queue_verification_email(user, request) -> None:
 
     backend = settings.EMAIL_BACKEND or ""
     use_background = not getattr(settings, "TESTING", False) and (
-        _should_use_brevo_api() or backend.endswith("smtp.EmailBackend")
+        _should_use_resend_api() or backend.endswith("smtp.EmailBackend")
     )
 
     if not use_background:
@@ -120,35 +120,35 @@ def queue_verification_email(user, request) -> None:
 
 
 def _deliver_verification_email(recipient, user_pk, message) -> bool:
-    """Route to Brevo HTTP API or Django mail backend. Never raises."""
-    if _should_use_brevo_api():
-        return _deliver_via_brevo_api(recipient, user_pk, message)
+    """Route to Resend HTTP API or Django mail backend. Never raises."""
+    if _should_use_resend_api():
+        return _deliver_via_resend_api(recipient, user_pk, message)
     return _deliver_via_django(recipient, user_pk, message)
 
 
-def _deliver_via_brevo_api(recipient, user_pk, message) -> bool:
-    """Send via Brevo transactional HTTPS API (works on Render free)."""
-    sender_name, sender_email = _parse_from_email(settings.DEFAULT_FROM_EMAIL)
+def _deliver_via_resend_api(recipient, user_pk, message) -> bool:
+    """Send via Resend transactional HTTPS API (works on Render free)."""
+    from_email = settings.DEFAULT_FROM_EMAIL
+    _, sender_email = _parse_from_email(from_email)
     payload = {
-        "sender": {"name": sender_name, "email": sender_email},
-        "to": [{"email": recipient}],
+        "from": from_email,
+        "to": [recipient],
         "subject": VERIFICATION_EMAIL_SUBJECT,
-        "textContent": message,
+        "text": message,
     }
     try:
         response = requests.post(
-            settings.BREVO_API_URL,
+            settings.RESEND_API_URL,
             headers={
-                "accept": "application/json",
-                "content-type": "application/json",
-                "api-key": settings.BREVO_API_KEY,
+                "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                "Content-Type": "application/json",
             },
             json=payload,
             timeout=settings.EMAIL_TIMEOUT,
         )
         if not response.ok:
             logger.error(
-                "Brevo API rejected verification email for user %s to %s "
+                "Resend API rejected verification email for user %s to %s "
                 "(status=%s body=%s sender=%s)",
                 user_pk,
                 recipient,
@@ -159,14 +159,14 @@ def _deliver_via_brevo_api(recipient, user_pk, message) -> bool:
             return False
     except Exception:
         logger.exception(
-            "Failed to send verification email via Brevo API for user %s to %s",
+            "Failed to send verification email via Resend API for user %s to %s",
             user_pk,
             recipient,
         )
         return False
 
     logger.info(
-        "Verification email sent via Brevo API for user %s to %s",
+        "Verification email sent via Resend API for user %s to %s",
         user_pk,
         recipient,
     )
