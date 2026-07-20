@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab · Account Settings{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'accounts/css/forms.css' %}">
+    <link rel="stylesheet" href="{% static 'accounts/css/account_settings.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="page-shell page-shell--narrow">
+            <header class="page-header page-header--center mb-8" data-aos="fade-up">
+                <h1 class="page-header__title">Account Settings</h1>
+                <p class="account-settings__lead">
+                    Sign-in email and password. Musician details stay on
+                    <a href="{% url 'accounts:profile_edit' %}">Edit Profile</a>.
+                </p>
+            </header>
+
+            <div class="account-settings__stack" data-aos="fade-up" data-aos-delay="50">
+                <section class="account-settings__card" aria-labelledby="account-email-heading">
+                    <div class="account-settings__card-head">
+                        <h2 id="account-email-heading" class="account-settings__heading">Email</h2>
+                        <p class="account-settings__card-desc">
+                            Changing email requires confirmation of the new address.
+                        </p>
+                    </div>
+
+                    <div class="account-settings__current-box">
+                        <span class="account-settings__current-label">Current email</span>
+                        <span class="account-settings__current-value">{{ user.email }}</span>
+                    </div>
+
+                    {% if user.has_pending_email_change %}
+                    <div class="account-settings__pending">
+                        <p class="account-settings__pending-title">Confirmation pending</p>
+                        <p class="account-settings__pending-text">
+                            Waiting for
+                            <strong>{{ user.pending_email }}</strong>.
+                            Your current email stays active until then.
+                        </p>
+                        <div class="account-settings__pending-actions">
+                            <form method="post" action="{% url 'accounts:account_resend_pending_email' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="account-settings__ghost-btn">
+                                    Resend confirmation
+                                </button>
+                            </form>
+                            <form method="post" action="{% url 'accounts:account_cancel_pending_email' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="account-settings__ghost-btn account-settings__ghost-btn--muted">
+                                    Cancel change
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <form
+                        method="post"
+                        action="{% url 'accounts:account_change_email' %}"
+                        class="jam-form account-settings__form"
+                        novalidate
+                    >
+                        {% csrf_token %}
+
+                        {% if email_form.non_field_errors %}
+                        <div class="account-settings__errors">
+                            {% for error in email_form.non_field_errors %}
+                            <p class="form-field__error">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% include "accounts/_form_field.html" with field=email_form.new_email %}
+                        {% include "accounts/_form_field.html" with field=email_form.password %}
+
+                        <button type="submit" class="account-settings__primary-btn">
+                            Send confirmation
+                        </button>
+                    </form>
+                </section>
+
+                <section class="account-settings__card" aria-labelledby="account-password-heading">
+                    <div class="account-settings__card-head">
+                        <h2 id="account-password-heading" class="account-settings__heading">Password</h2>
+                        <p class="account-settings__card-desc">
+                            Use a strong password you do not reuse elsewhere.
+                        </p>
+                    </div>
+
+                    <form
+                        method="post"
+                        action="{% url 'accounts:account_change_password' %}"
+                        class="jam-form account-settings__form"
+                        novalidate
+                    >
+                        {% csrf_token %}
+
+                        {% if password_form.non_field_errors %}
+                        <div class="account-settings__errors">
+                            {% for error in password_form.non_field_errors %}
+                            <p class="form-field__error">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% include "accounts/_form_field.html" with field=password_form.old_password %}
+                        {% include "accounts/_form_field.html" with field=password_form.new_password1 %}
+                        {% include "accounts/_form_field.html" with field=password_form.new_password2 %}
+
+                        <button type="submit" class="account-settings__primary-btn">
+                            Update password
+                        </button>
+                    </form>
+                </section>
+            </div>
+
+            <a
+                href="{% url 'accounts:profile' %}"
+                class="account-settings__back"
+            >
+                Back to my profile
+            </a>
+        </div>
+    </section>
+{% endblock %}

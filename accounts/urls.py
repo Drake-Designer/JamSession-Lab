@@ -11,6 +11,26 @@ urlpatterns = [
     # LogoutView only accepts POST (CSRF-protected); redirect target comes
     # from LOGOUT_REDIRECT_URL in settings.
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path(
+        "password-reset/",
+        views.PasswordResetView.as_view(),
+        name="password_reset",
+    ),
+    path(
+        "password-reset/done/",
+        views.PasswordResetDoneView.as_view(),
+        name="password_reset_done",
+    ),
+    path(
+        "password-reset/<uidb64>/<token>/",
+        views.PasswordResetConfirmView.as_view(),
+        name="password_reset_confirm",
+    ),
+    path(
+        "password-reset/complete/",
+        views.PasswordResetCompleteView.as_view(),
+        name="password_reset_complete",
+    ),
     path("welcome/", views.welcome, name="welcome"),
     path(
         "verify-email/required/",
@@ -46,6 +66,27 @@ urlpatterns = [
         name="social_link_delete",
     ),
     path("profile/delete/", views.account_delete, name="account_delete"),
+    path("settings/", views.account_settings, name="account_settings"),
+    path(
+        "settings/email/",
+        views.account_change_email,
+        name="account_change_email",
+    ),
+    path(
+        "settings/email/cancel/",
+        views.account_cancel_pending_email,
+        name="account_cancel_pending_email",
+    ),
+    path(
+        "settings/email/resend/",
+        views.account_resend_pending_email,
+        name="account_resend_pending_email",
+    ),
+    path(
+        "settings/password/",
+        views.account_change_password,
+        name="account_change_password",
+    ),
     path("profile/<str:username>/", views.profile_detail, name="profile_detail"),
     path(
         "verify-email/<uuid:token>/",

@@ -65,6 +65,16 @@ class User(AbstractUser):
     # to send the verification link.
     email = models.EmailField(_("email address"), unique=True)
 
+    # Set while a verified member confirms a new address. Login keeps using
+    # ``email`` until the pending address is verified via the emailed link.
+    pending_email = models.EmailField(
+        _("pending email address"),
+        blank=True,
+        help_text=_(
+            "New email awaiting confirmation. Empty when no change is in progress."
+        ),
+    )
+
     # Public nickname shown across the site (gallery credits, forum, etc.).
     # Spaces are allowed, unlike Django's username field.
     display_name = models.CharField(
@@ -80,7 +90,8 @@ class User(AbstractUser):
         blank=True,
         validators=[phone_number_validator],
         help_text=_(
-            "Used to send you an automatic invitation to the community "
+            "Private contact number. Never shown on the public profile — "
+            "used only to send an automatic invitation to the community "
             "WhatsApp group."
         ),
     )
@@ -113,6 +124,27 @@ class User(AbstractUser):
         blank=True,
         null=True,
         help_text="Used to calculate age automatically.",
+    )
+
+    # Public profile privacy — all default to hidden for visitors.
+    # The owner always sees their own data on their profile.
+    show_age_publicly = models.BooleanField(
+        _("show age publicly"),
+        default=False,
+        help_text=_("If enabled, your age (not date of birth) is visible on your public profile."),
+    )
+    show_phone_publicly = models.BooleanField(
+        _("show phone publicly"),
+        default=False,
+        help_text=_(
+            "Unused: phone numbers are never shown on public profiles. "
+            "Kept for database compatibility."
+        ),
+    )
+    show_location_publicly = models.BooleanField(
+        _("show location publicly"),
+        default=False,
+        help_text=_("If enabled, your town and county are visible on your public profile."),
     )
 
     county = models.CharField(
@@ -212,6 +244,42 @@ class User(AbstractUser):
         if self.date_of_birth is None:
             return None
         return calculate_age(self.date_of_birth)
+
+    @property
+    def has_pending_email_change(self):
+        """True when the member must confirm a new email address."""
+        return bool((self.pending_email or "").strip())
+
+    def clear_pending_email(self, *, save=True):
+        """Drop an in-progress email change without touching the current email."""
+        self.pending_email = ""
+        if save:
+            self.save(update_fields=["pending_email"])
+
+    def apply_pending_email(self):
+        """
+        Move ``pending_email`` into ``email`` after the confirmation link is opened.
+
+        Returns the new email on success, or None if there was nothing to apply
+        or the address is no longer available.
+        """
+        new_email = (self.pending_email or "").strip()
+        if not new_email:
+            return None
+
+        conflict = (
+            User.objects.filter(email__iexact=new_email)
+            .exclude(pk=self.pk)
+            .exists()
+        )
+        if conflict:
+            return None
+
+        self.email = new_email
+        self.pending_email = ""
+        self.is_email_verified = True
+        self.save(update_fields=["email", "pending_email", "is_email_verified"])
+        return new_email
 
     @property
     def years_of_experience(self):

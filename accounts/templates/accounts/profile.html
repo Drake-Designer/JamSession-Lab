@@ -15,7 +15,7 @@
         <div class="page-shell page-shell--prose">
 
             <header
-                class="profile-header{% if is_owner and show_staff_tools %} profile-header--staff{% elif is_owner %} profile-header--simple-owner{% endif %} flex flex-col flex-wrap items-center gap-5 rounded-2xl border border-jam-grey-light bg-jam-grey p-8 text-center sm:flex-row {% if is_owner and show_staff_tools %}sm:items-stretch{% else %}sm:items-start{% endif %} sm:text-left sm:p-10"
+                class="profile-header{% if is_owner and show_staff_tools %} profile-header--staff{% elif is_owner %} profile-header--simple-owner{% endif %}{% if is_owner and show_staff_tools %} profile-header--row-stretch{% endif %}"
                 data-aos="fade-up"
             >
                 <div class="profile-header__avatar-col">
@@ -38,35 +38,36 @@
                     </div>
                     {% endif %}
 
-                    {% if is_owner and show_staff_tools %}
-                    <a
-                        href="{% url 'accounts:profile_edit' %}"
-                        class="profile-edit-btn"
-                    >
-                        Edit profile
-                    </a>
-                    {% endif %}
                 </div>
 
                 <div class="profile-header__info min-w-0 flex-1">
-                    <h1 class="break-words text-3xl font-extrabold tracking-tight text-jam-white">
+                    <h1 class="profile-header__title">
                         <span class="profile-header__name-row">
                             {{ profile_user.public_display_name }}
                             {% include "accounts/partials/user_badge.html" with badge_user=profile_user %}
                         </span>
                     </h1>
 
-                    <p class="mt-2 text-sm text-jam-muted-on-grey">
-                        {% if profile_user.town_city and profile_user.county %}
-                        {{ profile_user.town_city }}, Co. {{ profile_user.get_county_display }} &middot;
-                        {% elif profile_user.county %}
-                        Co. {{ profile_user.get_county_display }} &middot;
+                    <ul class="profile-meta" aria-label="Profile details">
+                        {% if profile_user.show_age_publicly and profile_user.age is not None %}
+                        <li class="profile-meta__chip">{{ profile_user.age }} years old</li>
                         {% endif %}
-                        Member since {{ profile_user.date_joined|date:"F Y" }}
-                    </p>
+
+                        {% if profile_user.show_location_publicly %}
+                            {% if profile_user.town_city and profile_user.county %}
+                            <li class="profile-meta__chip">{{ profile_user.town_city }}, Co. {{ profile_user.get_county_display }}</li>
+                            {% elif profile_user.county %}
+                            <li class="profile-meta__chip">Co. {{ profile_user.get_county_display }}</li>
+                            {% endif %}
+                        {% endif %}
+
+                        <li class="profile-meta__chip profile-meta__chip--muted">
+                            Member since {{ profile_user.date_joined|date:"F Y" }}
+                        </li>
+                    </ul>
 
                     {% if social_links %}
-                    <ul class="profile-social mt-3" aria-label="Social and music links">
+                    <ul class="profile-social" aria-label="Social and music links">
                         {% for item in social_links %}
                         <li class="profile-social__item">
                             <a
@@ -86,7 +87,7 @@
                     {% endif %}
 
                     {% if is_owner and show_staff_tools %}
-                    <div class="profile-staff-actions mt-4" aria-label="Staff tools">
+                    <div class="profile-staff-actions" aria-label="Staff tools">
                         {% if pending_review_count > 0 %}
                         <a
                             href="{% url 'community:moderation_queue' %}"
@@ -107,6 +108,17 @@
                             class="profile-staff-btn"
                         >
                             EVENTS
+                        </a>
+                    </div>
+                    {% endif %}
+
+                    {% if is_owner %}
+                    <div class="profile-header__actions" aria-label="Profile actions">
+                        <a href="{% url 'accounts:profile_edit' %}" class="profile-action-btn">
+                            Edit Profile
+                        </a>
+                        <a href="{% url 'accounts:account_settings' %}" class="profile-action-btn">
+                            Account Settings
                         </a>
                     </div>
                     {% endif %}
@@ -175,16 +187,6 @@
                 {% endif %}
                 {% endif %}
 
-                {% if is_owner and not show_staff_tools %}
-                <div class="profile-header__owner-cta">
-                    <a
-                        href="{% url 'accounts:profile_edit' %}"
-                        class="profile-edit-btn"
-                    >
-                        Edit profile
-                    </a>
-                </div>
-                {% endif %}
             </header>
 
             {% if instrument_labels %}

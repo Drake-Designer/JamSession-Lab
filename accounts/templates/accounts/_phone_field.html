@@ -14,8 +14,8 @@
         {{ form.phone_national_number }}
     </div>
     <p class="mt-1.5 text-xs leading-relaxed text-jam-muted">
-        We use your phone number to send you an automatic invitation
-        to the JamSession Lab community WhatsApp group.
+        Private — never shown on your public profile. Used only to send you
+        an automatic invitation to the JamSession Lab community WhatsApp group.
     </p>
     {% for error in form.phone_country_code.errors %}
     <p class="form-field__error">{{ error }}</p>
@@ -23,4 +23,7 @@
     {% for error in form.phone_national_number.errors %}
     <p class="form-field__error">{{ error }}</p>
     {% endfor %}
+    {% if privacy_field %}
+    {% include "accounts/_privacy_toggle.html" with field=privacy_field %}
+    {% endif %}
 </div>

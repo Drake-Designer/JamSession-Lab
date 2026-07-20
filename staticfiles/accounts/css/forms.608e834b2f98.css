@@ -73,11 +73,6 @@
     accent-color: #e63946;
 }
 
-.jam-form .privacy-toggle__control input[type="checkbox"] {
-    width: 100%;
-    height: 100%;
-}
-
 /* Contact form honeypot — off-screen (not display:none; some bots skip those). */
 .contact-form {
     position: relative;
@@ -119,44 +114,23 @@
 }
 
 .jam-form .jam-input--phone-number {
-    flex: 0 1 auto;
-    /* ~12 national digits + padding; never stretches across the form */
-    width: 15ch;
-    min-width: 10ch;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
     max-width: 100%;
 }
 
 .phone-input-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: stretch;
     gap: 0.5rem;
-    width: fit-content;
-    max-width: 100%;
 }
 
 .jam-form .jam-input--phone-country {
-    flex: 0 1 auto;
-    width: max-content;
+    flex: 0 1 11.5rem;
     min-width: 7.5rem;
-    max-width: 100%;
-}
-
-@media (max-width: 479px) {
-    .phone-input-row {
-        width: 100%;
-    }
-
-    .jam-form .jam-input--phone-country {
-        flex: 1 1 auto;
-        width: auto;
-    }
-
-    .jam-form .jam-input--phone-number {
-        flex: 1 1 auto;
-        width: 100%;
-        max-width: 15ch;
-    }
+    max-width: 42%;
 }
 
 /* Screen-reader-only label for the country code select. */
@@ -294,100 +268,22 @@
     cursor: not-allowed;
 }
 
-/* Privacy cards: fields + “Show on profile” clearly grouped together */
-.privacy-card {
+/* Inline “Show on profile” toggles on Edit Profile */
+.privacy-field-group {
     display: flex;
     flex-direction: column;
-    gap: 0.95rem;
-    border-radius: 1rem;
-    border: 1px solid #333333;
-    background:
-        linear-gradient(165deg, rgba(230, 57, 70, 0.05) 0%, transparent 45%),
-        #0f0f0f;
-    padding: 1.05rem 1rem 1rem;
+    gap: 1.15rem;
 }
 
-@media (min-width: 640px) {
-    .privacy-card {
-        gap: 1.1rem;
-        padding: 1.2rem 1.25rem 1.15rem;
-    }
-}
-
-.privacy-card.form-field--missing {
-    border-color: #e63946;
+.privacy-field-group.form-field--missing {
+    border-radius: 0.75rem;
+    border: 1px solid #e63946;
+    padding: 0.875rem 1rem;
     background-color: rgba(230, 57, 70, 0.06);
 }
 
-.privacy-card__head {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-}
-
-.privacy-card__title {
+.privacy-field-group > .form-field {
     margin: 0;
-    font-size: 0.95rem;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-    color: #ffffff;
-}
-
-.privacy-card__desc {
-    margin: 0;
-    font-size: 0.75rem;
-    line-height: 1.45;
-    color: #737373;
-}
-
-.privacy-card__fields {
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-}
-
-.privacy-card__fields--split {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.85rem;
-}
-
-@media (min-width: 640px) {
-    .privacy-card__fields--split {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 0.85rem 1rem;
-        align-items: start;
-    }
-}
-
-.privacy-card__fields > .form-field,
-.privacy-card__fields--split > .form-field {
-    margin: 0;
-    min-width: 0;
-}
-
-/* Compact selects inside privacy cards so they don’t stretch awkwardly */
-.privacy-card select {
-    max-width: 100%;
-}
-
-.privacy-card .form-field__readonly {
-    max-width: 16rem;
-}
-
-/* Toggle sits as the card footer (no nested heavy box) */
-.privacy-card .privacy-toggle {
-    margin-top: 0.15rem;
-    border-radius: 0.75rem;
-    border: 1px solid #2a2a2a;
-    background-color: #000000;
-    padding: 0.75rem 0.9rem;
-}
-
-@media (min-width: 640px) {
-    .privacy-card .privacy-toggle {
-        padding: 0.8rem 1rem;
-    }
 }
 
 .privacy-toggle {
@@ -396,7 +292,12 @@
     justify-content: space-between;
     gap: 1rem;
     width: 100%;
+    margin-top: 0.15rem;
     box-sizing: border-box;
+    border-radius: 0.85rem;
+    border: 1px solid #333333;
+    background-color: #000000;
+    padding: 0.85rem 1rem;
     cursor: pointer;
     user-select: none;
     transition: border-color 0.15s ease, background-color 0.15s ease;
@@ -415,21 +316,21 @@
 .privacy-toggle__copy {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.2rem;
     min-width: 0;
     flex: 1 1 auto;
     text-align: left;
 }
 
 .privacy-toggle__title {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 700;
     line-height: 1.3;
     color: #ffffff;
 }
 
 .privacy-toggle__hint {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 500;
     line-height: 1.4;
     color: #737373;
@@ -453,7 +354,6 @@
     margin: 0;
     opacity: 0;
     cursor: pointer;
-    accent-color: unset;
 }
 
 .privacy-toggle__switch {
@@ -497,6 +397,7 @@
     .privacy-toggle {
         align-items: flex-start;
         gap: 0.85rem;
+        padding: 0.95rem 0.95rem;
     }
 
     .privacy-toggle__control {
@@ -505,8 +406,12 @@
 }
 
 @media (min-width: 640px) {
+    .privacy-toggle {
+        padding: 0.95rem 1.15rem;
+    }
+
     .privacy-toggle__title {
-        font-size: 0.875rem;
+        font-size: 0.9rem;
     }
 }
 

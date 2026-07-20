@@ -17,6 +17,9 @@ from django.urls import reverse
 logger = logging.getLogger(__name__)
 
 VERIFICATION_EMAIL_SUBJECT = "Welcome to JamSession Lab · please verify your email"
+EMAIL_CHANGE_SUBJECT = "Confirm your new email · JamSession Lab"
+EMAIL_CHANGE_NOTICE_SUBJECT = "Email change requested · JamSession Lab"
+PASSWORD_RESET_SUBJECT = "Reset your password · JamSession Lab"
 
 
 @dataclass(frozen=True)
@@ -25,11 +28,25 @@ class EmailContent:
 
     text: str
     html: str
+    subject: str
 
 
 def _absolute_static_url(request, relative_path: str) -> str:
     """Build an absolute URL for a static asset (required inside HTML emails)."""
     return request.build_absolute_uri(staticfiles_storage.url(relative_path))
+
+
+def _common_email_context(user, request) -> dict:
+    """Shared template variables for account transactional emails."""
+    return {
+        "user": user,
+        "whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK,
+        "site_url": request.build_absolute_uri("/"),
+        "logo_url": _absolute_static_url(
+            request,
+            "images/jamsession-lab-logo.jpg",
+        ),
+    }
 
 
 def _build_verification_message(user, request) -> EmailContent:
@@ -40,20 +57,47 @@ def _build_verification_message(user, request) -> EmailContent:
             kwargs={"token": user.email_verification_token},
         )
     )
-    site_url = request.build_absolute_uri("/")
     context = {
-        "user": user,
+        **_common_email_context(user, request),
         "verify_url": verify_url,
-        "whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK,
-        "site_url": site_url,
-        "logo_url": _absolute_static_url(
-            request,
-            "images/jamsession-lab-logo.jpg",
-        ),
     }
     text = render_to_string("accounts/emails/verify_email.txt", context)
     html = render_to_string("accounts/emails/verify_email.html", context)
-    return EmailContent(text=text, html=html)
+    return EmailContent(text=text, html=html, subject=VERIFICATION_EMAIL_SUBJECT)
+
+
+def _build_email_change_message(user, request) -> EmailContent:
+    """Confirmation message sent to the pending (new) email address."""
+    verify_url = request.build_absolute_uri(
+        reverse(
+            "accounts:verify_email",
+            kwargs={"token": user.email_verification_token},
+        )
+    )
+    context = {
+        **_common_email_context(user, request),
+        "verify_url": verify_url,
+        "new_email": user.pending_email,
+        "current_email": user.email,
+    }
+    text = render_to_string("accounts/emails/change_email.txt", context)
+    html = render_to_string("accounts/emails/change_email.html", context)
+    return EmailContent(text=text, html=html, subject=EMAIL_CHANGE_SUBJECT)
+
+
+def _build_email_change_notice(user, request, *, old_email: str, new_email: str) -> EmailContent:
+    """Security notice sent to the previous email address."""
+    context = {
+        **_common_email_context(user, request),
+        "old_email": old_email,
+        "new_email": new_email,
+        "settings_url": request.build_absolute_uri(
+            reverse("accounts:account_settings")
+        ),
+    }
+    text = render_to_string("accounts/emails/change_email_notice.txt", context)
+    html = render_to_string("accounts/emails/change_email_notice.html", context)
+    return EmailContent(text=text, html=html, subject=EMAIL_CHANGE_NOTICE_SUBJECT)
 
 
 def _parse_from_email(from_email: str) -> tuple[str, str]:
@@ -81,6 +125,47 @@ def _should_use_resend_api() -> bool:
     return True
 
 
+def _build_password_reset_message(context: dict) -> EmailContent:
+    """
+    Build text/HTML bodies for a password-reset link email.
+
+    ``context`` is the dict produced by Django's PasswordResetForm.save()
+    (uid, token, user, protocol, domain, plus any extra_email_context).
+    """
+    reset_path = reverse(
+        "accounts:password_reset_confirm",
+        kwargs={"uidb64": context["uid"], "token": context["token"]},
+    )
+    reset_url = f"{context['protocol']}://{context['domain']}{reset_path}"
+    site_url = context.get("site_url") or f"{context['protocol']}://{context['domain']}/"
+    email_context = {
+        "user": context["user"],
+        "reset_url": reset_url,
+        "site_url": site_url,
+        "logo_url": context.get("logo_url", ""),
+        "whatsapp_link": context.get(
+            "whatsapp_link",
+            getattr(settings, "WHATSAPP_COMMUNITY_LINK", ""),
+        ),
+    }
+    text = render_to_string("accounts/emails/password_reset.txt", email_context)
+    html = render_to_string("accounts/emails/password_reset.html", email_context)
+    return EmailContent(text=text, html=html, subject=PASSWORD_RESET_SUBJECT)
+
+
+def send_password_reset_email(recipient: str, context: dict) -> bool:
+    """
+    Send a password-reset message via Resend API or Django's email backend.
+
+    Called from PasswordResetRequestForm.send_mail. Never raises — Django's
+    reset flow always shows the "email sent" page to avoid account enumeration.
+    """
+    user = context.get("user")
+    user_pk = getattr(user, "pk", 0) or 0
+    content = _build_password_reset_message(context)
+    return _deliver_email(recipient, user_pk, content)
+
+
 def send_verification_email(user, request) -> bool:
     """
     Send the welcome + email verification message synchronously.
@@ -92,7 +177,7 @@ def send_verification_email(user, request) -> bool:
     verification link) is printed to the runserver / gunicorn logs.
     """
     content = _build_verification_message(user, request)
-    return _deliver_verification_email(user.email, user.pk, content)
+    return _deliver_email(user.email, user.pk, content)
 
 
 def queue_verification_email(user, request) -> None:
@@ -114,32 +199,69 @@ def queue_verification_email(user, request) -> None:
     recipient = user.email
     user_pk = user.pk
     content = _build_verification_message(user, request)
+    _queue_or_send(recipient, user_pk, content)
 
+
+def send_email_change_verification(user, request) -> bool:
+    """Send the confirm-new-email message to ``user.pending_email``."""
+    recipient = (user.pending_email or "").strip()
+    if not recipient:
+        return False
+    content = _build_email_change_message(user, request)
+    return _deliver_email(recipient, user.pk, content)
+
+
+def send_email_change_notice(user, request, *, old_email: str, new_email: str) -> bool:
+    """Notify the previous address that an email change was requested."""
+    recipient = (old_email or "").strip()
+    if not recipient:
+        return False
+    content = _build_email_change_notice(
+        user,
+        request,
+        old_email=old_email,
+        new_email=new_email,
+    )
+    return _deliver_email(recipient, user.pk, content)
+
+
+def queue_email_change_verification(user, request) -> None:
+    """Background-friendly send of the pending-email confirmation message."""
+    recipient = (user.pending_email or "").strip()
+    if not recipient:
+        return
+    content = _build_email_change_message(user, request)
+    _queue_or_send(recipient, user.pk, content)
+
+
+def _queue_or_send(recipient: str, user_pk: int, content: EmailContent) -> None:
+    """Send now in tests/local backends; otherwise dispatch a daemon thread."""
     backend = settings.EMAIL_BACKEND or ""
     use_background = not getattr(settings, "TESTING", False) and (
         _should_use_resend_api() or backend.endswith("smtp.EmailBackend")
     )
 
     if not use_background:
-        _deliver_verification_email(recipient, user_pk, content)
+        _deliver_email(recipient, user_pk, content)
         return
 
     def _worker():
-        _deliver_verification_email(recipient, user_pk, content)
+        _deliver_email(recipient, user_pk, content)
 
     thread = threading.Thread(
         target=_worker,
-        name=f"verify-email-user-{user_pk}",
+        name=f"account-email-user-{user_pk}",
         daemon=True,
     )
     thread.start()
     logger.info(
-        "Queued verification email for user %s (background thread)",
+        "Queued account email for user %s to %s (background thread)",
         user_pk,
+        recipient,
     )
 
 
-def _deliver_verification_email(recipient, user_pk, content: EmailContent) -> bool:
+def _deliver_email(recipient, user_pk, content: EmailContent) -> bool:
     """Route to Resend HTTP API or Django mail backend. Never raises."""
     if _should_use_resend_api():
         return _deliver_via_resend_api(recipient, user_pk, content)
@@ -153,7 +275,7 @@ def _deliver_via_resend_api(recipient, user_pk, content: EmailContent) -> bool:
     payload = {
         "from": from_email,
         "to": [recipient],
-        "subject": VERIFICATION_EMAIL_SUBJECT,
+        "subject": content.subject,
         "text": content.text,
         "html": content.html,
     }
@@ -169,27 +291,29 @@ def _deliver_via_resend_api(recipient, user_pk, content: EmailContent) -> bool:
         )
         if not response.ok:
             logger.error(
-                "Resend API rejected verification email for user %s to %s "
-                "(status=%s body=%s sender=%s)",
+                "Resend API rejected email for user %s to %s "
+                "(status=%s body=%s sender=%s subject=%s)",
                 user_pk,
                 recipient,
                 response.status_code,
                 response.text[:500],
                 sender_email,
+                content.subject,
             )
             return False
     except Exception:
         logger.exception(
-            "Failed to send verification email via Resend API for user %s to %s",
+            "Failed to send email via Resend API for user %s to %s",
             user_pk,
             recipient,
         )
         return False
 
     logger.info(
-        "Verification email sent via Resend API for user %s to %s",
+        "Email sent via Resend API for user %s to %s (subject=%s)",
         user_pk,
         recipient,
+        content.subject,
     )
     return True
 
@@ -198,7 +322,7 @@ def _deliver_via_django(recipient, user_pk, content: EmailContent) -> bool:
     """SMTP / console / locmem via Django's email backend (text + HTML)."""
     try:
         message = EmailMultiAlternatives(
-            subject=VERIFICATION_EMAIL_SUBJECT,
+            subject=content.subject,
             body=content.text,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[recipient],
@@ -207,16 +331,22 @@ def _deliver_via_django(recipient, user_pk, content: EmailContent) -> bool:
         message.send(fail_silently=False)
     except Exception:
         logger.exception(
-            "Failed to send verification email for user %s to %s "
-            "(backend=%s host=%s port=%s timeout=%s)",
+            "Failed to send email for user %s to %s "
+            "(backend=%s host=%s port=%s timeout=%s subject=%s)",
             user_pk,
             recipient,
             settings.EMAIL_BACKEND,
             settings.EMAIL_HOST,
             settings.EMAIL_PORT,
             getattr(settings, "EMAIL_TIMEOUT", None),
+            content.subject,
         )
         return False
 
-    logger.info("Verification email sent for user %s to %s", user_pk, recipient)
+    logger.info(
+        "Email sent for user %s to %s (subject=%s)",
+        user_pk,
+        recipient,
+        content.subject,
+    )
     return True

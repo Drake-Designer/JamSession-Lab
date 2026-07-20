@@ -1,5 +1,11 @@
 from django import forms
-from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.forms import (
+    AuthenticationForm,
+    PasswordChangeForm,
+    PasswordResetForm,
+    SetPasswordForm,
+    UserCreationForm,
+)
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.forms import BaseInlineFormSet, inlineformset_factory
@@ -397,8 +403,10 @@ class ProfileEditForm(PhoneNumberFieldsMixin, forms.ModelForm):
     """
     Profile fields the owner can edit.
 
-    Email, password, and date of birth are intentionally excluded — they will
-    live in a separate "Account Settings" section.
+    Email and password live in Account Settings. Date of birth stays fixed
+    after registration (age is derived). Age and location can be shown on the
+    public profile via "Show on profile" checkboxes. Phone number is always
+    private and used only for the WhatsApp community invitation.
     """
 
     county = forms.ChoiceField(
@@ -450,6 +458,8 @@ class ProfileEditForm(PhoneNumberFieldsMixin, forms.ModelForm):
             "other_genre",
             "experience_level",
             "bio",
+            "show_age_publicly",
+            "show_location_publicly",
         )
         widgets = {
             "profile_picture": ProfilePictureInput(
@@ -474,14 +484,21 @@ class ProfileEditForm(PhoneNumberFieldsMixin, forms.ModelForm):
                 },
             ),
             "bio": forms.Textarea(attrs={"class": TEXT_INPUT_CLASSES, "rows": 5}),
+            "show_age_publicly": forms.CheckboxInput(),
+            "show_location_publicly": forms.CheckboxInput(),
         }
         labels = {
             "display_name": _("Display Name"),
             "other_instrument": _("Other instrument"),
             "other_genre": _("Other genre"),
             "bio": _("Bio"),
+            "show_age_publicly": _("Show on profile"),
+            "show_location_publicly": _("Show on profile"),
         }
-        help_texts = {}
+        help_texts = {
+            "show_age_publicly": "",
+            "show_location_publicly": "",
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -579,6 +596,8 @@ class ProfileEditForm(PhoneNumberFieldsMixin, forms.ModelForm):
         user = super().save(commit=False)
         user.phone_number = self.cleaned_data["phone_number"]
         user.years_of_experience = self.cleaned_data["years_of_experience"]
+        # Phone is contact-only (WhatsApp invite) — never public on profiles.
+        user.show_phone_publicly = False
         if commit:
             user.save()
             self.save_m2m()
@@ -687,6 +706,132 @@ SocialLinkFormSet = inlineformset_factory(
     validate_max=True,
     can_delete=True,
 )
+
+
+class ChangeEmailForm(forms.Form):
+    """Request a new login email; confirmation is required before it applies."""
+
+    new_email = forms.EmailField(
+        label=_("New email address"),
+        widget=forms.EmailInput(
+            attrs={
+                "class": TEXT_INPUT_CLASSES,
+                "autocomplete": "email",
+            },
+        ),
+    )
+    password = forms.CharField(
+        label=_("Current password"),
+        widget=forms.PasswordInput(
+            attrs={
+                "class": TEXT_INPUT_CLASSES,
+                "autocomplete": "current-password",
+            },
+        ),
+    )
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_password(self):
+        password = self.cleaned_data.get("password") or ""
+        if not self.user.check_password(password):
+            raise forms.ValidationError(
+                _("Your password was incorrect. The email address was not changed.")
+            )
+        return password
+
+    def clean_new_email(self):
+        new_email = (self.cleaned_data.get("new_email") or "").strip()
+        if not new_email:
+            raise forms.ValidationError(_("Please enter a new email address."))
+
+        if new_email.casefold() == (self.user.email or "").casefold():
+            raise forms.ValidationError(
+                _("That is already your current email address.")
+            )
+
+        if User.objects.filter(email__iexact=new_email).exclude(pk=self.user.pk).exists():
+            raise forms.ValidationError(
+                _("This email address is already registered to another account.")
+            )
+
+        if (
+            User.objects.filter(pending_email__iexact=new_email)
+            .exclude(pk=self.user.pk)
+            .exists()
+        ):
+            raise forms.ValidationError(
+                _(
+                    "This email address is already pending confirmation "
+                    "on another account."
+                )
+            )
+
+        return new_email
+
+
+class AccountPasswordChangeForm(PasswordChangeForm):
+    """Password change with JamSession Lab form styling."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ("old_password", "new_password1", "new_password2"):
+            self.fields[name].widget.attrs.update({"class": TEXT_INPUT_CLASSES})
+        self.fields["old_password"].widget.attrs["autocomplete"] = "current-password"
+        self.fields["new_password1"].widget.attrs["autocomplete"] = "new-password"
+        self.fields["new_password2"].widget.attrs["autocomplete"] = "new-password"
+
+
+class PasswordResetRequestForm(PasswordResetForm):
+    """
+    Request a password-reset email by account address.
+
+    Sending goes through accounts.emails so production uses the same Resend
+    HTTPS path as verification mail (SMTP alone is unreliable on Render free).
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["email"].label = _("Email address")
+        self.fields["email"].widget.attrs.update(
+            {
+                "class": TEXT_INPUT_CLASSES,
+                "autocomplete": "email",
+                "autofocus": True,
+            }
+        )
+
+    def send_mail(
+        self,
+        subject_template_name,
+        email_template_name,
+        context,
+        from_email,
+        to_email,
+        html_email_template_name=None,
+    ):
+        from .emails import send_password_reset_email
+
+        send_password_reset_email(to_email, context)
+
+
+class PasswordResetConfirmForm(SetPasswordForm):
+    """Choose a new password after following the reset link."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ("new_password1", "new_password2"):
+            self.fields[name].widget.attrs.update(
+                {
+                    "class": TEXT_INPUT_CLASSES,
+                    "autocomplete": "new-password",
+                }
+            )
+        self.fields["new_password1"].help_text = _(
+            "Must be at least 8 characters and not too common."
+        )
 
 
 class DeleteAccountForm(forms.Form):

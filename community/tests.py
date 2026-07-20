@@ -2503,11 +2503,44 @@ class AdminToolTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["gallery_count"], 3)
+        self.assertEqual(response.context["gallery_photo_count"], 3)
+        self.assertEqual(response.context["gallery_video_count"], 0)
         self.assertEqual(response.context["post_count"], 4)
         self.assertEqual(response.context["comment_count"], 3)
-        self.assertContains(response, "Gallery (3)")
+        self.assertContains(response, "Photos (3)")
+        self.assertContains(response, "Videos (0)")
         self.assertContains(response, "Posts (4)")
         self.assertContains(response, "Comments (3)")
+
+    def test_gallery_splits_photos_and_videos(self):
+        GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/split_photo.jpg",
+            media_type=MediaType.IMAGE,
+            title="Split photo",
+            status=ApprovalStatus.APPROVED,
+        )
+        video = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="video/upload/v1/split_video.mp4",
+            media_type=MediaType.VIDEO,
+            title="Split video",
+            status=ApprovalStatus.APPROVED,
+        )
+        # CloudinaryField.save() may re-detect resource_type; pin video explicitly
+        # the same way other community video tests do.
+        GalleryItem.objects.filter(pk=video.pk).update(media_type=MediaType.VIDEO)
+
+        self.client.force_login(self.staff)
+        response = self.client.get(self.tool_url)
+
+        self.assertEqual(response.context["gallery_photo_count"], 1)
+        self.assertEqual(response.context["gallery_video_count"], 1)
+        self.assertContains(response, "Photos (1)")
+        self.assertContains(response, "Videos (1)")
+        self.assertContains(response, "admin-tool-preview")
+        self.assertContains(response, 'data-preview-type="image"')
+        self.assertContains(response, 'data-preview-type="video"')
 
     def test_approved_post_links_to_public_detail(self):
         post = _make_post(
@@ -2634,9 +2667,10 @@ class AdminToolTests(TestCase):
         self.client.force_login(self.staff)
         before = self.client.get(self.tool_url)
         self.assertEqual(before.context["gallery_count"], 1)
+        self.assertEqual(before.context["gallery_photo_count"], 1)
         self.assertEqual(before.context["post_count"], 1)
         self.assertEqual(before.context["comment_count"], 1)
-        self.assertContains(before, "Gallery (1)")
+        self.assertContains(before, "Photos (1)")
         self.assertContains(before, "Posts (1)")
         self.assertContains(before, "Comments (1)")
 
@@ -2648,7 +2682,7 @@ class AdminToolTests(TestCase):
         self.assertEqual(after.context["gallery_count"], 1)
         self.assertEqual(after.context["post_count"], 0)
         self.assertEqual(after.context["comment_count"], 0)
-        self.assertContains(after, "Gallery (1)")
+        self.assertContains(after, "Photos (1)")
         self.assertContains(after, "Posts (0)")
         self.assertContains(after, "Comments (0)")
 
@@ -2863,7 +2897,7 @@ class AdminToolTests(TestCase):
         response = self.client.get(self.tool_url)
         self.assertContains(response, f"{detail_url}#comment-{comment.pk}")
 
-    def test_approved_gallery_link_includes_gallery_anchor(self):
+    def test_approved_gallery_opens_in_lightbox(self):
         item = GalleryItem.objects.create(
             uploaded_by=self.regular,
             file="image/upload/v1/anchor_gal.jpg",
@@ -2874,8 +2908,10 @@ class AdminToolTests(TestCase):
         gallery_url = reverse("gallery:list")
         self.client.force_login(self.staff)
         response = self.client.get(self.tool_url)
-        self.assertContains(response, f"{gallery_url}#gallery-item-{item.pk}")
-
+        self.assertNotContains(response, f"{gallery_url}#gallery-item-{item.pk}")
+        self.assertContains(response, "Anchored gallery")
+        self.assertContains(response, "admin-tool-preview")
+        self.assertContains(response, 'data-preview-type="image"')
     def test_rows_reuse_author_chip_partial_with_badge(self):
         _make_post(self.regular, title="Badge row", status=ApprovalStatus.APPROVED)
         self.client.force_login(self.staff)

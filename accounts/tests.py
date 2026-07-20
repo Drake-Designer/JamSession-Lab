@@ -2,7 +2,7 @@ from datetime import date
 from unittest.mock import patch
 
 from django.core import mail
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -672,23 +672,46 @@ class ProfilePageTests(TestCase):
             "accounts:profile_detail", kwargs={"username": self.user.username}
         )
 
-    def test_profile_is_public_and_hides_phone(self):
+    def test_profile_is_public_and_hides_private_fields_by_default(self):
         response = self.client.get(self.profile_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Aoife B")
-        self.assertContains(response, "Swords")
+        self.assertNotContains(response, "Swords")
         self.assertNotContains(response, "+353871234567")
+        self.assertNotContains(response, "years old")
         self.assertNotContains(response, "Edit Profile")
 
-    def test_phone_is_never_shown_even_to_owner(self):
+    def test_owner_does_not_see_private_fields_either(self):
         self.client.force_login(self.user)
         response = self.client.get(self.profile_url)
+        self.assertNotContains(response, "Swords")
+        self.assertNotContains(response, "+353871234567")
+        self.assertNotContains(response, "years old")
+        self.assertContains(response, "Edit Profile")
+        self.assertContains(response, "Account Settings")
+
+    def test_public_age_and_location_when_enabled(self):
+        self.user.show_location_publicly = True
+        self.user.show_age_publicly = True
+        self.user.show_phone_publicly = True
+        self.user.save(
+            update_fields=[
+                "show_location_publicly",
+                "show_age_publicly",
+                "show_phone_publicly",
+            ]
+        )
+        response = self.client.get(self.profile_url)
+        self.assertContains(response, "Swords")
+        self.assertContains(response, "years old")
+        # Phone stays private even if the legacy flag is on.
         self.assertNotContains(response, "+353871234567")
 
     def test_owner_sees_edit_button(self):
         self.client.force_login(self.user)
         response = self.client.get(self.profile_url)
-        self.assertContains(response, "Edit profile")
+        self.assertContains(response, "Edit Profile")
+        self.assertContains(response, reverse("accounts:account_settings"))
 
     def test_unknown_username_returns_404(self):
         response = self.client.get(
@@ -987,8 +1010,9 @@ class ProfileReviewItemsTests(TestCase):
         response = self.client.get(self.regular_profile_url)
 
         self.assertFalse(response.context["show_staff_tools"])
-        self.assertContains(response, "Edit profile")
-        self.assertContains(response, "profile-edit-btn")
+        self.assertContains(response, "Edit Profile")
+        self.assertContains(response, "profile-action-btn")
+        self.assertContains(response, "Account Settings")
         self.assertNotContains(response, "REVIEW")
         self.assertNotContains(response, "ADMIN TOOL")
         self.assertNotContains(response, "EVENTS")
@@ -1002,8 +1026,8 @@ class ProfileReviewItemsTests(TestCase):
 
         self.assertTrue(response.context["show_staff_tools"])
         self.assertEqual(response.context["pending_review_count"], 0)
-        self.assertContains(response, "Edit profile")
-        self.assertContains(response, "profile-edit-btn")
+        self.assertContains(response, "Edit Profile")
+        self.assertContains(response, "profile-action-btn")
         self.assertNotContains(response, "REVIEW")
         self.assertNotContains(response, f'href="{self.queue_url}"')
         self.assertContains(response, "ADMIN TOOL")
@@ -2118,3 +2142,284 @@ class ActiveMembersOrderingTests(TestCase):
             names.index("charlie"),
             names.index("zeta_fallback"),
         )
+
+
+class ProfilePrivacyEditTests(TestCase):
+    def setUp(self):
+        self.client.post(reverse("accounts:register"), data=valid_registration_data())
+        self.user = User.objects.get(email="aoife@example.com")
+        mark_email_verified(self.user)
+        self.edit_url = reverse("accounts:profile_edit")
+
+    def _edit_data(self, **overrides):
+        data = {
+            "display_name": "Aoife B",
+            "phone_country_code": "+353",
+            "phone_national_number": "871234567",
+            "county": "dublin",
+            "town_city": "Swords",
+            "instruments": ["electric_guitar"],
+            "other_instrument": "",
+            "preferred_genres": [],
+            "other_genre": "",
+            "years_of_experience": "5",
+            "experience_level": "intermediate",
+            "bio": "",
+            "show_age_publicly": "on",
+            "show_location_publicly": "on",
+        }
+        data.update(social_links_formset_data())
+        data.update(overrides)
+        return data
+
+    def test_privacy_defaults_are_hidden(self):
+        self.assertFalse(self.user.show_age_publicly)
+        self.assertFalse(self.user.show_phone_publicly)
+        self.assertFalse(self.user.show_location_publicly)
+
+    def test_owner_can_enable_privacy_flags(self):
+        response = self.client.post(self.edit_url, data=self._edit_data())
+        self.assertEqual(response.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.show_age_publicly)
+        self.assertTrue(self.user.show_location_publicly)
+        # Phone visibility cannot be enabled from Edit Profile.
+        self.assertFalse(self.user.show_phone_publicly)
+
+    def test_unchecked_privacy_flags_save_as_false(self):
+        self.user.show_age_publicly = True
+        self.user.show_location_publicly = True
+        self.user.save(
+            update_fields=[
+                "show_age_publicly",
+                "show_location_publicly",
+            ]
+        )
+        data = self._edit_data()
+        data.pop("show_age_publicly")
+        data.pop("show_location_publicly")
+        response = self.client.post(self.edit_url, data=data)
+        self.assertEqual(response.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.show_age_publicly)
+        self.assertFalse(self.user.show_location_publicly)
+
+    def test_edit_profile_shows_inline_privacy_toggles(self):
+        response = self.client.get(self.edit_url)
+        self.assertContains(response, "Show on profile")
+        self.assertContains(response, 'name="show_age_publicly"')
+        self.assertContains(response, 'name="show_location_publicly"')
+        self.assertNotContains(response, 'name="show_phone_publicly"')
+        self.assertContains(response, "never shown on your public profile")
+        self.assertNotContains(response, "Privacy settings")
+
+
+class AccountSettingsTests(TestCase):
+    def setUp(self):
+        self.client.post(reverse("accounts:register"), data=valid_registration_data())
+        self.user = User.objects.get(email="aoife@example.com")
+        mark_email_verified(self.user)
+        self.settings_url = reverse("accounts:account_settings")
+        self.password = "brave-purple-drums!"
+
+    def test_settings_requires_login(self):
+        self.client.logout()
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse("accounts:login")))
+
+    def test_settings_page_renders(self):
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Account Settings")
+        self.assertContains(response, "aoife@example.com")
+
+    def test_change_email_sets_pending_and_sends_mail(self):
+        mail.outbox.clear()
+        response = self.client.post(
+            reverse("accounts:account_change_email"),
+            data={
+                "new_email": "aoife.new@example.com",
+                "password": self.password,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, self.settings_url)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "aoife@example.com")
+        self.assertEqual(self.user.pending_email, "aoife.new@example.com")
+        self.assertTrue(self.user.is_email_verified)
+        subjects = [message.subject for message in mail.outbox]
+        recipients = [message.to[0] for message in mail.outbox]
+        self.assertIn("Confirm your new email · JamSession Lab", subjects)
+        self.assertIn("Email change requested · JamSession Lab", subjects)
+        self.assertIn("aoife.new@example.com", recipients)
+        self.assertIn("aoife@example.com", recipients)
+        self.assertEqual(len(mail.outbox), 2, msg=list(zip(subjects, recipients)))
+
+    def test_confirming_pending_email_applies_change(self):
+        self.user.pending_email = "aoife.new@example.com"
+        self.user.regenerate_email_verification_token()
+        self.user.save(update_fields=["pending_email"])
+        token = self.user.email_verification_token
+
+        response = self.client.get(
+            reverse("accounts:verify_email", kwargs={"token": token})
+        )
+        self.assertRedirects(response, reverse("pages:home"))
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "aoife.new@example.com")
+        self.assertEqual(self.user.pending_email, "")
+        self.assertTrue(self.user.is_email_verified)
+
+    def test_cancel_pending_email(self):
+        self.user.pending_email = "aoife.new@example.com"
+        self.user.save(update_fields=["pending_email"])
+        response = self.client.post(
+            reverse("accounts:account_cancel_pending_email")
+        )
+        self.assertRedirects(response, self.settings_url)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.pending_email, "")
+
+    def test_change_email_rejects_wrong_password(self):
+        response = self.client.post(
+            reverse("accounts:account_change_email"),
+            data={
+                "new_email": "aoife.new@example.com",
+                "password": "wrong-password",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.pending_email, "")
+
+    def test_change_password(self):
+        new_password = "fresh-green-cymbals!"
+        response = self.client.post(
+            reverse("accounts:account_change_password"),
+            data={
+                "old_password": self.password,
+                "new_password1": new_password,
+                "new_password2": new_password,
+            },
+        )
+        self.assertRedirects(response, self.settings_url)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(new_password))
+
+
+class PasswordResetFlowTests(TestCase):
+    """Forgot-password: request email → confirm link → sign in with new password."""
+
+    def setUp(self):
+        self.client.post(reverse("accounts:register"), data=valid_registration_data())
+        self.user = User.objects.get(email="aoife@example.com")
+        mark_email_verified(self.user)
+        self.client.logout()
+        self.old_password = "brave-purple-drums!"
+        self.new_password = "fresh-green-cymbals!"
+
+    def test_login_page_links_to_password_reset(self):
+        response = self.client.get(reverse("accounts:login"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("accounts:password_reset"))
+        self.assertContains(response, "Forgot password?")
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    )
+    def test_password_reset_sends_email_for_known_address(self):
+        mail.outbox.clear()
+        response = self.client.post(
+            reverse("accounts:password_reset"),
+            data={"email": "aoife@example.com"},
+        )
+        self.assertRedirects(response, reverse("accounts:password_reset_done"))
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["aoife@example.com"])
+        self.assertEqual(message.subject, "Reset your password · JamSession Lab")
+        self.assertIn("/accounts/password-reset/", message.body)
+        self.assertTrue(message.alternatives)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    )
+    def test_password_reset_unknown_email_still_shows_done(self):
+        """Do not reveal whether an account exists (no email sent)."""
+        mail.outbox.clear()
+        response = self.client.post(
+            reverse("accounts:password_reset"),
+            data={"email": "nobody@example.com"},
+        )
+        self.assertRedirects(response, reverse("accounts:password_reset_done"))
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    )
+    def test_full_password_reset_and_login(self):
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+
+        mail.outbox.clear()
+        self.client.post(
+            reverse("accounts:password_reset"),
+            data={"email": "aoife@example.com"},
+        )
+        self.assertEqual(len(mail.outbox), 1)
+
+        uidb64 = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+        confirm_url = reverse(
+            "accounts:password_reset_confirm",
+            kwargs={"uidb64": uidb64, "token": token},
+        )
+
+        # Django's PasswordResetConfirmView uses a session-based token dance:
+        # first GET with the token redirects to a URL ending in "set-password/".
+        response = self.client.get(confirm_url)
+        self.assertEqual(response.status_code, 302)
+        set_password_url = response.url
+
+        response = self.client.get(set_password_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Choose a new password")
+
+        response = self.client.post(
+            set_password_url,
+            data={
+                "new_password1": self.new_password,
+                "new_password2": self.new_password,
+            },
+        )
+        self.assertRedirects(response, reverse("accounts:password_reset_complete"))
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.check_password(self.old_password))
+        self.assertTrue(self.user.check_password(self.new_password))
+
+        login_response = self.client.post(
+            reverse("accounts:login"),
+            data={"username": "aoife@example.com", "password": self.new_password},
+        )
+        self.assertEqual(login_response.status_code, 302)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.user.pk)
+
+    def test_invalid_reset_link_shows_error(self):
+        response = self.client.get(
+            reverse(
+                "accounts:password_reset_confirm",
+                kwargs={
+                    "uidb64": "Mw",
+                    "token": "invalid-token-value",
+                },
+            )
+        )
+        # Invalid token: either immediate invalid page or redirect then invalid.
+        if response.status_code == 302:
+            response = self.client.get(response.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Link invalid or expired")

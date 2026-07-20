@@ -119,44 +119,23 @@
 }
 
 .jam-form .jam-input--phone-number {
-    flex: 0 1 auto;
-    /* ~12 national digits + padding; never stretches across the form */
-    width: 15ch;
-    min-width: 10ch;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
     max-width: 100%;
 }
 
 .phone-input-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: stretch;
     gap: 0.5rem;
-    width: fit-content;
-    max-width: 100%;
 }
 
 .jam-form .jam-input--phone-country {
-    flex: 0 1 auto;
-    width: max-content;
+    flex: 0 1 11.5rem;
     min-width: 7.5rem;
-    max-width: 100%;
-}
-
-@media (max-width: 479px) {
-    .phone-input-row {
-        width: 100%;
-    }
-
-    .jam-form .jam-input--phone-country {
-        flex: 1 1 auto;
-        width: auto;
-    }
-
-    .jam-form .jam-input--phone-number {
-        flex: 1 1 auto;
-        width: 100%;
-        max-width: 15ch;
-    }
+    max-width: 42%;
 }
 
 /* Screen-reader-only label for the country code select. */

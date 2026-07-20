@@ -49,8 +49,10 @@
                         {% endfor %}
                     </div>
 
-                    {# Placeholder — password reset flow will be added later. #}
-                    <a href="#" class="mb-6 block text-right text-xs text-jam-muted transition hover:text-jam-red">Forgot password?</a>
+                    <a
+                        href="{% url 'accounts:password_reset' %}"
+                        class="mb-6 block text-right text-xs text-jam-muted transition hover:text-jam-red"
+                    >Forgot password?</a>
 
                     {% if next %}
                     <input type="hidden" name="next" value="{{ next }}">

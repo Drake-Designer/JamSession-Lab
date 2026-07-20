@@ -474,13 +474,16 @@ def admin_tool(request):
     Staff-only hub listing every gallery item, post, and comment (all statuses).
 
     Separate from the pending-only moderation queue: this page is for browsing
-    and bulk deletion across the full catalogue.
+    and bulk deletion across the full catalogue. Gallery is split into photos
+    and videos so moderators can scan media like the public gallery grid.
     """
     _require_moderator(request.user)
 
     gallery_items = list(
         GalleryItem.objects.select_related("uploaded_by").order_by("-created_at")
     )
+    gallery_photos = [item for item in gallery_items if not item.is_video]
+    gallery_videos = [item for item in gallery_items if item.is_video]
     posts = list(
         CommunityPost.objects.select_related("author")
         .prefetch_related("media")
@@ -496,7 +499,10 @@ def admin_tool(request):
         request,
         "community/admin_tool.html",
         {
-            "gallery_items": gallery_items,
+            "gallery_photos": gallery_photos,
+            "gallery_videos": gallery_videos,
+            "gallery_photo_count": len(gallery_photos),
+            "gallery_video_count": len(gallery_videos),
             "gallery_count": len(gallery_items),
             "posts": posts,
             "post_count": len(posts),

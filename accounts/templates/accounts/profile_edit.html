@@ -31,8 +31,45 @@
                     {% include "accounts/_form_field.html" with field=form.profile_picture %}
                     {% include "accounts/_form_field.html" with field=form.display_name %}
                     {% include "accounts/_phone_field.html" %}
-                    {% include "accounts/_form_field.html" with field=form.county %}
-                    {% include "accounts/_form_field.html" with field=form.town_city %}
+
+                    <section
+                        class="privacy-card{% if 'county' in missing_field_keys or 'town_city' in missing_field_keys %} form-field--missing{% endif %}"
+                        aria-labelledby="privacy-location-heading"
+                    >
+                        <header class="privacy-card__head">
+                            <h2 id="privacy-location-heading" class="privacy-card__title">Location</h2>
+                            <p class="privacy-card__desc">
+                                Where you are based. Optional to show on your public profile.
+                            </p>
+                        </header>
+                        <div class="privacy-card__fields privacy-card__fields--split">
+                            {% include "accounts/_form_field.html" with field=form.county %}
+                            {% include "accounts/_form_field.html" with field=form.town_city %}
+                        </div>
+                        {% include "accounts/_privacy_toggle.html" with field=form.show_location_publicly %}
+                    </section>
+
+                    <section
+                        class="privacy-card"
+                        aria-labelledby="privacy-age-heading"
+                    >
+                        <header class="privacy-card__head">
+                            <h2 id="privacy-age-heading" class="privacy-card__title">Age</h2>
+                            <p class="privacy-card__desc">
+                                Calculated from your date of birth. Only the age number can be shown — never the date itself.
+                            </p>
+                        </header>
+                        <div class="privacy-card__fields">
+                            <p class="form-field__readonly">
+                                {% if form.instance.age is not None %}
+                                {{ form.instance.age }} years old
+                                {% else %}
+                                Not set
+                                {% endif %}
+                            </p>
+                        </div>
+                        {% include "accounts/_privacy_toggle.html" with field=form.show_age_publicly %}
+                    </section>
 
                     <fieldset class="{% if 'instruments' in missing_field_keys %}form-field--missing{% endif %}">
                         <legend class="mb-1.5 block text-sm font-semibold text-jam-white">
@@ -185,12 +222,6 @@
                         Save Changes
                     </button>
                 </form>
-
-                <div class="mt-6 rounded-xl border border-dashed border-jam-grey-light bg-jam-black px-5 py-4 text-xs leading-relaxed text-jam-muted-dark">
-                    Email address, password, and date of birth can't be changed here.
-                    They will be managed in a separate <strong class="text-jam-muted">Account Settings</strong>
-                    section, coming soon.
-                </div>
 
                 <a
                     href="{% url 'accounts:profile' %}"

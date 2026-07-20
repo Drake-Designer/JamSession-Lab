@@ -1,0 +1,14 @@
+{# “Show on profile” privacy control — full-width settings row with switch. #}
+<label class="privacy-toggle" for="{{ field.id_for_label }}">
+    <span class="privacy-toggle__copy">
+        <span class="privacy-toggle__title">Show on profile</span>
+        <span class="privacy-toggle__hint">Visible to other members</span>
+    </span>
+    <span class="privacy-toggle__control">
+        {{ field }}
+        <span class="privacy-toggle__switch" aria-hidden="true"></span>
+    </span>
+</label>
+{% for error in field.errors %}
+<p class="form-field__error">{{ error }}</p>
+{% endfor %}

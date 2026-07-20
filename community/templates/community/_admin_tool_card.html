@@ -1,0 +1,57 @@
+{# Shared Admin Tool media card — checkbox for bulk delete, click opens lightbox. #}
+<article class="admin-tool-card" role="listitem">
+    <label class="admin-tool-card__check">
+        <input
+            type="checkbox"
+            class="admin-tool-check"
+            data-kind="{{ kind }}"
+            data-id="{{ item_id }}"
+            aria-label="{{ aria_label }}"
+        >
+    </label>
+
+    <button
+        type="button"
+        class="admin-tool-preview admin-tool-card__trigger{% if preview_type == 'video' %} admin-tool-card__trigger--video{% endif %}{% if preview_type == 'text' %} admin-tool-card__trigger--text{% endif %}"
+        {% if preview_src %}data-preview-src="{{ preview_src }}"{% endif %}
+        {% if preview_poster %}data-preview-poster="{{ preview_poster }}"{% endif %}
+        data-preview-type="{{ preview_type|default:'image' }}"
+        {% if preview_title %}data-preview-title="{{ preview_title }}"{% endif %}
+        {% if preview_text %}data-preview-text="{{ preview_text }}"{% endif %}
+        aria-label="{% if title %}Preview: {{ title }}{% else %}{{ aria_label }}{% endif %}"
+    >
+        <span class="admin-tool-card__media">
+            {% if thumb_url %}
+            <img src="{{ thumb_url }}" alt="" loading="lazy" class="admin-tool-card__image">
+            {% else %}
+            <span class="admin-tool-card__fallback" aria-hidden="true"></span>
+            {% endif %}
+            {% if preview_type == "video" %}
+            <span class="admin-tool-card__play" aria-hidden="true">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+            </span>
+            {% endif %}
+            {% if excerpt and not thumb_url %}
+            <span class="admin-tool-card__excerpt">{{ excerpt }}</span>
+            {% endif %}
+        </span>
+
+        <span class="admin-tool-card__meta">
+            {% if title %}
+            <span class="admin-tool-card__title">{{ title }}</span>
+            {% elif excerpt and thumb_url %}
+            <span class="admin-tool-card__title">{{ excerpt }}</span>
+            {% endif %}
+            <span class="admin-tool-card__author">
+                {% include "accounts/partials/user_author_chip.html" with credit_user=credit_user %}
+            </span>
+            {% if status %}
+            <span class="community-status community-status--{{ status }} admin-tool-card__status">
+                {{ status_label }}
+            </span>
+            {% endif %}
+        </span>
+    </button>
+</article>

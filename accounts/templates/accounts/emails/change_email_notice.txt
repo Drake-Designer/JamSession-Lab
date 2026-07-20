@@ -1,0 +1,23 @@
+Hi {{ user.display_name }},
+
+Someone (hopefully you) requested to change the email on your JamSession Lab
+account from:
+
+{{ old_email }}
+
+to:
+
+{{ new_email }}
+
+A confirmation link has been sent to the new address. Your current email keeps
+working until that link is confirmed.
+
+If you did not request this, open Account Settings and cancel the pending
+change, then change your password:
+
+{{ settings_url }}
+
+The JamSession Lab Team
+{% if site_url %}
+{{ site_url }}
+{% endif %}

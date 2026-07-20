@@ -3,14 +3,14 @@ import time
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login, logout
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods, require_POST
 
@@ -23,10 +23,19 @@ from jamsession.moderation import ApprovalStatus
 from registrations.models import EventRegistration, RsvpStatus
 
 from .constants import TOWNS_BY_COUNTY, Instrument, MusicGenre
-from .emails import queue_verification_email, send_verification_email
+from .emails import (
+    queue_verification_email,
+    send_email_change_notice,
+    send_email_change_verification,
+    send_verification_email,
+)
 from .forms import (
+    AccountPasswordChangeForm,
+    ChangeEmailForm,
     DeleteAccountForm,
     LoginForm,
+    PasswordResetConfirmForm,
+    PasswordResetRequestForm,
     ProfileEditForm,
     RegistrationForm,
     SocialLinkFormSet,
@@ -128,6 +137,56 @@ class LoginView(auth_views.LoginView):
         ):
             return reverse("accounts:verification_required")
         return super().get_success_url()
+
+
+def _password_reset_email_context(request):
+    """Extra template vars for the branded password-reset email."""
+    from django.contrib.staticfiles.storage import staticfiles_storage
+
+    return {
+        "site_url": request.build_absolute_uri("/"),
+        "logo_url": request.build_absolute_uri(
+            staticfiles_storage.url("images/jamsession-lab-logo.jpg")
+        ),
+        "whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK,
+    }
+
+
+class PasswordResetView(auth_views.PasswordResetView):
+    """Ask for an email address and send a one-time reset link."""
+
+    template_name = "accounts/password_reset.html"
+    form_class = PasswordResetRequestForm
+    success_url = reverse_lazy("accounts:password_reset_done")
+    # Subject/body templates are unused: PasswordResetRequestForm.send_mail
+    # builds branded content via accounts.emails.send_password_reset_email.
+    email_template_name = "accounts/emails/password_reset.txt"
+    subject_template_name = "accounts/emails/password_reset_subject.txt"
+
+    def form_valid(self, form):
+        # Inject absolute site/logo URLs before Django's form.save() runs.
+        self.extra_email_context = _password_reset_email_context(self.request)
+        return super().form_valid(form)
+
+
+class PasswordResetDoneView(auth_views.PasswordResetDoneView):
+    """Confirmation that a reset email was (or would be) sent."""
+
+    template_name = "accounts/password_reset_done.html"
+
+
+class PasswordResetConfirmView(auth_views.PasswordResetConfirmView):
+    """Choose a new password after opening the email link."""
+
+    template_name = "accounts/password_reset_confirm.html"
+    form_class = PasswordResetConfirmForm
+    success_url = reverse_lazy("accounts:password_reset_complete")
+
+
+class PasswordResetCompleteView(auth_views.PasswordResetCompleteView):
+    """Success page after the password has been changed."""
+
+    template_name = "accounts/password_reset_complete.html"
 
 
 def _safe_next_url(request, candidate):
@@ -599,7 +658,12 @@ def account_delete(request):
 
 
 def verify_email(request, token):
-    """Confirm an email address from the link sent at registration."""
+    """
+    Confirm an email address from a verification link.
+
+    Handles both first-time registration verification and pending email
+    changes from Account Settings.
+    """
     user = User.objects.filter(email_verification_token=token).first()
 
     if user is None:
@@ -612,7 +676,29 @@ def verify_email(request, token):
             },
         )
 
-    if user.is_email_verified:
+    if user.has_pending_email_change:
+        new_email = user.apply_pending_email()
+        if new_email is None:
+            messages.error(
+                request,
+                _(
+                    "We could not confirm that email address because it is no "
+                    "longer available. Please request a new email change."
+                ),
+            )
+            if not request.user.is_authenticated:
+                login(request, user, backend=AUTH_BACKEND)
+            return redirect("accounts:account_settings")
+
+        messages.success(
+            request,
+            _(
+                "Your email address has been updated to %(email)s. "
+                "You can now sign in with this address."
+            )
+            % {"email": new_email},
+        )
+    elif user.is_email_verified:
         messages.info(
             request,
             _("This email address has already been verified."),
@@ -629,3 +715,147 @@ def verify_email(request, token):
         login(request, user, backend=AUTH_BACKEND)
 
     return redirect("pages:home")
+
+
+@login_required
+@require_http_methods(["GET"])
+def account_settings(request):
+    """Account Settings: change email and password."""
+    return render(
+        request,
+        "accounts/account_settings.html",
+        {
+            "email_form": ChangeEmailForm(user=request.user),
+            "password_form": AccountPasswordChangeForm(user=request.user),
+        },
+    )
+
+
+@login_required
+@require_POST
+def account_change_email(request):
+    """Start an email change: store pending_email and send confirmation."""
+    form = ChangeEmailForm(request.POST, user=request.user)
+    if not form.is_valid():
+        return render(
+            request,
+            "accounts/account_settings.html",
+            {
+                "email_form": form,
+                "password_form": AccountPasswordChangeForm(user=request.user),
+            },
+            status=400,
+        )
+
+    user = request.user
+    old_email = user.email
+    new_email = form.cleaned_data["new_email"]
+
+    user.pending_email = new_email
+    user.regenerate_email_verification_token()
+    user.save(update_fields=["pending_email"])
+
+    sent = send_email_change_verification(user, request)
+    if not sent:
+        user.clear_pending_email()
+        messages.error(
+            request,
+            _(
+                "We could not send the confirmation email just now. "
+                "Please try again in a few seconds."
+            ),
+        )
+        return redirect("accounts:account_settings")
+
+    send_email_change_notice(
+        user,
+        request,
+        old_email=old_email,
+        new_email=new_email,
+    )
+    messages.success(
+        request,
+        _(
+            "A confirmation link has been sent to %(email)s. "
+            "Your current email stays active until you confirm the new one."
+        )
+        % {"email": new_email},
+    )
+    return redirect("accounts:account_settings")
+
+
+@login_required
+@require_POST
+def account_cancel_pending_email(request):
+    """Cancel an in-progress email change."""
+    if request.user.has_pending_email_change:
+        request.user.clear_pending_email()
+        messages.success(
+            request,
+            _("The pending email change has been cancelled."),
+        )
+    return redirect("accounts:account_settings")
+
+
+@login_required
+@require_POST
+def account_resend_pending_email(request):
+    """Re-send the confirmation email for a pending address change."""
+    user = request.user
+    if not user.has_pending_email_change:
+        messages.info(request, _("There is no pending email change to confirm."))
+        return redirect("accounts:account_settings")
+
+    remaining = _verification_cooldown_remaining(request)
+    if remaining > 0:
+        messages.warning(
+            request,
+            _(
+                "Please wait %(seconds)s seconds before requesting another "
+                "confirmation email."
+            )
+            % {"seconds": remaining},
+        )
+        return redirect("accounts:account_settings")
+
+    user.regenerate_email_verification_token()
+    sent = send_email_change_verification(user, request)
+    if not sent:
+        messages.error(
+            request,
+            _(
+                "We could not send the confirmation email just now. "
+                "Please try again in a few seconds."
+            ),
+        )
+        return redirect("accounts:account_settings")
+
+    _mark_verification_email_sent(request)
+    messages.success(
+        request,
+        _("A new confirmation email has been sent to %(email)s.")
+        % {"email": user.pending_email},
+    )
+    return redirect("accounts:account_settings")
+
+
+@login_required
+@require_POST
+def account_change_password(request):
+    """Update the signed-in user's password and keep the session valid."""
+    form = AccountPasswordChangeForm(user=request.user, data=request.POST)
+    if not form.is_valid():
+        return render(
+            request,
+            "accounts/account_settings.html",
+            {
+                "email_form": ChangeEmailForm(user=request.user),
+                "password_form": form,
+            },
+            status=400,
+        )
+
+    form.save()
+    update_session_auth_hash(request, form.user)
+    messages.success(request, _("Your password has been updated."))
+    return redirect("accounts:account_settings")

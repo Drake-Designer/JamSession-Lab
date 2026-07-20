@@ -99,6 +99,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                     "display_name",
                     "password",
                     "email",
+                    "pending_email",
                     "is_email_verified",
                     "email_verification_send_count",
                     "phone_number",
@@ -123,6 +124,20 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                     ("years_of_experience", "experience_level"),
                     "experience_started_year",
                     "bio",
+                ),
+            },
+        ),
+        (
+            _("Privacy"),
+            {
+                "classes": ["tab"],
+                "description": _(
+                    "Controls what visitors see on the public profile. "
+                    "Experience is always public."
+                ),
+                "fields": (
+                    "show_age_publicly",
+                    "show_location_publicly",
                 ),
             },
         ),
