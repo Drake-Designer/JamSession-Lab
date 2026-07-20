@@ -2346,14 +2346,18 @@ class PasswordResetFlowTests(TestCase):
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     )
-    def test_password_reset_unknown_email_still_shows_done(self):
-        """Do not reveal whether an account exists (no email sent)."""
+    def test_password_reset_unknown_email_shows_error(self):
+        """Reject unregistered addresses — no email is sent."""
         mail.outbox.clear()
         response = self.client.post(
             reverse("accounts:password_reset"),
             data={"email": "nobody@example.com"},
         )
-        self.assertRedirects(response, reverse("accounts:password_reset_done"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "No account is registered with this email address.",
+        )
         self.assertEqual(len(mail.outbox), 0)
 
     @override_settings(

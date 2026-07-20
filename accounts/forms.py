@@ -788,8 +788,9 @@ class PasswordResetRequestForm(PasswordResetForm):
     """
     Request a password-reset email by account address.
 
-    Sending goes through accounts.emails so production uses the same Resend
-    HTTPS path as verification mail (SMTP alone is unreliable on Render free).
+    Unlike Django's default, unknown addresses are rejected with a clear error
+    so members know when they typed an unregistered email. Sending goes through
+    accounts.emails (Resend HTTPS in production).
     """
 
     def __init__(self, *args, **kwargs):
@@ -802,6 +803,14 @@ class PasswordResetRequestForm(PasswordResetForm):
                 "autofocus": True,
             }
         )
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip()
+        if not User.objects.filter(email__iexact=email, is_active=True).exists():
+            raise forms.ValidationError(
+                _("No account is registered with this email address.")
+            )
+        return email
 
     def send_mail(
         self,
