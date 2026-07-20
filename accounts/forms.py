@@ -21,6 +21,12 @@ from .constants import (
     TOWNS_BY_COUNTY,
 )
 from .models import SocialLink, User
+from .phone import (
+    COUNTRY_CALLING_CODES,
+    DEFAULT_PHONE_COUNTRY_CODE,
+    split_phone_number,
+    validate_combined_phone,
+)
 from .social_platforms import MAX_SOCIAL_LINKS
 from .validators import (
     MAX_YEARS_OF_EXPERIENCE,
@@ -85,7 +91,91 @@ def generate_unique_username(display_name):
     return username
 
 
-class RegistrationForm(UserCreationForm):
+PHONE_COUNTRY_SELECT_CLASSES = (
+    "jam-input--phone-country rounded-xl border border-jam-grey-light "
+    "bg-jam-black px-3 py-3 text-sm text-jam-white "
+    "focus:border-jam-red focus:outline-none focus:ring-1 focus:ring-jam-red"
+)
+PHONE_NATIONAL_INPUT_CLASSES = (
+    f"{SIZED_INPUT_CLASSES} jam-input--phone-number"
+)
+
+
+class PhoneNumberFieldsMixin:
+    """
+    Split phone UI: country calling code (left) + national number (right).
+
+    The combined E.164 value is stored on User.phone_number. Fields are added
+    in ``__init__`` (not as class attributes) so they work with ModelForm's
+    metaclass field collection.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["phone_country_code"] = forms.ChoiceField(
+            label=_("Country code"),
+            choices=COUNTRY_CALLING_CODES,
+            initial=DEFAULT_PHONE_COUNTRY_CODE,
+            widget=forms.Select(attrs={"class": PHONE_COUNTRY_SELECT_CLASSES}),
+        )
+        self.fields["phone_national_number"] = forms.CharField(
+            label=_("Phone number"),
+            required=True,
+            max_length=12,
+            widget=forms.TextInput(
+                attrs={
+                    "class": PHONE_NATIONAL_INPUT_CLASSES,
+                    "maxlength": "12",
+                    "placeholder": "87 123 4567",
+                    "inputmode": "tel",
+                    "autocomplete": "tel-national",
+                },
+            ),
+        )
+        self._init_phone_fields()
+
+    def _init_phone_fields(self):
+        """Populate split fields from an existing User.phone_number when editing."""
+        instance = getattr(self, "instance", None)
+        if instance is not None and getattr(instance, "pk", None):
+            country, national = split_phone_number(instance.phone_number or "")
+            self.fields["phone_country_code"].initial = country
+            self.fields["phone_national_number"].initial = national
+        else:
+            self.fields["phone_country_code"].initial = DEFAULT_PHONE_COUNTRY_CODE
+
+    def _clean_phone_fields(self, cleaned_data):
+        """Validate, enforce uniqueness, and set cleaned_data['phone_number']."""
+        country = cleaned_data.get("phone_country_code") or DEFAULT_PHONE_COUNTRY_CODE
+        national = cleaned_data.get("phone_national_number")
+        # Skip if the national field already failed required/max_length checks.
+        if "phone_national_number" in self.errors:
+            return cleaned_data
+        try:
+            combined = validate_combined_phone(country, national)
+        except ValidationError as exc:
+            self.add_error("phone_national_number", exc)
+            return cleaned_data
+
+        conflict = User.objects.filter(phone_number=combined)
+        instance = getattr(self, "instance", None)
+        if instance is not None and getattr(instance, "pk", None):
+            conflict = conflict.exclude(pk=instance.pk)
+        if conflict.exists():
+            self.add_error(
+                "phone_national_number",
+                _(
+                    "An account with this phone number already exists. "
+                    "Please use a different number."
+                ),
+            )
+            return cleaned_data
+
+        cleaned_data["phone_number"] = combined
+        return cleaned_data
+
+
+class RegistrationForm(PhoneNumberFieldsMixin, UserCreationForm):
     """Public sign-up form with the full musician profile required fields."""
 
     date_of_birth = forms.DateField(
@@ -141,7 +231,6 @@ class RegistrationForm(UserCreationForm):
             "last_name",
             "display_name",
             "email",
-            "phone_number",
             "date_of_birth",
             "county",
             "town_city",
@@ -154,13 +243,6 @@ class RegistrationForm(UserCreationForm):
             "last_name": forms.TextInput(attrs={"class": TEXT_INPUT_CLASSES}),
             "display_name": forms.TextInput(attrs={"class": TEXT_INPUT_CLASSES}),
             "email": forms.EmailInput(attrs={"class": TEXT_INPUT_CLASSES}),
-            "phone_number": forms.TextInput(
-                attrs={
-                    "class": TEXT_INPUT_CLASSES,
-                    "maxlength": "15",
-                    "placeholder": "+353871234567",
-                },
-            ),
             "other_instrument": forms.TextInput(
                 attrs={
                     "class": TEXT_INPUT_CLASSES,
@@ -170,22 +252,15 @@ class RegistrationForm(UserCreationForm):
         }
         labels = {
             "display_name": _("Nickname / Display name"),
-            "phone_number": _("Phone number"),
             "other_instrument": _("Other instrument"),
         }
-        help_texts = {
-            "phone_number": _(
-                "We use your phone number to send you an automatic invitation "
-                "to the JamSession Lab community WhatsApp group."
-            ),
-        }
+        help_texts = {}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.fields["first_name"].required = True
         self.fields["last_name"].required = True
-        self.fields["phone_number"].required = True
         self.fields["other_instrument"].required = False
 
         self.fields["accept_terms"].label = format_html(
@@ -231,6 +306,7 @@ class RegistrationForm(UserCreationForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        cleaned_data = self._clean_phone_fields(cleaned_data)
 
         instruments = cleaned_data.get("instruments") or []
         other_instrument = (cleaned_data.get("other_instrument") or "").strip()
@@ -264,6 +340,7 @@ class RegistrationForm(UserCreationForm):
 
     def save(self, commit=True):
         user = super().save(commit=False)
+        user.phone_number = self.cleaned_data["phone_number"]
         user.username = generate_unique_username(user.display_name)
         user.terms_accepted_at = timezone.now()
         user.years_of_experience = self.cleaned_data["years_of_experience"]
@@ -316,7 +393,7 @@ class LoginForm(AuthenticationForm):
         return ""
 
 
-class ProfileEditForm(forms.ModelForm):
+class ProfileEditForm(PhoneNumberFieldsMixin, forms.ModelForm):
     """
     Profile fields the owner can edit.
 
@@ -365,7 +442,6 @@ class ProfileEditForm(forms.ModelForm):
         fields = (
             "profile_picture",
             "display_name",
-            "phone_number",
             "county",
             "town_city",
             "instruments",
@@ -385,14 +461,6 @@ class ProfileEditForm(forms.ModelForm):
                     "maxlength": "20",
                 },
             ),
-            "phone_number": forms.TextInput(
-                attrs={
-                    "class": f"{SIZED_INPUT_CLASSES} jam-input--phone-number",
-                    "maxlength": "15",
-                    "placeholder": "+353871234567",
-                    "inputmode": "tel",
-                },
-            ),
             "other_instrument": forms.TextInput(
                 attrs={
                     "class": TEXT_INPUT_CLASSES,
@@ -409,22 +477,15 @@ class ProfileEditForm(forms.ModelForm):
         }
         labels = {
             "display_name": _("Display Name"),
-            "phone_number": _("Phone number"),
             "other_instrument": _("Other instrument"),
             "other_genre": _("Other genre"),
             "bio": _("Bio"),
         }
-        help_texts = {
-            "phone_number": _(
-                "Only visible to you. Used for the community WhatsApp group "
-                "invitation. Digits only, optional leading +."
-            ),
-        }
+        help_texts = {}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["display_name"].required = True
-        self.fields["phone_number"].required = True
         self.fields["other_instrument"].required = False
         self.fields["other_genre"].required = False
         if self.instance and self.instance.pk:
@@ -467,6 +528,7 @@ class ProfileEditForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        cleaned_data = self._clean_phone_fields(cleaned_data)
 
         instruments = cleaned_data.get("instruments") or []
         other_instrument = (cleaned_data.get("other_instrument") or "").strip()
@@ -512,6 +574,7 @@ class ProfileEditForm(forms.ModelForm):
 
     def save(self, commit=True):
         user = super().save(commit=False)
+        user.phone_number = self.cleaned_data["phone_number"]
         user.years_of_experience = self.cleaned_data["years_of_experience"]
         if commit:
             user.save()

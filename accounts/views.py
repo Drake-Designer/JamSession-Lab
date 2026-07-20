@@ -415,10 +415,11 @@ def social_link_delete(request, pk):
 @require_http_methods(["POST"])
 def account_delete(request):
     """
-    Permanently delete the signed-in user's account.
+    Permanently delete the signed-in user's account and all personal content.
 
-    Gallery items survive with uploaded_by set to NULL (SET_NULL on the
-    foreign key), so approved media stays visible without an author.
+    Community posts/comments and gallery uploads cascade-delete with the user
+    (Cloudinary assets are removed by post_delete signals). Registrations,
+    social links, and likes are also removed via CASCADE.
     """
     form = DeleteAccountForm(request.POST, user=request.user)
 

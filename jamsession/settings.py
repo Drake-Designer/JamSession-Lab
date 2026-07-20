@@ -365,6 +365,9 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL",
     "JamSession Lab <staff@jamsessionlab.ie>",
 )
+# Inbox that receives public contact-form messages (must be deliverable —
+# see Resend sending + email forwarding / inbound docs).
+CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "staff@jamsessionlab.ie").strip()
 
 # Invitation link to the community WhatsApp group, shown after registration
 # and included in the welcome email. Replace with the real group link.

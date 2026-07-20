@@ -14,11 +14,11 @@ class MediaType(models.TextChoices):
 
 
 class GalleryItem(ModeratedContent):
-    # SET_NULL keeps the media publicly visible (without an author) when the
-    # uploader permanently deletes their account.
+    # CASCADE removes the item (and Cloudinary file via signals) when the
+    # uploader permanently deletes their account — required for privacy erasure.
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="gallery_items",
@@ -77,6 +77,21 @@ class GalleryItem(ModeratedContent):
             "use_filename": True,
             "unique_filename": True,
         }
+
+    def purge_media_after_rejection(self):
+        """
+        Destroy the Cloudinary asset for a rejected gallery upload.
+
+        The rejected row is kept for moderation history; the file field is
+        required so we destroy remote storage without clearing the DB value.
+        """
+        from django.db import transaction
+
+        from jamsession.cloudinary_cleanup import _delete_stored_file
+
+        file_value = self.file
+        if file_value:
+            transaction.on_commit(lambda: _delete_stored_file(file_value))
 
     @property
     def is_video(self):

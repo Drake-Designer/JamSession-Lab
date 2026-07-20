@@ -332,7 +332,10 @@ def cancel(request, pk):
     )
     registration.rsvp_status = RsvpStatus.CANCELLED
     registration.cancelled_at = timezone.now()
-    registration.save(update_fields=["rsvp_status", "cancelled_at"])
+    # Clear personal notes and song sheets so cancelled RSVPs do not retain PII.
+    registration.notes = ""
+    registration.songs.all().delete()
+    registration.save(update_fields=["rsvp_status", "cancelled_at", "notes"])
     messages.success(request, _("Your registration has been cancelled."))
     next_url = request.POST.get("next") or reverse("events:detail", kwargs={"pk": pk})
     if not url_has_allowed_host_and_scheme(

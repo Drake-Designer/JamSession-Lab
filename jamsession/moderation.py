@@ -99,3 +99,14 @@ class ModeratedContent(models.Model):
         self.approved_at = timezone.now()
         self.rejection_reason = reason
         self.save(update_fields=self._moderation_update_fields())
+        # Rejected uploads must not remain downloadable on Cloudinary.
+        self.purge_media_after_rejection()
+
+    def purge_media_after_rejection(self):
+        """
+        Remove stored media after a rejection.
+
+        Subclasses with file fields override this. Default is a no-op for
+        text-only moderated models.
+        """
+        return

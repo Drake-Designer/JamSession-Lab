@@ -1,0 +1,10 @@
+New contact message via JamSession Lab
+
+From: {{ name }} <{{ email }}>
+Subject: {{ subject }}
+
+{{ message }}
+
+—
+Reply directly to this email to answer {{ name }}.
+{% if site_url %}{{ site_url }}{% endif %}

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import logging
 import threading
+from dataclasses import dataclass
 from email.utils import parseaddr
 
 import requests
 from django.conf import settings
-from django.core.mail import send_mail
+from django.contrib.staticfiles.storage import staticfiles_storage
+from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.urls import reverse
 
@@ -17,23 +19,41 @@ logger = logging.getLogger(__name__)
 VERIFICATION_EMAIL_SUBJECT = "Welcome to JamSession Lab — please verify your email"
 
 
-def _build_verification_message(user, request):
-    """Build absolute verify URL and plain-text body (safe to call in the request thread)."""
+@dataclass(frozen=True)
+class EmailContent:
+    """Plain-text + HTML parts for a transactional message."""
+
+    text: str
+    html: str
+
+
+def _absolute_static_url(request, relative_path: str) -> str:
+    """Build an absolute URL for a static asset (required inside HTML emails)."""
+    return request.build_absolute_uri(staticfiles_storage.url(relative_path))
+
+
+def _build_verification_message(user, request) -> EmailContent:
+    """Build absolute URLs and text/HTML bodies (safe to call in the request thread)."""
     verify_url = request.build_absolute_uri(
         reverse(
             "accounts:verify_email",
             kwargs={"token": user.email_verification_token},
         )
     )
-    message = render_to_string(
-        "accounts/emails/verify_email.txt",
-        {
-            "user": user,
-            "verify_url": verify_url,
-            "whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK,
-        },
-    )
-    return message
+    site_url = request.build_absolute_uri("/")
+    context = {
+        "user": user,
+        "verify_url": verify_url,
+        "whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK,
+        "site_url": site_url,
+        "logo_url": _absolute_static_url(
+            request,
+            "images/jamsession-lab-logo.jpg",
+        ),
+    }
+    text = render_to_string("accounts/emails/verify_email.txt", context)
+    html = render_to_string("accounts/emails/verify_email.html", context)
+    return EmailContent(text=text, html=html)
 
 
 def _parse_from_email(from_email: str) -> tuple[str, str]:
@@ -71,8 +91,8 @@ def send_verification_email(user, request) -> bool:
     With the console email backend the full message (including the
     verification link) is printed to the runserver / gunicorn logs.
     """
-    message = _build_verification_message(user, request)
-    return _deliver_verification_email(user.email, user.pk, message)
+    content = _build_verification_message(user, request)
+    return _deliver_verification_email(user.email, user.pk, content)
 
 
 def queue_verification_email(user, request) -> None:
@@ -93,7 +113,7 @@ def queue_verification_email(user, request) -> None:
     """
     recipient = user.email
     user_pk = user.pk
-    message = _build_verification_message(user, request)
+    content = _build_verification_message(user, request)
 
     backend = settings.EMAIL_BACKEND or ""
     use_background = not getattr(settings, "TESTING", False) and (
@@ -101,11 +121,11 @@ def queue_verification_email(user, request) -> None:
     )
 
     if not use_background:
-        _deliver_verification_email(recipient, user_pk, message)
+        _deliver_verification_email(recipient, user_pk, content)
         return
 
     def _worker():
-        _deliver_verification_email(recipient, user_pk, message)
+        _deliver_verification_email(recipient, user_pk, content)
 
     thread = threading.Thread(
         target=_worker,
@@ -119,14 +139,14 @@ def queue_verification_email(user, request) -> None:
     )
 
 
-def _deliver_verification_email(recipient, user_pk, message) -> bool:
+def _deliver_verification_email(recipient, user_pk, content: EmailContent) -> bool:
     """Route to Resend HTTP API or Django mail backend. Never raises."""
     if _should_use_resend_api():
-        return _deliver_via_resend_api(recipient, user_pk, message)
-    return _deliver_via_django(recipient, user_pk, message)
+        return _deliver_via_resend_api(recipient, user_pk, content)
+    return _deliver_via_django(recipient, user_pk, content)
 
 
-def _deliver_via_resend_api(recipient, user_pk, message) -> bool:
+def _deliver_via_resend_api(recipient, user_pk, content: EmailContent) -> bool:
     """Send via Resend transactional HTTPS API (works on Render free)."""
     from_email = settings.DEFAULT_FROM_EMAIL
     _, sender_email = _parse_from_email(from_email)
@@ -134,7 +154,8 @@ def _deliver_via_resend_api(recipient, user_pk, message) -> bool:
         "from": from_email,
         "to": [recipient],
         "subject": VERIFICATION_EMAIL_SUBJECT,
-        "text": message,
+        "text": content.text,
+        "html": content.html,
     }
     try:
         response = requests.post(
@@ -173,16 +194,17 @@ def _deliver_via_resend_api(recipient, user_pk, message) -> bool:
     return True
 
 
-def _deliver_via_django(recipient, user_pk, message) -> bool:
-    """SMTP / console / locmem via Django's email backend."""
+def _deliver_via_django(recipient, user_pk, content: EmailContent) -> bool:
+    """SMTP / console / locmem via Django's email backend (text + HTML)."""
     try:
-        send_mail(
+        message = EmailMultiAlternatives(
             subject=VERIFICATION_EMAIL_SUBJECT,
-            message=message,
+            body=content.text,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[recipient],
-            fail_silently=False,
+            to=[recipient],
         )
+        message.attach_alternative(content.html, "text/html")
+        message.send(fail_silently=False)
     except Exception:
         logger.exception(
             "Failed to send verification email for user %s to %s "

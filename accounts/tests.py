@@ -81,7 +81,8 @@ def valid_registration_data(**overrides):
         "last_name": "Byrne",
         "display_name": "Aoife B",
         "email": "aoife@example.com",
-        "phone_number": "+353871234567",
+        "phone_country_code": "+353",
+        "phone_national_number": "871234567",
         "password1": "brave-purple-drums!",
         "password2": "brave-purple-drums!",
         "date_of_birth": "1990-05-10",
@@ -112,6 +113,7 @@ class RegistrationFormTests(TestCase):
         self.assertEqual(user.display_name, "Aoife B")
         self.assertEqual(user.username, "aoife_b")
         self.assertEqual(user.email, "aoife@example.com")
+        self.assertEqual(user.phone_number, "+353871234567")
         self.assertEqual(user.instruments, ["electric_guitar", "vocals"])
         self.assertEqual(user.years_of_experience, 5)
         self.assertEqual(user.experience_level, "intermediate")
@@ -121,6 +123,37 @@ class RegistrationFormTests(TestCase):
         )
         self.assertIsNotNone(user.terms_accepted_at)
         self.assertFalse(user.is_email_verified)
+
+    def test_phone_strips_leading_trunk_zero(self):
+        form = RegistrationForm(
+            data=valid_registration_data(phone_national_number="0871234567")
+        )
+        self.assertTrue(form.is_valid(), msg=form.errors.as_json())
+        self.assertEqual(form.save().phone_number, "+353871234567")
+
+    def test_phone_number_must_be_unique(self):
+        RegistrationForm(data=valid_registration_data()).save()
+        form = RegistrationForm(
+            data=valid_registration_data(
+                email="cian@example.com",
+                display_name="Cian M",
+                phone_national_number="871234567",
+            )
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("phone_national_number", form.errors)
+        self.assertIn(
+            "already exists",
+            form.errors["phone_national_number"][0].lower(),
+        )
+
+    def test_phone_defaults_to_ireland_on_register_page(self):
+        response = self.client.get(reverse("accounts:register"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="id_phone_country_code"')
+        self.assertContains(response, 'value="+353" selected')
+        self.assertContains(response, "jam-input--phone-country")
+        self.assertContains(response, "phone-input-row")
 
     def test_years_of_experience_is_required(self):
         form = RegistrationForm(
@@ -312,6 +345,14 @@ class RegistrationViewTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn(str(user.email_verification_token), mail.outbox[0].body)
         self.assertIn("aoife@example.com", mail.outbox[0].to)
+        html_parts = [
+            content
+            for content, mime in mail.outbox[0].alternatives
+            if mime == "text/html"
+        ]
+        self.assertEqual(len(html_parts), 1)
+        self.assertIn(str(user.email_verification_token), html_parts[0])
+        self.assertIn("#E63946", html_parts[0])
 
     def test_welcome_page_shows_whatsapp_link(self):
         self.client.post(
@@ -953,7 +994,8 @@ class ProfileEditTests(TestCase):
     def _edit_data(self, **overrides):
         data = {
             "display_name": "Aoife B",
-            "phone_number": "+353871234567",
+            "phone_country_code": "+353",
+            "phone_national_number": "871234567",
             "county": "dublin",
             "town_city": "Swords",
             "instruments": ["electric_guitar", "vocals"],
@@ -1385,11 +1427,13 @@ class ProfileEditTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="id_display_name"')
         self.assertContains(response, 'maxlength="20"')
-        self.assertContains(response, 'id="id_phone_number"')
-        self.assertContains(response, 'maxlength="15"')
+        self.assertContains(response, 'id="id_phone_country_code"')
+        self.assertContains(response, 'id="id_phone_national_number"')
+        self.assertContains(response, 'maxlength="12"')
         self.assertContains(response, "Display Name")
         self.assertContains(response, "jam-input--display-name")
         self.assertContains(response, "jam-input--phone-number")
+        self.assertContains(response, "jam-input--phone-country")
         self.assertContains(response, "Add another link")
         self.assertContains(response, "social-links-forms")
 
@@ -1651,9 +1695,16 @@ class DeleteAccountTests(TestCase):
         self.assertFalse(User.objects.filter(pk=self.user.pk).exists())
         self.assertNotIn("_auth_user_id", self.client.session)
 
-    def test_gallery_items_survive_without_author(self):
+    def test_account_delete_removes_gallery_and_community_content(self):
+        from community.models import CommunityPost
         from gallery.models import ApprovalStatus, GalleryItem
 
+        post = CommunityPost.objects.create(
+            author=self.user,
+            title="My post",
+            body="Body",
+            status=ApprovalStatus.APPROVED,
+        )
         item = GalleryItem.objects.create(
             uploaded_by=self.user,
             file="v123/sample.jpg",
@@ -1666,16 +1717,14 @@ class DeleteAccountTests(TestCase):
             data={"confirm": "on", "password": "brave-purple-drums!"},
         )
 
-        item.refresh_from_db()
-        self.assertIsNone(item.uploaded_by)
-        self.assertEqual(item.status, ApprovalStatus.APPROVED)
+        self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
+        self.assertFalse(GalleryItem.objects.filter(pk=item.pk).exists())
 
 
 class UserProfilePictureCloudinaryCleanupTests(TestCase):
     """
-    Account deletion must remove the profile picture from Cloudinary storage,
-    but must NOT touch Cloudinary assets belonging to content that survives
-    with author/uploaded_by set to NULL (posts, comments, gallery items).
+    Account deletion must remove the profile picture and all user-owned
+    moderated media from Cloudinary (posts, comments, gallery cascade-delete).
     """
 
     def setUp(self):
@@ -1692,58 +1741,58 @@ class UserProfilePictureCloudinaryCleanupTests(TestCase):
         )
         self.user.save(update_fields=["profile_picture"])
 
-    def test_deleting_user_cleans_profile_picture_not_surviving_content(self):
+    def test_deleting_user_cleans_profile_picture_and_owned_media(self):
         post = CommunityPost.objects.create(
             author=self.user,
-            title="Survives account deletion",
+            title="Removed with account",
             body="Body",
             status=ApprovalStatus.APPROVED,
         )
         CommunityPostMedia.objects.create(
             post=post,
-            file="image/upload/v1/surviving_post_media.jpg",
+            file="image/upload/v1/post_media.jpg",
             media_type=MediaType.IMAGE,
         )
         comment = CommunityComment.objects.create(
             post=post,
             author=self.user,
-            body="Survives too",
+            body="Removed too",
             status=ApprovalStatus.APPROVED,
         )
         CommunityCommentMedia.objects.create(
             comment=comment,
-            file="image/upload/v1/surviving_comment_media.jpg",
+            file="image/upload/v1/comment_media.jpg",
             media_type=MediaType.IMAGE,
         )
         gallery_item = GalleryItem.objects.create(
             uploaded_by=self.user,
-            file="image/upload/v1/surviving_gallery.jpg",
+            file="image/upload/v1/gallery.jpg",
             media_type=MediaType.IMAGE,
             status=ApprovalStatus.APPROVED,
         )
 
         with (
             patch("jamsession.cloudinary_cleanup._delete_stored_file") as mock_cleanup,
-            patch("jamsession.cloudinary_cleanup.destroy") as mock_destroy,
         ):
             with self.captureOnCommitCallbacks(execute=True):
                 self.user.delete()
 
-        mock_cleanup.assert_called_once()
-        cleaned_value = mock_cleanup.call_args.args[0]
-        self.assertEqual(
-            cleaned_value.name,
+        # Profile picture + post media + comment media + gallery file.
+        self.assertGreaterEqual(mock_cleanup.call_count, 4)
+        cleaned_names = []
+        for call in mock_cleanup.call_args_list:
+            value = call.args[0]
+            name = getattr(value, "name", None) or getattr(value, "public_id", None)
+            if name:
+                cleaned_names.append(str(name))
+        self.assertIn(
             "JamSession Lab/cleanup_user/profile_pictures/avatar_id",
+            cleaned_names,
         )
-        # Surviving moderated content must not trigger Cloudinary destroy.
-        mock_destroy.assert_not_called()
 
-        post.refresh_from_db()
-        gallery_item.refresh_from_db()
-        self.assertIsNone(post.author)
-        self.assertIsNone(gallery_item.uploaded_by)
-        self.assertTrue(CommunityPostMedia.objects.filter(post=post).exists())
-        self.assertTrue(CommunityCommentMedia.objects.filter(comment=comment).exists())
+        self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
+        self.assertFalse(GalleryItem.objects.filter(pk=gallery_item.pk).exists())
+        self.assertFalse(CommunityComment.objects.filter(pk=comment.pk).exists())
 
 
 class TermsPagesTests(TestCase):
@@ -1752,17 +1801,22 @@ class TermsPagesTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Terms of Service")
         self.assertContains(response, "18 years old")
+        self.assertContains(response, "Account deletion")
 
     def test_privacy_page_renders(self):
         response = self.client.get(reverse("pages:privacy"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Privacy Policy")
+        self.assertContains(response, "Cloudinary")
+        self.assertContains(response, "Resend")
 
     def test_contact_page_renders(self):
         response = self.client.get(reverse("pages:contact"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Contact Us")
         self.assertContains(response, "jamsessionlab")
+        self.assertContains(response, "Send message")
+        self.assertContains(response, 'name="message"')
 
 
 class UserBadgeInfoTests(TestCase):

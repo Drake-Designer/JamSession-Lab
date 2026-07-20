@@ -49,12 +49,11 @@ def generate_unique_post_slug(title):
 
 
 class CommunityPost(ModeratedContent):
-    # SET_NULL keeps the post publicly visible (without an author) when the
-    # author permanently deletes their account — same convention as
-    # GalleryItem.uploaded_by.
+    # CASCADE removes the post (and its media via related CASCADE) when the
+    # author permanently deletes their account — required for privacy erasure.
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="community_posts",
@@ -115,6 +114,13 @@ class CommunityPost(ModeratedContent):
             "use_filename": True,
             "unique_filename": True,
         }
+
+    def purge_media_after_rejection(self):
+        """Delete cover + attachments from DB/Cloudinary when a post is rejected."""
+        self.media.all().delete()
+        if self.cover_image:
+            self.cover_image = None
+            self.save(update_fields=["cover_image", "updated_at"])
 
     @property
     def cover_display_url(self):
@@ -202,12 +208,11 @@ class CommunityComment(ModeratedContent):
         on_delete=models.CASCADE,
         related_name="comments",
     )
-    # SET_NULL keeps the comment publicly visible (without an author) when
-    # the author permanently deletes their account — same convention as
-    # CommunityPost.author.
+    # CASCADE removes the comment (and its media) when the author deletes
+    # their account — required for privacy erasure.
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="community_comments",
@@ -224,6 +229,10 @@ class CommunityComment(ModeratedContent):
         if self.author:
             return f"Comment by @{self.author.username} on post {self.post_id}"
         return f"Comment by (deleted account) on post {self.post_id}"
+
+    def purge_media_after_rejection(self):
+        """Delete comment attachments from DB/Cloudinary when rejected."""
+        self.media.all().delete()
 
 
 class CommunityCommentMedia(models.Model):

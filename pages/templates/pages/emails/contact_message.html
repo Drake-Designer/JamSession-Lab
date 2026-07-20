@@ -1,0 +1,23 @@
+{% extends "accounts/emails/base_email.html" %}
+
+{% block title %}Contact form message{% endblock %}
+
+{% block content %}
+    <h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.25;font-weight:800;color:#E63946;">
+        New contact message
+    </h1>
+    <p style="margin:0 0 20px 0;font-size:15px;line-height:1.6;color:#A3A3A3;">
+        Someone sent a message through the JamSession Lab contact form.
+    </p>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#737373;">From</p>
+    <p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#FFFFFF;">
+        {{ name }} &lt;<a href="mailto:{{ email }}" style="color:#E63946;text-decoration:underline;">{{ email }}</a>&gt;
+    </p>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#737373;">Subject</p>
+    <p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#FFFFFF;">{{ subject }}</p>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#737373;">Message</p>
+    <p style="margin:0;font-size:15px;line-height:1.65;color:#A3A3A3;white-space:pre-wrap;">{{ message }}</p>
+{% endblock %}

@@ -1,0 +1,26 @@
+{# Split phone input: country calling code (left) + national number (right). #}
+<div class="form-field{% if 'phone_number' in missing_field_keys %} form-field--missing{% endif %}">
+    <label for="{{ form.phone_national_number.id_for_label }}" class="mb-1.5 block text-sm font-semibold text-jam-white">
+        {{ form.phone_national_number.label }}{% if form.phone_national_number.field.required %} <span class="text-jam-red" aria-hidden="true">*</span>{% endif %}
+        {% if 'phone_number' in missing_field_keys %}
+        <span class="form-field__missing-badge">Missing</span>
+        {% endif %}
+    </label>
+    <div class="phone-input-row">
+        <label for="{{ form.phone_country_code.id_for_label }}" class="sr-only">
+            {{ form.phone_country_code.label }}
+        </label>
+        {{ form.phone_country_code }}
+        {{ form.phone_national_number }}
+    </div>
+    <p class="mt-1.5 text-xs leading-relaxed text-jam-muted">
+        We use your phone number to send you an automatic invitation
+        to the JamSession Lab community WhatsApp group.
+    </p>
+    {% for error in form.phone_country_code.errors %}
+    <p class="form-field__error">{{ error }}</p>
+    {% endfor %}
+    {% for error in form.phone_national_number.errors %}
+    <p class="form-field__error">{{ error }}</p>
+    {% endfor %}
+</div>

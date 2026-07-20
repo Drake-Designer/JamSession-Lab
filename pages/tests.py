@@ -1,9 +1,11 @@
 import tempfile
 from unittest.mock import patch
 
+from django.core import mail
 from django.core.files.storage import FileSystemStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from pages.admin import HomeCarouselSlideAdminForm
 from pages.models import HomeCarouselSlide
@@ -72,3 +74,64 @@ class HomeCarouselSlideAdminTests(TestCase):
             self.slide.delete()
 
         mock_delete.assert_called_once_with(image_name)
+
+
+class ContactFormViewTests(TestCase):
+    def setUp(self):
+        self.url = reverse("pages:contact")
+
+    def test_contact_page_get(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Send message")
+
+    def test_valid_contact_sends_email(self):
+        response = self.client.post(
+            self.url,
+            data={
+                "name": "Aoife Byrne",
+                "email": "aoife@example.com",
+                "subject": "Question about the next jam",
+                "message": "Hi — what time does the next jam start?",
+                "website": "",
+            },
+        )
+        self.assertRedirects(response, self.url)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Question about the next jam", mail.outbox[0].subject)
+        self.assertEqual(mail.outbox[0].to, ["staff@jamsessionlab.ie"])
+        self.assertEqual(mail.outbox[0].reply_to, ["aoife@example.com"])
+        self.assertIn("Aoife Byrne", mail.outbox[0].body)
+
+    def test_honeypot_skips_sending(self):
+        response = self.client.post(
+            self.url,
+            data={
+                "name": "Bot",
+                "email": "bot@example.com",
+                "subject": "Spam",
+                "message": "Buy cheap products now please",
+                "website": "http://spam.example",
+            },
+        )
+        self.assertRedirects(response, self.url)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_rate_limit_blocks_second_send(self):
+        data = {
+            "name": "Aoife Byrne",
+            "email": "aoife@example.com",
+            "subject": "First message",
+            "message": "This is a valid first contact message.",
+            "website": "",
+        }
+        self.client.post(self.url, data=data)
+        self.assertEqual(len(mail.outbox), 1)
+
+        response = self.client.post(
+            self.url,
+            data={**data, "subject": "Second message"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertContains(response, "Please wait a minute")

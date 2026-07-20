@@ -19,6 +19,7 @@
 
 .form-field--missing .jam-input--display-name,
 .form-field--missing .jam-input--phone-number,
+.form-field--missing .jam-input--phone-country,
 .form-field--missing input,
 .form-field--missing select,
 .form-field--missing textarea {
@@ -72,6 +73,20 @@
     accent-color: #e63946;
 }
 
+/* Contact form honeypot — off-screen (not display:none; some bots skip those). */
+.contact-form {
+    position: relative;
+}
+
+.contact-honeypot-wrap {
+    position: absolute;
+    left: -10000px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
 /* Native date picker indicator is dark by default — invert it on the
    brand-dark background. */
 .jam-form input[type="date"]::-webkit-calendar-picker-indicator {
@@ -99,9 +114,36 @@
 }
 
 .jam-form .jam-input--phone-number {
-    width: 15ch;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
     max-width: 100%;
-    min-width: min(100%, 10rem);
+}
+
+.phone-input-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0.5rem;
+}
+
+.jam-form .jam-input--phone-country {
+    flex: 0 1 11.5rem;
+    min-width: 7.5rem;
+    max-width: 42%;
+}
+
+/* Screen-reader-only label for the country code select. */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* Years of experience | Experience level — 2 columns on desktop. */

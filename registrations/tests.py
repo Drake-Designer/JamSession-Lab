@@ -242,10 +242,22 @@ class EventRegistrationFlowTests(TestCase):
     def test_cancel_post_only_and_rejoin_preserves_first_registered_at(self):
         self.client.login(username="player2", password="jam-session-test-pass1")
         register_url = reverse("events:register", kwargs={"pk": self.event.pk})
-        self.client.post(register_url, _rsvp_post_data())
+        register_data = _rsvp_post_data(
+            originals_choice="yes",
+            notes="Bring a spare cable",
+        )
+        register_data.update(
+            _song_formset_data(
+                songs=[{"title": "Wonderwall", "song_key": "C", "basic_chords": "C G"}],
+                extra_empty=0,
+            )
+        )
+        self.client.post(register_url, register_data)
         reg = EventRegistration.objects.get(user=self.user, event=self.event)
         first_at = reg.first_registered_at
         registered_at_before = reg.registered_at
+        self.assertEqual(reg.notes, "Bring a spare cable")
+        self.assertEqual(reg.songs.count(), 1)
 
         cancel_url = reverse("events:cancel", kwargs={"pk": self.event.pk})
         self.assertEqual(self.client.get(cancel_url).status_code, 405)
@@ -256,6 +268,8 @@ class EventRegistrationFlowTests(TestCase):
         self.assertEqual(reg.rsvp_status, RsvpStatus.CANCELLED)
         self.assertIsNotNone(reg.cancelled_at)
         self.assertEqual(reg.first_registered_at, first_at)
+        self.assertEqual(reg.notes, "")
+        self.assertEqual(reg.songs.count(), 0)
 
         # Rejoin
         rejoin = self.client.post(

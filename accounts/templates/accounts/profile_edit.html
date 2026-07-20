@@ -29,7 +29,7 @@
 
                     {% include "accounts/_form_field.html" with field=form.profile_picture %}
                     {% include "accounts/_form_field.html" with field=form.display_name %}
-                    {% include "accounts/_form_field.html" with field=form.phone_number %}
+                    {% include "accounts/_phone_field.html" %}
                     {% include "accounts/_form_field.html" with field=form.county %}
                     {% include "accounts/_form_field.html" with field=form.town_city %}
 
@@ -208,9 +208,9 @@
             >
                 <h2 class="text-lg font-bold text-jam-red">Delete Account</h2>
                 <p class="mt-2 text-sm leading-relaxed text-jam-muted-on-grey">
-                    Permanently delete your account and all data linked to it.
-                    Photos and videos you uploaded to the gallery will remain
-                    visible, but without your name attached.
+                    Permanently delete your account and all data linked to it,
+                    including your profile photo, community posts and comments,
+                    gallery uploads, and event registrations.
                     <strong class="text-jam-white">This cannot be undone.</strong>
                 </p>
 

@@ -387,6 +387,17 @@ class User(AbstractUser):
     def __str__(self):
         return self.display_name or self.username
 
+    class Meta:
+        constraints = [
+            # Allow many blank phones (incomplete profiles); enforce uniqueness
+            # only when a real number is stored.
+            models.UniqueConstraint(
+                fields=["phone_number"],
+                condition=~models.Q(phone_number=""),
+                name="accounts_user_nonempty_phone_uniq",
+            ),
+        ]
+
 
 class SocialLink(models.Model):
     """
