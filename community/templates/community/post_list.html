@@ -24,9 +24,29 @@
                     Start a Discussion
                 </a>
             </div>
+            {% else %}
+            <div class="page-header__actions page-header__actions--visitor" data-aos="fade-up" data-aos-delay="100">
+                <p class="community-visitor-hint">
+                    Log in or register to read full posts and see members.
+                </p>
+                <div class="community-visitor-actions">
+                    <a
+                        href="{% url 'accounts:register' %}?next={% url 'community:list' %}"
+                        class="community-visitor-btn community-visitor-btn--primary"
+                    >
+                        Register
+                    </a>
+                    <a
+                        href="{% url 'accounts:login' %}?next={% url 'community:list' %}"
+                        class="community-visitor-btn community-visitor-btn--secondary"
+                    >
+                        Log in
+                    </a>
+                </div>
+            </div>
             {% endif %}
 
-            <div class="community-layout">
+            <div class="community-layout{% if not user.is_authenticated %} community-layout--solo{% endif %}">
                 <div class="community-layout__main">
                     {% if page_obj.object_list %}
                     <div class="community-list" data-aos="fade-up" data-aos-delay="120">
@@ -55,7 +75,11 @@
                                 </div>
 
                                 <h2 class="community-card__title">
+                                    {% if user.is_authenticated %}
                                     <a href="{% url 'community:post_detail' post.slug %}">{{ post.title }}</a>
+                                    {% else %}
+                                    <a href="{% url 'accounts:login' %}?next={% url 'community:post_detail' post.slug %}">{{ post.title }}</a>
+                                    {% endif %}
                                 </h2>
 
                                 <p class="community-card__excerpt">{{ post.body|truncatewords:40 }}</p>
@@ -73,7 +97,11 @@
                                         </svg>
                                         {{ post.likes.count }}
                                     </span>
+                                    {% if user.is_authenticated %}
                                     <a href="{% url 'community:post_detail' post.slug %}" class="community-card__readmore">Read more &rarr;</a>
+                                    {% else %}
+                                    <a href="{% url 'accounts:login' %}?next={% url 'community:post_detail' post.slug %}" class="community-card__readmore">Log in to read &rarr;</a>
+                                    {% endif %}
                                 </div>
                             </div>
                         </article>
@@ -99,7 +127,9 @@
                     {% endif %}
                 </div>
 
+                {% if user.is_authenticated %}
                 {% include "community/_members_sidebar.html" %}
+                {% endif %}
             </div>
         </div>
     </section>

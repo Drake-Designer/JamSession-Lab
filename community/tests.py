@@ -439,9 +439,28 @@ class CommunityPostListViewTests(TestCase):
         response = self.client.get(reverse("community:list"))
 
         self.assertContains(response, "A Great Session")
+        # Anonymous visitors are sent through login with next= detail URL.
+        detail_url = reverse("community:post_detail", args=[post.slug])
+        self.assertContains(response, detail_url)
+        self.assertContains(response, "Log in to read")
+        self.assertContains(response, "community-layout--solo")
+        self.assertNotContains(response, "members-sidebar")
+
+    def test_authenticated_list_links_directly_to_detail_and_shows_members(self):
+        post = _make_post(
+            self.author, title="Member Session", status=ApprovalStatus.APPROVED
+        )
+        self.client.force_login(self.author)
+
+        response = self.client.get(reverse("community:list"))
+
+        self.assertContains(response, "Member Session")
         self.assertContains(
             response, reverse("community:post_detail", args=[post.slug])
         )
+        self.assertContains(response, "Read more")
+        self.assertNotContains(response, "community-layout--solo")
+        self.assertContains(response, "members-sidebar")
 
     def test_empty_list_shows_the_empty_state_message(self):
         response = self.client.get(reverse("community:list"))
@@ -477,8 +496,17 @@ class CommunityPostDetailViewTests(TestCase):
         self.author = _make_user("detail_author")
         self.other = _make_user("detail_other")
 
-    def test_approved_post_is_public(self):
+    def test_approved_post_requires_login(self):
         post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        detail_url = reverse("community:post_detail", args=[post.slug])
+
+        response = self.client.get(detail_url)
+
+        self.assertRedirects(response, f"/accounts/login/?next={detail_url}")
+
+    def test_approved_post_is_readable_by_members(self):
+        post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.other)
 
         response = self.client.get(
             reverse("community:post_detail", args=[post.slug])
@@ -491,6 +519,7 @@ class CommunityPostDetailViewTests(TestCase):
         post = _make_post(self.author, status=ApprovalStatus.APPROVED)
         _attach_cover(post)
         expected_url = post.cover_detail_url
+        self.client.force_login(self.other)
 
         response = self.client.get(
             reverse("community:post_detail", args=[post.slug])
@@ -504,6 +533,7 @@ class CommunityPostDetailViewTests(TestCase):
 
     def test_detail_shows_cover_fallback_when_absent(self):
         post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.other)
 
         response = self.client.get(
             reverse("community:post_detail", args=[post.slug])
@@ -535,12 +565,11 @@ class CommunityPostDetailViewTests(TestCase):
 
     def test_anonymous_cannot_see_pending_post(self):
         post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        detail_url = reverse("community:post_detail", args=[post.slug])
 
-        response = self.client.get(
-            reverse("community:post_detail", args=[post.slug])
-        )
+        response = self.client.get(detail_url)
 
-        self.assertEqual(response.status_code, 404)
+        self.assertRedirects(response, f"/accounts/login/?next={detail_url}")
 
     def test_author_cannot_open_own_rejected_post(self):
         post = _make_post(self.author, status=ApprovalStatus.REJECTED)
@@ -564,12 +593,11 @@ class CommunityPostDetailViewTests(TestCase):
 
     def test_anonymous_cannot_open_rejected_post(self):
         post = _make_post(self.author, status=ApprovalStatus.REJECTED)
+        detail_url = reverse("community:post_detail", args=[post.slug])
 
-        response = self.client.get(
-            reverse("community:post_detail", args=[post.slug])
-        )
+        response = self.client.get(detail_url)
 
-        self.assertEqual(response.status_code, 404)
+        self.assertRedirects(response, f"/accounts/login/?next={detail_url}")
 
     def test_pending_badge_is_shown_to_the_author_previewing_their_own_post(self):
         post = _make_post(self.author, status=ApprovalStatus.PENDING)
@@ -583,6 +611,7 @@ class CommunityPostDetailViewTests(TestCase):
 
     def test_approved_post_page_does_not_show_pending_badge(self):
         post = _make_post(self.author, status=ApprovalStatus.APPROVED)
+        self.client.force_login(self.other)
 
         response = self.client.get(
             reverse("community:post_detail", args=[post.slug])
@@ -597,6 +626,7 @@ class CommunityPostDetailViewTests(TestCase):
             file="image/upload/v1/photo_id.jpg",
             media_type=MediaType.IMAGE,
         )
+        self.client.force_login(self.other)
 
         response = self.client.get(
             reverse("community:post_detail", args=[post.slug])
@@ -605,7 +635,7 @@ class CommunityPostDetailViewTests(TestCase):
         self.assertContains(response, "community-media-item__image")
         self.assertContains(response, 'data-gallery-group="photos"')
         self.assertContains(response, 'id="gallery-lightbox"')
-        self.assertContains(response, "gallery/js/gallery.js")
+        self.assertContains(response, "gallery/js/gallery")
 
     def test_author_sees_the_delete_button_on_their_own_post(self):
         post = _make_post(self.author, status=ApprovalStatus.APPROVED)
@@ -3057,6 +3087,18 @@ class CommunityMembersSidebarTests(TestCase):
     def setUp(self):
         self.author = _make_user("sidebar_author")
 
+    def test_anonymous_list_hides_members_sidebar(self):
+        response = self.client.get(reverse("community:list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("community_members", response.context)
+        self.assertNotContains(response, "members-sidebar")
+        self.assertContains(response, "community-layout--solo")
+        self.assertContains(response, "Log in")
+        self.assertContains(response, "Register")
+        self.assertContains(response, "community-visitor-btn--primary")
+        self.assertContains(response, "community-visitor-btn--secondary")
+
     def test_list_includes_members_sorted_case_insensitive(self):
         zeta = _make_user("zeta_member")
         User.objects.filter(pk=zeta.pk).update(display_name="zeta")
@@ -3065,6 +3107,7 @@ class CommunityMembersSidebarTests(TestCase):
         alpha = _make_user("gamma_member")
         User.objects.filter(pk=alpha.pk).update(display_name="alpha")
 
+        self.client.force_login(self.author)
         response = self.client.get(reverse("community:list"))
 
         self.assertEqual(response.status_code, 200)
@@ -3079,16 +3122,18 @@ class CommunityMembersSidebarTests(TestCase):
         post = _make_post(
             self.author, title="Sidebar Post", status=ApprovalStatus.APPROVED
         )
+        self.client.force_login(self.author)
+
         list_response = self.client.get(reverse("community:list"))
         self.assertEqual(list_response.status_code, 200)
         self.assertContains(list_response, "members-sidebar")
+        self.assertNotContains(list_response, "community-layout--solo")
 
         detail = self.client.get(reverse("community:post_detail", args=[post.slug]))
         self.assertEqual(detail.status_code, 200)
         self.assertNotContains(detail, "members-sidebar")
         self.assertContains(detail, "community-detail")
 
-        self.client.force_login(self.author)
         create = self.client.get(reverse("community:post_create"))
         self.assertEqual(create.status_code, 200)
         self.assertIn("community_members", create.context)
@@ -3101,6 +3146,7 @@ class CommunityMembersSidebarTests(TestCase):
         profile_url = reverse(
             "accounts:profile_detail", args=[self.author.username]
         )
+        self.client.force_login(self.author)
 
         list_response = self.client.get(reverse("community:list"))
         self.assertContains(list_response, profile_url)
@@ -3123,6 +3169,7 @@ class CommunityMembersSidebarTests(TestCase):
             body="Hello from the sidebar era.",
             status=ApprovalStatus.APPROVED,
         )
+        self.client.force_login(self.author)
 
         response = self.client.get(
             reverse("community:post_detail", args=[post.slug])
@@ -3137,11 +3184,20 @@ class CommunityMembersSidebarTests(TestCase):
         post = _make_post(
             self.author, title="Orphan Post", status=ApprovalStatus.APPROVED
         )
-        self.author.delete()
+        # Simulate a retained orphan credit without cascade-deleting the post
+        # (account erasure uses CASCADE; this path covers author=None display).
+        CommunityPost.objects.filter(pk=post.pk).update(author=None)
+        viewer = _make_user("orphan_viewer")
+        self.client.force_login(viewer)
 
         response = self.client.get(reverse("community:list"))
         self.assertContains(response, "Deleted account")
-        self.assertNotContains(response, 'class="user-badge')
+        self.assertContains(response, "user-credit__deleted")
+        # Live members in the sidebar still have badges; orphan credits must not.
+        deleted_credit = response.content.decode().split("user-credit__deleted", 1)[1][
+            :400
+        ]
+        self.assertNotIn('class="user-badge', deleted_credit)
 
     def test_sidebar_query_count_does_not_grow_with_member_count(self):
         """
@@ -3152,6 +3208,9 @@ class CommunityMembersSidebarTests(TestCase):
         """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
+
+        viewer = _make_user("sidebar_perf_viewer")
+        self.client.force_login(viewer)
 
         def member_list_query_count():
             with CaptureQueriesContext(connection) as captured:
@@ -3194,6 +3253,7 @@ class CommunityMembersSidebarTests(TestCase):
         Assert the Alpine accordion contract: closed by default, toggle wiring
         present, and community.js loaded (no browser automation in this project).
         """
+        self.client.force_login(self.author)
         response = self.client.get(reverse("community:list"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'x-data="membersSidebar()"')

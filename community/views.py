@@ -97,10 +97,14 @@ def post_list(request):
     return render(request, "community/post_list.html", {"page_obj": page_obj})
 
 
+@login_required
 def post_detail(request, slug):
     """
-    Public detail for an approved post; the author may also preview their own
-    post while it is still pending approval (flagged for a badge in the template).
+    Full post for logged-in members only.
+
+    Approved posts are readable by any authenticated user. The author may also
+    preview their own post while it is still pending approval (flagged for a
+    badge in the template). Anonymous visitors are redirected to login.
     """
     post = _visible_post_or_404(request, slug)
 
@@ -119,10 +123,8 @@ def post_detail(request, slug):
         # template, but post_edit/post_delete (and comment counterparts)
         # re-check permissions themselves — the template never is the
         # source of truth.
-        "user_has_liked": user.is_authenticated
-        and post.likes.filter(user=user).exists(),
-        "can_manage_post": user.is_authenticated
-        and _user_can_moderate_or_owns(user, post.author_id),
+        "user_has_liked": post.likes.filter(user=user).exists(),
+        "can_manage_post": _user_can_moderate_or_owns(user, post.author_id),
     }
     return render(request, "community/post_detail.html", context)
 

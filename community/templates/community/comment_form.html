@@ -93,7 +93,9 @@
                     </form>
                 </div>
 
+                {% if user.is_authenticated %}
                 {% include "community/_members_sidebar.html" %}
+                {% endif %}
             </div>
         </div>
     </section>

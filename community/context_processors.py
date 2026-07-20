@@ -2,27 +2,32 @@
 
 from accounts.members import get_active_members
 
-# Public Community pages that show the members sidebar.
+# Community pages that show the members sidebar (logged-in members only).
 _COMMUNITY_SIDEBAR_URL_NAMES = frozenset(
     {
         "list",
-        "post_detail",
         "post_create",
+        "post_edit",
+        "comment_edit",
     }
 )
 
 
 def community_members(request):
     """
-    Inject the active-members list on list / detail / create Community pages.
+    Inject the active-members list on Community pages that show the sidebar.
 
-    Other Community routes (moderation, admin tool) are left alone so staff
-    tools keep a full-width layout.
+    Anonymous visitors never receive this context — the Members list is for
+    registered members only. Staff tools (moderation, admin tool) are left
+    alone so they keep a full-width layout.
 
     The queryset is evaluated once into a list so the template can iterate and
     show a count without a second COUNT query (and without N+1 risk —
     ``badge_info`` / avatars only use columns already on the User row).
     """
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return {}
+
     match = getattr(request, "resolver_match", None)
     if match is None or match.app_name != "community":
         return {}
