@@ -1,0 +1,54 @@
+{% extends "accounts/emails/base_email.html" %}
+
+{% block title %}New member registration{% endblock %}
+
+{% block content %}
+    <h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.25;font-weight:800;color:#E63946;">
+        New member registered
+    </h1>
+    <p style="margin:0 0 20px 0;font-size:15px;line-height:1.6;color:#A3A3A3;">
+        Someone just created an account on JamSession Lab.
+    </p>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#737373;">Display name</p>
+    <p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#FFFFFF;">
+        {{ member.public_display_name }}
+    </p>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#737373;">Username</p>
+    <p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#FFFFFF;">
+        @{{ member.username }}
+    </p>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#737373;">Email</p>
+    <p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#FFFFFF;">
+        <a href="mailto:{{ member.email }}" style="color:#E63946;text-decoration:underline;">{{ member.email }}</a>
+    </p>
+
+    {% if instruments_display %}
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#737373;">Instrument(s)</p>
+    <p style="margin:0 0 24px 0;font-size:15px;line-height:1.5;color:#FFFFFF;">
+        {{ instruments_display }}
+    </p>
+    {% endif %}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px 0;">
+        <tr>
+            <td align="center" style="border-radius:12px;background-color:#E63946;">
+                <a
+                    href="{{ profile_url }}"
+                    style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:700;line-height:1.2;color:#000000;text-decoration:none;border-radius:12px;"
+                >
+                    View profile
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.55;color:#737373;">
+        Or open this link:
+    </p>
+    <p style="margin:0;font-size:12px;line-height:1.5;word-break:break-all;">
+        <a href="{{ profile_url }}" style="color:#E63946;text-decoration:underline;">{{ profile_url }}</a>
+    </p>
+{% endblock %}

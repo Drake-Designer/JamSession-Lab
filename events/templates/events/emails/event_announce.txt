@@ -1,0 +1,15 @@
+New jam session · JamSession Lab
+
+Hi {{ user.display_name|default:user.username }},
+
+A new JamSession Lab event is live.
+
+Event: {{ event.title }}
+When: {{ event.starts_at|date:"l, j F Y · g:i A" }} – {{ event.ends_at|date:"g:i A" }}
+Where: {{ event.venue_name }} · {{ event.address }}
+
+View the event:
+{{ event_url }}
+
+See you there!
+The JamSession Lab Team

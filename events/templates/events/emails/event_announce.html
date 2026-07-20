@@ -1,0 +1,57 @@
+{% extends "accounts/emails/base_email.html" %}
+
+{% block title %}New jam session announced{% endblock %}
+
+{% block content %}
+    <h1 style="margin:0 0 12px 0;font-size:26px;line-height:1.25;font-weight:800;color:#E63946;">
+        New jam session
+    </h1>
+    <p style="margin:0 0 20px 0;font-size:16px;line-height:1.55;color:#FFFFFF;">
+        Hi {{ user.display_name|default:user.username }},
+    </p>
+    <p style="margin:0 0 20px 0;font-size:15px;line-height:1.6;color:#A3A3A3;">
+        A new JamSession Lab event is live. Join us for another night of music.
+    </p>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#737373;">Event</p>
+    <p style="margin:0 0 16px 0;font-size:17px;line-height:1.4;font-weight:700;color:#FFFFFF;">
+        {{ event.title }}
+    </p>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#737373;">When</p>
+    <p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#FFFFFF;">
+        {{ event.starts_at|date:"l, j F Y · g:i A" }}
+        –
+        {{ event.ends_at|date:"g:i A" }}
+    </p>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5;color:#737373;">Where</p>
+    <p style="margin:0 0 24px 0;font-size:15px;line-height:1.5;color:#FFFFFF;">
+        {{ event.venue_name }} · {{ event.address }}
+    </p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px 0;">
+        <tr>
+            <td align="center" style="border-radius:12px;background-color:#E63946;">
+                <a
+                    href="{{ event_url }}"
+                    style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:700;line-height:1.2;color:#000000;text-decoration:none;border-radius:12px;"
+                >
+                    View event
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    <p style="margin:0 0 8px 0;font-size:13px;line-height:1.55;color:#737373;">
+        Or copy and paste this link into your browser:
+    </p>
+    <p style="margin:0 0 28px 0;font-size:12px;line-height:1.5;word-break:break-all;">
+        <a href="{{ event_url }}" style="color:#E63946;text-decoration:underline;">{{ event_url }}</a>
+    </p>
+
+    <p style="margin:0;font-size:15px;line-height:1.55;color:#FFFFFF;">
+        See you there!<br>
+        <span style="color:#A3A3A3;">The JamSession Lab Team</span>
+    </p>
+{% endblock %}

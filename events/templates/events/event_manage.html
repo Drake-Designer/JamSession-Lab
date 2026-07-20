@@ -93,6 +93,9 @@
                                 <a href="{% url 'events:edit' event.pk %}" class="event-manage__action">Edit</a>
                                 <a href="{% url 'events:delete' event.pk %}" class="event-manage__action event-manage__action--danger">Delete</a>
                                 <a href="{% url 'events:detail' event.pk %}" class="event-manage__action">Public page</a>
+                                <a href="{% url 'events:notify_members' event.pk %}" class="event-manage__action event-manage__action--notify">
+                                    Email all members
+                                </a>
                                 <form method="post" action="{% url 'events:toggle_active' event.pk %}">
                                     {% csrf_token %}
                                     <button type="submit" class="event-manage__tool-btn">

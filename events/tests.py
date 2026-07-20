@@ -202,3 +202,66 @@ class EventViewTests(TestCase):
             reverse("events:toggle_active", kwargs={"pk": self.event.pk})
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_notify_members_requires_moderator(self):
+        self.client.login(username="member1", password="jam-session-test-pass1")
+        response = self.client.get(
+            reverse("events:notify_members", kwargs={"pk": self.event.pk})
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_notify_members_confirm_page_for_staff(self):
+        self.client.login(username="staffer", password="jam-session-test-pass1")
+        response = self.client.get(
+            reverse("events:notify_members", kwargs={"pk": self.event.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Email all members?")
+        self.assertContains(response, self.event.title)
+        self.assertContains(response, "Yes, send emails")
+
+    def test_notify_members_sends_branded_email_to_active_members(self):
+        from django.core import mail
+
+        other = _make_user("member2")
+        self.client.login(username="staffer", password="jam-session-test-pass1")
+        response = self.client.post(
+            reverse("events:notify_members", kwargs={"pk": self.event.pk})
+        )
+        self.assertEqual(response.status_code, 302)
+        # staffer + member1 + member2
+        self.assertEqual(len(mail.outbox), 3)
+        detail_path = reverse("events:detail", kwargs={"pk": self.event.pk})
+        for message in mail.outbox:
+            self.assertIn("New jam session", message.subject)
+            self.assertIn(detail_path, message.body)
+            html_parts = [
+                content
+                for content, mime in message.alternatives
+                if mime == "text/html"
+            ]
+            self.assertEqual(len(html_parts), 1)
+            self.assertIn("View event", html_parts[0])
+            self.assertIn(detail_path, html_parts[0])
+            self.assertIn("#E63946", html_parts[0])
+            self.assertIn(self.event.title, html_parts[0])
+
+        recipients = {message.to[0] for message in mail.outbox}
+        self.assertEqual(
+            recipients,
+            {
+                self.staff.email,
+                self.member.email,
+                other.email,
+            },
+        )
+
+    def test_manage_page_shows_notify_action(self):
+        self.client.login(username="staffer", password="jam-session-test-pass1")
+        response = self.client.get(reverse("events:manage"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Email all members")
+        self.assertContains(
+            response,
+            reverse("events:notify_members", kwargs={"pk": self.event.pk}),
+        )

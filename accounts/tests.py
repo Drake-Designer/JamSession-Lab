@@ -333,6 +333,11 @@ class RegistrationViewTests(TestCase):
         self.assertContains(response, "Create My Account")
 
     def test_successful_registration_logs_in_and_sends_email(self):
+        User.objects.create_superuser(
+            username="founder_alert",
+            email="founder@example.com",
+            password="TestPass123!",
+        )
         response = self.client.post(
             reverse("accounts:register"),
             data=valid_registration_data(),
@@ -342,17 +347,38 @@ class RegistrationViewTests(TestCase):
         user = User.objects.get(email="aoife@example.com")
         self.assertEqual(int(self.client.session["_auth_user_id"]), user.pk)
 
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn(str(user.email_verification_token), mail.outbox[0].body)
-        self.assertIn("aoife@example.com", mail.outbox[0].to)
+        self.assertEqual(len(mail.outbox), 2)
+        verification = next(
+            message for message in mail.outbox if "aoife@example.com" in message.to
+        )
+        staff_alert = next(
+            message for message in mail.outbox if "founder@example.com" in message.to
+        )
+        self.assertIn(str(user.email_verification_token), verification.body)
+        self.assertIn("aoife@example.com", verification.to)
         html_parts = [
             content
-            for content, mime in mail.outbox[0].alternatives
+            for content, mime in verification.alternatives
             if mime == "text/html"
         ]
         self.assertEqual(len(html_parts), 1)
         self.assertIn(str(user.email_verification_token), html_parts[0])
         self.assertIn("#E63946", html_parts[0])
+
+        self.assertIn("New member registered", staff_alert.subject)
+        profile_path = reverse(
+            "accounts:profile_detail", kwargs={"username": user.username}
+        )
+        self.assertIn(profile_path, staff_alert.body)
+        alert_html = [
+            content
+            for content, mime in staff_alert.alternatives
+            if mime == "text/html"
+        ]
+        self.assertEqual(len(alert_html), 1)
+        self.assertIn(profile_path, alert_html[0])
+        self.assertIn("View profile", alert_html[0])
+        self.assertIn("#E63946", alert_html[0])
 
     def test_welcome_page_shows_whatsapp_link(self):
         self.client.post(

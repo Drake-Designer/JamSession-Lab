@@ -1,17 +1,20 @@
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods, require_POST
 
 from registrations.models import EventRegistration, RsvpStatus
 from registrations.views import registration_list_context
 
+from .emails import queue_event_announcement_emails
 from .forms import EventForm
 from .models import Event
+
+User = get_user_model()
 
 
 def _require_moderator(user):
@@ -112,8 +115,14 @@ def event_create(request):
         form = EventForm(request.POST, request.FILES)
         if form.is_valid():
             event = form.save()
-            messages.success(request, _("Event created successfully."))
-            return redirect("events:manage")
+            messages.success(
+                request,
+                _(
+                    "Event created successfully. "
+                    "You can email all members from Manage Events when you are ready."
+                ),
+            )
+            return redirect(f"{reverse('events:manage')}#event-{event.pk}")
     else:
         form = EventForm()
     return render(
@@ -158,6 +167,48 @@ def event_delete(request, pk):
         request,
         "events/event_confirm_delete.html",
         {"event": event},
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def event_notify_members(request, pk):
+    """
+    Staff-only: manually email every active member about this event.
+
+    GET shows a confirmation page. POST queues the branded announcement.
+    Never runs automatically on create — staff must opt in here.
+    """
+    _require_moderator(request.user)
+    event = get_object_or_404(Event, pk=pk)
+
+    if request.method == "POST":
+        recipient_count = queue_event_announcement_emails(event, request)
+        if recipient_count:
+            messages.success(
+                request,
+                _(
+                    "Announcement queued for %(count)s member(s)."
+                )
+                % {"count": recipient_count},
+            )
+        else:
+            messages.warning(
+                request,
+                _("No members with an email address were found to notify."),
+            )
+        return redirect(f"{reverse('events:manage')}#event-{event.pk}")
+
+    member_count = (
+        User.objects.filter(is_active=True).exclude(email="").count()
+    )
+    return render(
+        request,
+        "events/event_confirm_notify.html",
+        {
+            "event": event,
+            "member_count": member_count,
+        },
     )
 
 

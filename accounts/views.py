@@ -24,6 +24,7 @@ from registrations.models import EventRegistration, RsvpStatus
 
 from .constants import TOWNS_BY_COUNTY, Instrument, MusicGenre
 from .emails import (
+    queue_new_user_alert,
     queue_verification_email,
     send_email_change_notice,
     send_email_change_verification,
@@ -221,6 +222,7 @@ def register(request):
             # turn a successful signup into a 500. Failures are logged inside
             # accounts.emails; the member can use "resend verification".
             queue_verification_email(user, request)
+            queue_new_user_alert(user, request)
             user.record_verification_email_sent()
             # Soft-block: stay signed in, but middleware restricts member
             # actions until the email is verified.

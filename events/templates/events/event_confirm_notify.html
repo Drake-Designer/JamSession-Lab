@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}JamSession Lab · Notify members · {{ event.title }}{% endblock %}
+
+{% block content %}
+    <section class="bg-jam-black py-16 sm:py-24">
+        <div class="page-shell page-shell--narrow">
+            <div class="rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up">
+                <header class="page-header">
+                    <h1 class="page-header__title">Email all members?</h1>
+                    <p class="page-header__lead">
+                        Send a branded announcement about
+                        <span class="font-semibold text-jam-white">{{ event.title }}</span>
+                        to every active member with an email address
+                        ({{ member_count }} recipient{{ member_count|pluralize }}).
+                    </p>
+                    <p class="page-header__meta">
+                        Each email includes the date, venue, and a button that opens the
+                        public event page. This does not send automatically when you create
+                        an event — only when you confirm here.
+                    </p>
+                </header>
+                <form method="post" class="mt-8 flex flex-wrap gap-3">
+                    {% csrf_token %}
+                    <button
+                        type="submit"
+                        class="inline-flex items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black transition hover:bg-jam-red-hover"
+                    >
+                        Yes, send emails
+                    </button>
+                    <a
+                        href="{% url 'events:manage' %}#event-{{ event.pk }}"
+                        class="inline-flex items-center justify-center rounded-xl border border-jam-grey-light px-6 py-3 text-base font-semibold text-jam-white"
+                    >
+                        Cancel
+                    </a>
+                </form>
+            </div>
+        </div>
+    </section>
+{% endblock %}

@@ -20,6 +20,7 @@ VERIFICATION_EMAIL_SUBJECT = "Welcome to JamSession Lab · please verify your em
 EMAIL_CHANGE_SUBJECT = "Confirm your new email · JamSession Lab"
 EMAIL_CHANGE_NOTICE_SUBJECT = "Email change requested · JamSession Lab"
 PASSWORD_RESET_SUBJECT = "Reset your password · JamSession Lab"
+NEW_USER_ALERT_SUBJECT = "New member registered · JamSession Lab"
 
 
 @dataclass(frozen=True)
@@ -200,6 +201,70 @@ def queue_verification_email(user, request) -> None:
     user_pk = user.pk
     content = _build_verification_message(user, request)
     _queue_or_send(recipient, user_pk, content)
+
+
+def _superuser_alert_recipients():
+    """
+    Active superuser emails (the personal inbox(es) that should hear about
+    new sign-ups). Skips blank addresses. Deduplicated, order-stable.
+    """
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    emails = []
+    seen = set()
+    for email in (
+        User.objects.filter(is_active=True, is_superuser=True)
+        .exclude(email="")
+        .values_list("email", flat=True)
+    ):
+        normalised = (email or "").strip().lower()
+        if not normalised or normalised in seen:
+            continue
+        seen.add(normalised)
+        emails.append(email.strip())
+    return emails
+
+
+def _build_new_user_alert(member, request) -> EmailContent:
+    """Staff alert: branded notice that a new member signed up."""
+    instruments = member.get_instruments_display()
+    context = {
+        **_common_email_context(member, request),
+        "member": member,
+        "instruments_display": ", ".join(instruments) if instruments else "",
+        "profile_url": request.build_absolute_uri(
+            reverse(
+                "accounts:profile_detail",
+                kwargs={"username": member.username},
+            )
+        ),
+    }
+    text = render_to_string("accounts/emails/new_user_alert.txt", context)
+    html = render_to_string("accounts/emails/new_user_alert.html", context)
+    return EmailContent(text=text, html=html, subject=NEW_USER_ALERT_SUBJECT)
+
+
+def queue_new_user_alert(member, request) -> None:
+    """
+    Notify every active superuser that ``member`` just registered.
+
+    Non-blocking in production (same pattern as verification). Never raises.
+    Uses each superuser's personal account email as the recipient; the From
+    address stays ``DEFAULT_FROM_EMAIL`` (staff@jamsessionlab.ie) for
+    deliverability on the verified sending domain.
+    """
+    recipients = _superuser_alert_recipients()
+    if not recipients:
+        logger.warning(
+            "New-user alert skipped for user %s — no active superuser emails",
+            member.pk,
+        )
+        return
+
+    content = _build_new_user_alert(member, request)
+    for recipient in recipients:
+        _queue_or_send(recipient, member.pk, content)
 
 
 def send_email_change_verification(user, request) -> bool:

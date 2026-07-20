@@ -13,6 +13,11 @@ urlpatterns = [
     path("<int:pk>/", views.event_detail, name="detail"),
     path("<int:pk>/edit/", views.event_edit, name="edit"),
     path("<int:pk>/delete/", views.event_delete, name="delete"),
+    path(
+        "<int:pk>/notify-members/",
+        views.event_notify_members,
+        name="notify_members",
+    ),
     path("<int:pk>/toggle-active/", views.event_toggle_active, name="toggle_active"),
     path(
         "<int:pk>/toggle-registrations/",

@@ -1,0 +1,11 @@
+New member registered · JamSession Lab
+
+Someone just created an account on JamSession Lab.
+
+Display name: {{ member.public_display_name }}
+Username: @{{ member.username }}
+Email: {{ member.email }}
+{% if instruments_display %}Instrument(s): {{ instruments_display }}
+{% endif %}
+View their profile:
+{{ profile_url }}

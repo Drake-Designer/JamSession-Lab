@@ -153,6 +153,14 @@
     color: #ff4d5a;
 }
 
+.event-manage__action--notify {
+    color: #e63946;
+}
+
+.event-manage__action--notify:hover {
+    color: #ff4d5a;
+}
+
 .event-manage__tool-btn {
     border-radius: 0.5rem;
     border: 1px solid #404040;
