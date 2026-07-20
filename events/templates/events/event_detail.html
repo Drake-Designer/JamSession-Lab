@@ -2,6 +2,21 @@
 {% load static %}
 
 {% block title %}JamSession Lab · {{ event.title }}{% endblock %}
+{% block og_title %}{{ event.title }} · JamSession Lab{% endblock %}
+{% block twitter_title %}{{ event.title }} · JamSession Lab{% endblock %}
+{% block meta_description %}{% if event.description %}{{ event.description|striptags|truncatechars:155 }}{% else %}{{ event.title }} at {{ event.venue_name }}, {{ event.address }}. {{ event.starts_at|date:"j F Y · g:i A" }}. Join this JamSession Lab jam in Dublin.{% endif %}{% endblock %}
+{% block og_description %}{% if event.description %}{{ event.description|striptags|truncatechars:155 }}{% else %}{{ event.title }} at {{ event.venue_name }}, {{ event.address }}. {{ event.starts_at|date:"j F Y · g:i A" }}. Join this JamSession Lab jam in Dublin.{% endif %}{% endblock %}
+{% block twitter_description %}{% if event.description %}{{ event.description|striptags|truncatechars:155 }}{% else %}{{ event.title }} at {{ event.venue_name }}, {{ event.address }}. {{ event.starts_at|date:"j F Y · g:i A" }}. Join this JamSession Lab jam in Dublin.{% endif %}{% endblock %}
+{% block og_type %}event{% endblock %}
+{% block og_image %}{% if event.display_poster_url %}{{ event.display_poster_url }}{% else %}{{ seo_og_image }}{% endif %}{% endblock %}
+{% block twitter_image %}{% if event.display_poster_url %}{{ event.display_poster_url }}{% else %}{{ seo_og_image }}{% endif %}{% endblock %}
+{% block og_image_alt %}Poster for {{ event.title }}{% endblock %}
+{% block meta_robots %}{% if event.is_active %}index, follow{% else %}noindex, nofollow{% endif %}{% endblock %}
+
+{% block structured_data %}
+{{ block.super }}
+<script type="application/ld+json">{{ event_json_ld|safe }}</script>
+{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'events/css/event_detail.css' %}">

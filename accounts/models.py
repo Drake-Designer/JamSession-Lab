@@ -245,6 +245,14 @@ class User(AbstractUser):
             return None
         return calculate_age(self.date_of_birth)
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse(
+            "accounts:profile_detail",
+            kwargs={"username": self.username},
+        )
+
     @property
     def has_pending_email_change(self):
         """True when the member must confirm a new email address."""

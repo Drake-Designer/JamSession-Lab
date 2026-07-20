@@ -2,6 +2,7 @@
 {% load static %}
 
 {% block title %}JamSession Lab · Attendees · {{ event.title }}{% endblock %}
+{% block meta_robots %}noindex, nofollow{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'registrations/css/staff_lists.css' %}">

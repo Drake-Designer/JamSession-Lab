@@ -256,3 +256,46 @@ class AboutOrganiserTests(TestCase):
         organiser = form.save()
         self.assertEqual(organiser.photo_focus_x, 30.0)
         self.assertEqual(organiser.photo_focus_y, 70.0)
+
+
+@override_settings(SITE_URL="https://jamsessionlab.ie")
+class SeoReadinessTests(TestCase):
+    """Meta tags, robots.txt, and sitemap for search engines."""
+
+    def test_home_includes_core_seo_tags(self):
+        response = self.client.get(reverse("pages:home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="description"', html=False)
+        self.assertContains(response, 'property="og:title"', html=False)
+        self.assertContains(response, 'property="og:image"', html=False)
+        self.assertContains(response, 'name="twitter:card"', html=False)
+        self.assertContains(
+            response,
+            'href="https://jamsessionlab.ie/"',
+            html=False,
+        )
+        self.assertContains(response, 'type="application/ld+json"', html=False)
+        self.assertContains(response, '"@type":"Organization"', html=False)
+        self.assertContains(response, '"@type":"WebSite"', html=False)
+
+    def test_login_is_noindex(self):
+        response = self.client.get(reverse("accounts:login"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'content="noindex, nofollow"', html=False)
+
+    def test_robots_txt_lists_sitemap_and_disallows_admin(self):
+        response = self.client.get(reverse("robots_txt"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/plain; charset=utf-8")
+        body = response.content.decode()
+        self.assertIn("Disallow: /admin/", body)
+        self.assertIn("Sitemap: https://jamsessionlab.ie/sitemap.xml", body)
+
+    def test_sitemap_xml_includes_public_pages(self):
+        response = self.client.get(reverse("sitemap"))
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertIn("<urlset", body)
+        self.assertIn("https://jamsessionlab.ie/", body)
+        self.assertIn("https://jamsessionlab.ie/about/", body)
+        self.assertIn("https://jamsessionlab.ie/events/", body)

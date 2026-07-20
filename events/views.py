@@ -1,8 +1,12 @@
+import json
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
+from django.templatetags.static import static
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods, require_POST
@@ -92,6 +96,54 @@ def event_detail(request, pk):
             .first()
         )
 
+    site_url = settings.SITE_URL.rstrip("/")
+    description = (event.description or "").strip()
+    if not description:
+        description = (
+            f"JamSession Lab jam session at {event.venue_name}."
+        )
+    event_json_ld = {
+        "@context": "https://schema.org",
+        "@type": "MusicEvent",
+        "name": event.title,
+        "description": description[:300],
+        "url": f"{site_url}{event.get_absolute_url()}",
+        "eventStatus": (
+            "https://schema.org/EventScheduled"
+            if event.is_active
+            else "https://schema.org/EventCancelled"
+        ),
+        "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+        "startDate": event.starts_at.isoformat(),
+        "endDate": event.ends_at.isoformat(),
+        "image": [
+            event.display_poster_url
+            if event.display_poster_url
+            else f"{site_url}{static(settings.SEO_DEFAULT_OG_IMAGE)}"
+        ],
+        "location": {
+            "@type": "Place",
+            "name": event.venue_name,
+            "address": {
+                "@type": "PostalAddress",
+                "streetAddress": event.address,
+                "addressLocality": "Dublin",
+                "addressCountry": "IE",
+            },
+        },
+        "organizer": {
+            "@type": "Organization",
+            "name": settings.SITE_NAME,
+            "url": site_url,
+        },
+        "performer": {
+            "@type": "Organization",
+            "name": settings.SITE_NAME,
+        },
+    }
+    if event.location_url:
+        event_json_ld["location"]["url"] = event.location_url
+
     return render(
         request,
         "events/event_detail.html",
@@ -101,6 +153,11 @@ def event_detail(request, pk):
             "is_registered": bool(
                 user_registration
                 and user_registration.rsvp_status == RsvpStatus.REGISTERED
+            ),
+            "event_json_ld": json.dumps(
+                event_json_ld,
+                ensure_ascii=False,
+                separators=(",", ":"),
             ),
         },
     )

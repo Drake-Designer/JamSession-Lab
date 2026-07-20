@@ -44,6 +44,11 @@ class Event(models.Model):
     def __str__(self):
         return self.title or f"JamSession @ {self.venue_name}"
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse("events:detail", kwargs={"pk": self.pk})
+
     def clean(self):
         super().clean()
         if self.starts_at and self.ends_at and self.ends_at <= self.starts_at:

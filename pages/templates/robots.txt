@@ -1,0 +1,37 @@
+{# robots.txt — keep private/auth/staff paths out of search indexes. #}
+User-agent: *
+Allow: /
+
+Disallow: /admin/
+Disallow: /accounts/login/
+Disallow: /accounts/register/
+Disallow: /accounts/logout/
+Disallow: /accounts/password-reset/
+Disallow: /accounts/welcome/
+Disallow: /accounts/verify-email/
+Disallow: /accounts/settings/
+Disallow: /accounts/profile/edit/
+Disallow: /accounts/profile/picture/
+Disallow: /accounts/profile/delete/
+Disallow: /accounts/profile/social-links/
+Disallow: /events/manage/
+Disallow: /events/create/
+Disallow: /events/*/edit/
+Disallow: /events/*/delete/
+Disallow: /events/*/notify-members/
+Disallow: /events/*/toggle-active/
+Disallow: /events/*/toggle-registrations/
+Disallow: /events/*/register/
+Disallow: /events/*/cancel/
+Disallow: /events/*/attendees/
+Disallow: /gallery/upload/
+Disallow: /community/post/new/
+Disallow: /community/post/*/edit/
+Disallow: /community/post/*/delete/
+Disallow: /community/post/*/like/
+Disallow: /community/post/*/comment/
+Disallow: /community/comment/
+Disallow: /community/moderate/
+Disallow: /community/admin-tool/
+
+Sitemap: {{ seo_site_url }}/sitemap.xml

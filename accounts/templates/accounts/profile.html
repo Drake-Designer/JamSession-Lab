@@ -2,6 +2,15 @@
 {% load static %}
 
 {% block title %}JamSession Lab · {{ profile_user.display_name|default:profile_user.username }}{% endblock %}
+{% block og_title %}{{ profile_user.display_name|default:profile_user.username }} · JamSession Lab{% endblock %}
+{% block twitter_title %}{{ profile_user.display_name|default:profile_user.username }} · JamSession Lab{% endblock %}
+{% block meta_description %}{{ profile_user.display_name|default:profile_user.username }} on JamSession Lab{% if profile_user.get_instruments_display %} · {{ profile_user.get_instruments_display }}{% endif %}. Musician profile in the Dublin jam session community.{% endblock %}
+{% block og_description %}{{ profile_user.display_name|default:profile_user.username }} on JamSession Lab{% if profile_user.get_instruments_display %} · {{ profile_user.get_instruments_display }}{% endif %}. Musician profile in the Dublin jam session community.{% endblock %}
+{% block twitter_description %}{{ profile_user.display_name|default:profile_user.username }} on JamSession Lab{% if profile_user.get_instruments_display %} · {{ profile_user.get_instruments_display }}{% endif %}. Musician profile in the Dublin jam session community.{% endblock %}
+{% block og_type %}profile{% endblock %}
+{% block og_image %}{% if profile_user.display_profile_picture_url %}{{ profile_user.display_profile_picture_url }}{% else %}{{ seo_og_image }}{% endif %}{% endblock %}
+{% block twitter_image %}{% if profile_user.display_profile_picture_url %}{{ profile_user.display_profile_picture_url }}{% else %}{{ seo_og_image }}{% endif %}{% endblock %}
+{% block twitter_card %}summary{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'accounts/css/profile.css' %}">

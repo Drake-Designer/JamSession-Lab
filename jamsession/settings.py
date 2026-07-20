@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "django.contrib.sitemaps",
     "cloudinary_storage",
     "django.contrib.staticfiles",
     "cloudinary",
@@ -238,6 +239,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "community.context_processors.community_members",
+                "pages.context_processors.seo",
             ],
         },
     },
@@ -379,6 +381,33 @@ CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "staff@jamsessionlab.ie").strip(
 # Invitation link to the community WhatsApp group, shown after registration
 # and included in the welcome email. Replace with the real group link.
 WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/JzOeCrY2Lb96ag6zze1qhb"
+
+# ---------------------------------------------------------------------------
+# SEO / search engines (canonical URLs, Open Graph, sitemap, Search Console)
+# ---------------------------------------------------------------------------
+SITE_NAME = "JamSession Lab"
+# Public origin with scheme, no trailing slash. Used for canonical URLs,
+# Open Graph absolute image URLs, JSON-LD, and robots.txt Sitemap line.
+# Production: https://jamsessionlab.ie (prefer one canonical host; redirect
+# www ↔ apex in DNS/hosting so only one answers publicly).
+SITE_URL = os.environ.get("SITE_URL", "https://jamsessionlab.ie").rstrip("/")
+DEFAULT_META_DESCRIPTION = (
+    "JamSession Lab organises jam session music events across Dublin, "
+    "Ireland. Join the community, register for upcoming jams, and connect "
+    "with musicians."
+)
+SEO_DEFAULT_OG_IMAGE = "images/jamsession-lab-logo.jpg"
+SEO_DEFAULT_OG_IMAGE_ALT = "JamSession Lab logo"
+SEO_LOCALE = "en_GB"
+# Instagram is the primary social profile; X/Twitter handle left blank unless set.
+SEO_TWITTER_HANDLE = os.environ.get("SEO_TWITTER_HANDLE", "").strip()
+SEO_SAME_AS = [
+    "https://www.instagram.com/jamsessionlab",
+]
+# Optional Google Search Console HTML-tag verification token (content value only).
+GOOGLE_SITE_VERIFICATION = os.environ.get(
+    "GOOGLE_SITE_VERIFICATION", ""
+).strip()
 
 
 STORAGES = {

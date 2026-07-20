@@ -2,7 +2,7 @@
 URL configuration for jamsession project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
+https://docs.djangoproject.com/en/6.0/topics/http/urls/
 Examples:
 Function views
     1. Add an import:  from my_app import views
@@ -15,7 +15,11 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
+from django.views.generic import TemplateView
+
+from pages.sitemaps import sitemaps
 
 urlpatterns = [
     path("", include("pages.urls")),
@@ -23,6 +27,20 @@ urlpatterns = [
     path("gallery/", include("gallery.urls")),
     path("community/", include("community.urls")),
     path("events/", include("events.urls")),
+    path(
+        "robots.txt",
+        TemplateView.as_view(
+            template_name="robots.txt",
+            content_type="text/plain; charset=utf-8",
+        ),
+        name="robots_txt",
+    ),
+    path(
+        "sitemap.xml",
+        sitemap,
+        {"sitemaps": sitemaps},
+        name="sitemap",
+    ),
     path("admin/", admin.site.urls),
 ]
 
