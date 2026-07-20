@@ -247,11 +247,11 @@ def _superuser_alert_recipients():
 
 def _build_new_user_alert(member, request) -> EmailContent:
     """Staff alert: branded notice that a new member signed up."""
-    instruments = member.get_instruments_display()
     context = {
         **_common_email_context(member, request),
         "member": member,
-        "instruments_display": ", ".join(instruments) if instruments else "",
+        # get_instruments_display() already returns a joined string — do not join again.
+        "instruments_display": member.get_instruments_display(),
         "profile_url": request.build_absolute_uri(
             reverse(
                 "accounts:profile_detail",

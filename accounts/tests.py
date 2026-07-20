@@ -390,6 +390,12 @@ class RegistrationViewTests(TestCase):
         self.assertIn(profile_path, staff_html)
         self.assertIn("View profile", staff_html)
         self.assertIn("#E63946", staff_html)
+        # Instruments must be human labels, not character-joined strings.
+        expected_instruments = user.get_instruments_display()
+        self.assertTrue(expected_instruments)
+        self.assertIn(expected_instruments, staff_html)
+        self.assertIn(expected_instruments, staff_alert.body)
+        self.assertNotIn("E, l, e, c, t, r, i, c", staff_html)
 
     def test_welcome_page_shows_whatsapp_link(self):
         self.client.post(
