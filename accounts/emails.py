@@ -32,6 +32,17 @@ class EmailContent:
     subject: str
 
 
+def _normalise_html_email(html: str) -> str:
+    """
+    Ensure HTML emails start at the document root.
+
+    Django leaves a leading newline after ``{% comment %}`` / ``{% extends %}``.
+    Stripping leading whitespace keeps clients from treating pre-DOCTYPE text
+    as the message body (and makes spam filters happier).
+    """
+    return (html or "").lstrip()
+
+
 def _absolute_static_url(request, relative_path: str) -> str:
     """Build an absolute URL for a static asset (required inside HTML emails)."""
     return request.build_absolute_uri(staticfiles_storage.url(relative_path))
@@ -63,7 +74,9 @@ def _build_verification_message(user, request) -> EmailContent:
         "verify_url": verify_url,
     }
     text = render_to_string("accounts/emails/verify_email.txt", context)
-    html = render_to_string("accounts/emails/verify_email.html", context)
+    html = _normalise_html_email(
+        render_to_string("accounts/emails/verify_email.html", context)
+    )
     return EmailContent(text=text, html=html, subject=VERIFICATION_EMAIL_SUBJECT)
 
 
@@ -82,7 +95,9 @@ def _build_email_change_message(user, request) -> EmailContent:
         "current_email": user.email,
     }
     text = render_to_string("accounts/emails/change_email.txt", context)
-    html = render_to_string("accounts/emails/change_email.html", context)
+    html = _normalise_html_email(
+        render_to_string("accounts/emails/change_email.html", context)
+    )
     return EmailContent(text=text, html=html, subject=EMAIL_CHANGE_SUBJECT)
 
 
@@ -97,7 +112,9 @@ def _build_email_change_notice(user, request, *, old_email: str, new_email: str)
         ),
     }
     text = render_to_string("accounts/emails/change_email_notice.txt", context)
-    html = render_to_string("accounts/emails/change_email_notice.html", context)
+    html = _normalise_html_email(
+        render_to_string("accounts/emails/change_email_notice.html", context)
+    )
     return EmailContent(text=text, html=html, subject=EMAIL_CHANGE_NOTICE_SUBJECT)
 
 
@@ -150,7 +167,9 @@ def _build_password_reset_message(context: dict) -> EmailContent:
         ),
     }
     text = render_to_string("accounts/emails/password_reset.txt", email_context)
-    html = render_to_string("accounts/emails/password_reset.html", email_context)
+    html = _normalise_html_email(
+        render_to_string("accounts/emails/password_reset.html", email_context)
+    )
     return EmailContent(text=text, html=html, subject=PASSWORD_RESET_SUBJECT)
 
 
@@ -241,7 +260,9 @@ def _build_new_user_alert(member, request) -> EmailContent:
         ),
     }
     text = render_to_string("accounts/emails/new_user_alert.txt", context)
-    html = render_to_string("accounts/emails/new_user_alert.html", context)
+    html = _normalise_html_email(
+        render_to_string("accounts/emails/new_user_alert.html", context)
+    )
     return EmailContent(text=text, html=html, subject=NEW_USER_ALERT_SUBJECT)
 
 

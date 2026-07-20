@@ -1,8 +1,11 @@
-{#
+{% comment %}
   Branded HTML email shell for JamSession Lab.
   Inline CSS is required here: most email clients strip <style> blocks
   and ignore linked stylesheets. Do not refactor this into a .css file.
-#}
+
+  Important: do NOT use multi-line {# #} comments — Django does not strip
+  them and they leak into the sent HTML (breaking Gmail rendering).
+{% endcomment %}
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>

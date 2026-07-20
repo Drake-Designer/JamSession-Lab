@@ -362,8 +362,16 @@ class RegistrationViewTests(TestCase):
             if mime == "text/html"
         ]
         self.assertEqual(len(html_parts), 1)
-        self.assertIn(str(user.email_verification_token), html_parts[0])
-        self.assertIn("#E63946", html_parts[0])
+        verification_html = html_parts[0].lstrip()
+        self.assertTrue(
+            verification_html.startswith("<!DOCTYPE html>"),
+            "HTML email must start with DOCTYPE (no leaked template comments)",
+        )
+        self.assertNotIn("{#", verification_html)
+        self.assertNotIn("Branded HTML email shell", verification_html)
+        self.assertIn(str(user.email_verification_token), verification_html)
+        self.assertIn("#E63946", verification_html)
+        self.assertIn("Verify my email", verification_html)
 
         self.assertIn("New member registered", staff_alert.subject)
         profile_path = reverse(
@@ -376,9 +384,12 @@ class RegistrationViewTests(TestCase):
             if mime == "text/html"
         ]
         self.assertEqual(len(alert_html), 1)
-        self.assertIn(profile_path, alert_html[0])
-        self.assertIn("View profile", alert_html[0])
-        self.assertIn("#E63946", alert_html[0])
+        staff_html = alert_html[0].lstrip()
+        self.assertTrue(staff_html.startswith("<!DOCTYPE html>"))
+        self.assertNotIn("{#", staff_html)
+        self.assertIn(profile_path, staff_html)
+        self.assertIn("View profile", staff_html)
+        self.assertIn("#E63946", staff_html)
 
     def test_welcome_page_shows_whatsapp_link(self):
         self.client.post(

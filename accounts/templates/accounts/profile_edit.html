@@ -305,8 +305,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-    {# Reused from the registration page: dependent County/Town dropdown and
-       the "Other" instrument/genre toggles target the same element IDs. #}
+    {# Reused from registration: County/Town dropdown + Other instrument/genre toggles. #}
     <script src="{% static 'accounts/js/register.js' %}"></script>
     <script src="{% static 'community/js/cover-focus.js' %}"></script>
     <script src="{% static 'accounts/js/profile_picture_upload.js' %}"></script>

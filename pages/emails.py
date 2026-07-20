@@ -60,7 +60,7 @@ def send_contact_email(*, name, email, subject, message, request) -> bool:
         ),
     }
     text_body = render_to_string("pages/emails/contact_message.txt", context)
-    html_body = render_to_string("pages/emails/contact_message.html", context)
+    html_body = render_to_string("pages/emails/contact_message.html", context).lstrip()
     mail_subject = f"[Contact] {subject}"
     recipient = settings.CONTACT_EMAIL
     from_email = settings.DEFAULT_FROM_EMAIL

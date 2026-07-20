@@ -14,6 +14,7 @@ from accounts.emails import (
     EmailContent,
     _absolute_static_url,
     _deliver_email,
+    _normalise_html_email,
     _queue_or_send,
     _should_use_resend_api,
 )
@@ -57,7 +58,9 @@ def _build_event_announce_message(event, request, member) -> EmailContent:
         "whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK,
     }
     text = render_to_string("events/emails/event_announce.txt", context)
-    html = render_to_string("events/emails/event_announce.html", context)
+    html = _normalise_html_email(
+        render_to_string("events/emails/event_announce.html", context)
+    )
     return EmailContent(
         text=text,
         html=html,
