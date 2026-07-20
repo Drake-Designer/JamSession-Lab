@@ -2,15 +2,8 @@
 
 from accounts.members import get_active_members
 
-# Community pages that show the members sidebar (logged-in members only).
-_COMMUNITY_SIDEBAR_URL_NAMES = frozenset(
-    {
-        "list",
-        "post_create",
-        "post_edit",
-        "comment_edit",
-    }
-)
+# Members sidebar only on the main Community list (logged-in members only).
+_COMMUNITY_SIDEBAR_URL_NAMES = frozenset({"list"})
 
 
 def community_members(request):

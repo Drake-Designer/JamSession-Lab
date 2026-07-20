@@ -16,40 +16,39 @@
     <section class="bg-jam-black py-16 sm:py-24">
         <div class="community-shell">
             {# Page intro sits above the feed so Members can align with the first post #}
-            <header class="page-header" data-aos="fade-up">
+            <header class="page-header page-header--center" data-aos="fade-up">
                 <h1 class="page-header__title">Community</h1>
                 <p class="page-header__lead">
                     Stories, questions and photos shared by fellow musicians.
                 </p>
-            </header>
-
-            {% if user.is_authenticated %}
-            <div class="page-header__actions" data-aos="fade-up" data-aos-delay="100">
-                <a href="{% url 'community:post_create' %}" class="page-header__cta">
-                    Start a Discussion
-                </a>
-            </div>
-            {% else %}
-            <div class="page-header__actions page-header__actions--visitor" data-aos="fade-up" data-aos-delay="100">
-                <p class="community-visitor-hint">
-                    Log in or register to read full posts and see members.
-                </p>
-                <div class="community-visitor-actions">
-                    <a
-                        href="{% url 'accounts:register' %}?next={% url 'community:list' %}"
-                        class="community-visitor-btn community-visitor-btn--primary"
-                    >
-                        Register
-                    </a>
-                    <a
-                        href="{% url 'accounts:login' %}?next={% url 'community:list' %}"
-                        class="community-visitor-btn community-visitor-btn--secondary"
-                    >
-                        Log in
+                {% if user.is_authenticated %}
+                <div class="page-header__actions">
+                    <a href="{% url 'community:post_create' %}" class="page-header__cta">
+                        Start a Discussion
                     </a>
                 </div>
-            </div>
-            {% endif %}
+                {% else %}
+                <div class="page-header__actions page-header__actions--visitor">
+                    <p class="community-visitor-hint">
+                        Log in or register to read full posts and see members.
+                    </p>
+                    <div class="community-visitor-actions">
+                        <a
+                            href="{% url 'accounts:register' %}?next={% url 'community:list' %}"
+                            class="community-visitor-btn community-visitor-btn--primary"
+                        >
+                            Register
+                        </a>
+                        <a
+                            href="{% url 'accounts:login' %}?next={% url 'community:list' %}"
+                            class="community-visitor-btn community-visitor-btn--secondary"
+                        >
+                            Log in
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </header>
 
             <div class="community-layout{% if not user.is_authenticated %} community-layout--solo{% endif %}">
                 <div class="community-layout__main">

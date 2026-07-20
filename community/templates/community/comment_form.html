@@ -11,11 +11,11 @@
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
         <div class="community-shell">
-            <div class="community-layout">
+            <div class="community-layout community-layout--solo">
                 <div class="community-layout__main">
                     <a href="{% url 'community:post_detail' post.slug %}" class="community-back-link" data-aos="fade-up">&larr; Back to post</a>
 
-                    <header class="page-header mt-6" data-aos="fade-up" data-aos-delay="50">
+                    <header class="page-header page-header--center mt-6" data-aos="fade-up" data-aos-delay="50">
                         <h1 class="page-header__title">Edit Comment</h1>
                         <p class="page-header__lead">
                             Update your reply on &ldquo;{{ post.title }}&rdquo;.
@@ -93,17 +93,9 @@
                         </div>
                     </form>
                 </div>
-
-                {% if user.is_authenticated %}
-                {% include "community/_members_sidebar.html" %}
-                {% endif %}
             </div>
         </div>
     </section>
-{% endblock %}
-
-{% block alpine_components %}
-    <script src="{% static 'community/js/community.js' %}"></script>
 {% endblock %}
 
 {% block extra_scripts %}

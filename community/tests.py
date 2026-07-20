@@ -3118,7 +3118,7 @@ class CommunityMembersSidebarTests(TestCase):
         self.assertContains(response, "members-sidebar")
         self.assertContains(response, "Members")
 
-    def test_sidebar_present_on_list_and_create_not_detail(self):
+    def test_sidebar_present_on_list_only_not_create_or_detail(self):
         post = _make_post(
             self.author, title="Sidebar Post", status=ApprovalStatus.APPROVED
         )
@@ -3136,8 +3136,9 @@ class CommunityMembersSidebarTests(TestCase):
 
         create = self.client.get(reverse("community:post_create"))
         self.assertEqual(create.status_code, 200)
-        self.assertIn("community_members", create.context)
-        self.assertContains(create, "members-sidebar")
+        self.assertNotIn("community_members", create.context)
+        self.assertNotContains(create, "members-sidebar")
+        self.assertContains(create, "community-layout--solo")
 
     def test_author_name_links_to_profile_on_list_and_detail(self):
         post = _make_post(
@@ -3266,18 +3267,14 @@ class CommunityMembersSidebarTests(TestCase):
         )
         self.assertContains(response, "community/js/community")
 
-    def test_create_form_uses_stacked_layout_below_desktop(self):
-        """
-        Below 1024px the CSS keeps community-layout as a column. Members uses
-        order:-1 so it sits above the form; the form keeps a readable max width.
-        """
+    def test_create_form_has_no_members_sidebar(self):
+        """Start a Discussion is a solo form page — Members only on the list."""
         self.client.force_login(self.author)
         response = self.client.get(reverse("community:post_create"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'class="community-layout"')
+        self.assertContains(response, "community-layout--solo")
         self.assertContains(response, "community-layout__main")
-        self.assertContains(response, "members-sidebar")
-        # Form keeps a readable max width until the desktop two-column breakpoint.
+        self.assertNotContains(response, "members-sidebar")
         self.assertContains(response, "max-w-2xl")
         self.assertContains(response, 'name="title"')
         self.assertContains(response, 'name="cover_image"')

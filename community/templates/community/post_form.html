@@ -11,9 +11,9 @@
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
         <div class="community-shell">
-            <div class="community-layout">
+            <div class="community-layout community-layout--solo">
                 <div class="community-layout__main">
-                    <header class="page-header" data-aos="fade-up">
+                    <header class="page-header page-header--center" data-aos="fade-up">
                         <h1 class="page-header__title">
                             {% if is_edit %}Edit Post{% else %}Start a Discussion{% endif %}
                         </h1>
@@ -178,17 +178,9 @@
                         </div>
                     </form>
                 </div>
-
-                {% if user.is_authenticated %}
-                {% include "community/_members_sidebar.html" %}
-                {% endif %}
             </div>
         </div>
     </section>
-{% endblock %}
-
-{% block alpine_components %}
-    <script src="{% static 'community/js/community.js' %}"></script>
 {% endblock %}
 
 {% block extra_scripts %}

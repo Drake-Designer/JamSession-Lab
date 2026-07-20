@@ -15,20 +15,19 @@
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
         <div class="gallery-shell">
-            <header class="page-header" data-aos="fade-up">
+            <header class="page-header page-header--center" data-aos="fade-up">
                 <h1 class="page-header__title">Gallery</h1>
                 <p class="page-header__lead">
                     Photos and videos from our jam sessions, shared by the community.
                 </p>
+                {% if user.is_authenticated %}
+                <div class="page-header__actions">
+                    <a href="{% url 'gallery:upload' %}" class="page-header__cta">
+                        Upload Photo or Video
+                    </a>
+                </div>
+                {% endif %}
             </header>
-
-            {% if user.is_authenticated %}
-            <div class="page-header__actions" data-aos="fade-up" data-aos-delay="100">
-                <a href="{% url 'gallery:upload' %}" class="page-header__cta">
-                    Upload Photo or Video
-                </a>
-            </div>
-            {% endif %}
 
             {% if has_gallery_content %}
             <div class="gallery-sections" data-aos="fade-up" data-aos-delay="120">

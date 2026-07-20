@@ -420,7 +420,7 @@ section[id] {
     box-shadow: 0 12px 32px rgba(230, 57, 70, 0.3);
 }
 
-/* Keep centred on all breakpoints (auth cards, status screens) */
+/* Keep centred on all breakpoints (auth cards, listing intros, status screens) */
 .page-header--center {
     text-align: center;
     margin-inline: auto;
@@ -428,6 +428,7 @@ section[id] {
 
 .page-header--center .page-header__actions {
     justify-content: center;
+    margin-top: 1.5rem;
 }
 
 @media (min-width: 640px) {
