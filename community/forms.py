@@ -94,7 +94,11 @@ class CommunityPostForm(CommunityMediaMixin, forms.ModelForm):
         label=_("Photos or videos (optional)"),
         required=False,
         widget=MultipleGalleryFileInput(attrs={"accept": "image/*,video/*"}),
-        help_text=_("Attach one or more photos and/or videos. Maximum 100 MB each."),
+        help_text=_(
+            "Attach one or more photos and/or videos. Maximum 100 MB each "
+            "(and 100 MB total per upload). Phone videos are often larger — "
+            "compress them before uploading."
+        ),
     )
 
     class Meta:
@@ -172,7 +176,11 @@ class CommunityCommentForm(CommunityMediaMixin, forms.ModelForm):
         label=_("Photos or videos (optional)"),
         required=False,
         widget=MultipleGalleryFileInput(attrs={"accept": "image/*,video/*"}),
-        help_text=_("Attach one or more photos and/or videos. Maximum 100 MB each."),
+        help_text=_(
+            "Attach one or more photos and/or videos. Maximum 100 MB each "
+            "(and 100 MB total per upload). Phone videos are often larger — "
+            "compress them before uploading."
+        ),
     )
 
     class Meta:

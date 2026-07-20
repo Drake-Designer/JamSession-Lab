@@ -394,11 +394,13 @@ STATICFILES_STORAGE = "jamsession.storage.NonStrictStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 
-# Align request-body / in-memory upload limits with the highest business
-# upload cap (gallery / community: 100 MB). Without this, Django rejects
-# bodies over the 2.5 MB default with a raw RequestDataTooBig before forms run.
+# Align the request-body cap with the highest business upload limit
+# (gallery / community: 100 MB). Without this, Django rejects bodies over
+# the 2.5 MB default with a raw RequestDataTooBig before forms run.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104_857_600  # 100 MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 104_857_600  # 100 MB
+# Keep large videos on disk (TemporaryUploadedFile) instead of RAM.
+# Only the total request body size is capped at 100 MB above.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10_485_760  # 10 MB
 
 # Trust X-Forwarded-Proto from the reverse proxy (e.g. Render). Harmless
 # locally when the header is absent.

@@ -2,10 +2,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const fileInput = document.getElementById("id_files");
     const previewContainer = document.getElementById("gallery-upload-preview");
     const previewList = document.getElementById("gallery-upload-preview-list");
+    const form = document.getElementById("gallery-upload-form");
 
     if (!fileInput || !previewContainer || !previewList) {
         return;
     }
+
+    const maxBytes =
+        window.JamMediaUploadGuard?.DEFAULT_MAX_BYTES ?? 104_857_600;
+    const formatFileSize =
+        window.JamMediaUploadGuard?.formatFileSize
+        ?? ((bytes) => {
+            if (bytes >= 1048576) {
+                return `${(bytes / 1048576).toFixed(1)} MB`;
+            }
+            if (bytes >= 1024) {
+                return `${Math.round(bytes / 1024)} KB`;
+            }
+            return `${bytes} B`;
+        });
 
     const videoIcon = `
         <svg class="gallery-upload-preview__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -17,16 +32,6 @@ document.addEventListener("DOMContentLoaded", () => {
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
         </svg>`;
 
-    const formatFileSize = (bytes) => {
-        if (bytes >= 1048576) {
-            return `${(bytes / 1048576).toFixed(1)} MB`;
-        }
-        if (bytes >= 1024) {
-            return `${Math.round(bytes / 1024)} KB`;
-        }
-        return `${bytes} B`;
-    };
-
     const isLikelyVideo = (file) => file.type.startsWith("video/");
 
     const isLikelyImage = (file) => file.type.startsWith("image/");
@@ -35,10 +40,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const item = document.createElement("li");
         item.className = "gallery-upload-preview__item";
 
+        const isOverLimit = file.size > maxBytes;
+        if (isOverLimit) {
+            item.classList.add("gallery-upload-preview__item--error");
+        }
+
         const thumb = document.createElement("div");
         thumb.className = "gallery-upload-preview__thumb";
 
-        if isLikelyImage(file)) {
+        if (isLikelyImage(file)) {
             const img = document.createElement("img");
             img.className = "gallery-upload-preview__image";
             img.alt = "";
@@ -61,7 +71,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const size = document.createElement("p");
         size.className = "gallery-upload-preview__size";
-        size.textContent = formatFileSize(file.size);
+        size.textContent = isOverLimit
+            ? `${formatFileSize(file.size)} — exceeds 100 MB limit`
+            : formatFileSize(file.size);
 
         meta.appendChild(name);
         meta.appendChild(size);
@@ -84,4 +96,9 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     fileInput.addEventListener("change", updatePreview);
+
+    // Refresh preview after the guard strips oversized files.
+    if (form) {
+        form.addEventListener("mediaupload:filtered", updatePreview);
+    }
 });

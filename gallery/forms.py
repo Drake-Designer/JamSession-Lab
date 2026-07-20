@@ -89,7 +89,9 @@ class GalleryBatchUploadForm(forms.Form):
         ),
         help_text=_(
             "Select one or more photos and/or videos. Each file becomes a separate "
-            "gallery item. Maximum 100 MB per file."
+            "gallery item. Maximum 100 MB per file (and 100 MB total per upload). "
+            "Phone videos are often larger — compress them (or lower the camera "
+            "quality) before uploading."
         ),
     )
     title = forms.CharField(

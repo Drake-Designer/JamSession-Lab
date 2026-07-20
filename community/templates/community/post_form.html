@@ -39,6 +39,10 @@
                         class="community-form mt-10 max-w-2xl rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8 lg:max-w-none"
                         data-aos="fade-up"
                         data-aos-delay="100"
+                        data-media-upload-guard
+                        data-media-max-bytes="104857600"
+                        data-media-error-target="#community-post-upload-error"
+                        data-media-status-target="#community-post-upload-status"
                     >
                         {% csrf_token %}
 
@@ -128,6 +132,11 @@
                             {% if form.files.help_text %}
                             <p class="mt-2 text-sm text-jam-muted-dark">{{ form.files.help_text }}</p>
                             {% endif %}
+                            <p
+                                id="community-post-upload-error"
+                                class="media-upload-client-error"
+                                hidden
+                            ></p>
                             {% if form.files.errors %}
                             <ul class="errorlist">
                                 {% for error in form.files.errors %}
@@ -144,6 +153,13 @@
                             {% endfor %}
                         </ul>
                         {% endif %}
+
+                        <p
+                            id="community-post-upload-status"
+                            class="media-upload-status"
+                            hidden
+                            aria-live="polite"
+                        ></p>
 
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                             <button type="submit" class="community-submit-button">
@@ -173,5 +189,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
+    <script src="{% static 'gallery/js/media_upload_guard.js' %}"></script>
     <script src="{% static 'community/js/cover-focus.js' %}"></script>
 {% endblock %}

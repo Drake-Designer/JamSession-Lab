@@ -543,3 +543,11 @@ body.gallery-lightbox-open {
     font-size: 0.75rem;
     color: #737373;
 }
+
+.gallery-upload-preview__item--error .gallery-upload-preview__size {
+    color: #ff4d5a;
+}
+
+.gallery-upload-preview__item--error .gallery-upload-preview__thumb {
+    border-color: #ff4d5a;
+}

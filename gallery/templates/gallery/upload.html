@@ -28,6 +28,10 @@
                 data-aos="fade-up"
                 data-aos-delay="100"
                 id="gallery-upload-form"
+                data-media-upload-guard
+                data-media-max-bytes="104857600"
+                data-media-error-target="#gallery-upload-client-error"
+                data-media-status-target="#gallery-upload-status"
             >
                 {% csrf_token %}
 
@@ -37,6 +41,11 @@
                     {% if form.files.help_text %}
                     <p class="mt-2 text-sm text-jam-muted-dark">{{ form.files.help_text }}</p>
                     {% endif %}
+                    <p
+                        id="gallery-upload-client-error"
+                        class="media-upload-client-error"
+                        hidden
+                    ></p>
                     {% if form.files.errors %}
                     <ul class="errorlist">
                         {% for error in form.files.errors %}
@@ -50,6 +59,13 @@
                     <p class="gallery-upload-preview__heading">Selected files</p>
                     <ul id="gallery-upload-preview-list" class="gallery-upload-preview__list"></ul>
                 </div>
+
+                <p
+                    id="gallery-upload-status"
+                    class="media-upload-status"
+                    hidden
+                    aria-live="polite"
+                ></p>
 
                 <div class="gallery-form__field{% if form.title.errors %} gallery-form__field--error{% endif %}">
                     <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
@@ -106,5 +122,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
+    <script src="{% static 'gallery/js/media_upload_guard.js' %}"></script>
     <script src="{% static 'gallery/js/gallery_upload.js' %}"></script>
 {% endblock %}

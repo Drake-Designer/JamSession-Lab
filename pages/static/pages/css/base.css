@@ -525,3 +525,46 @@ section[id] {
         max-width: 42rem;
     }
 }
+
+/* Media upload guard (gallery + community) */
+.media-upload-client-error {
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #ff4d5a;
+}
+
+.media-upload-client-error[hidden] {
+    display: none;
+}
+
+.media-upload-status {
+    margin-bottom: 1rem;
+    border: 1px solid #262626;
+    border-radius: 0.75rem;
+    background-color: #1a1a1a;
+    padding: 0.875rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #d1d1d1;
+}
+
+.media-upload-status[hidden] {
+    display: none;
+}
+
+form.is-media-uploading .media-upload-status {
+    border-color: #e63946;
+    color: #ffffff;
+}
+
+form.is-media-uploading button[type="submit"]:disabled,
+form.is-media-uploading input[type="submit"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+form.is-media-uploading input[type="file"].is-media-upload-locked {
+    pointer-events: none;
+    opacity: 0.65;
+}

@@ -134,6 +134,10 @@
                     action="{% url 'community:comment_add' post.slug %}"
                     enctype="multipart/form-data"
                     class="community-form community-comment-form mt-8"
+                    data-media-upload-guard
+                    data-media-max-bytes="104857600"
+                    data-media-error-target="#community-comment-upload-error"
+                    data-media-status-target="#community-comment-upload-status"
                 >
                     {% csrf_token %}
 
@@ -155,6 +159,11 @@
                         {% if comment_form.files.help_text %}
                         <p class="mt-2 text-sm text-jam-muted-dark">{{ comment_form.files.help_text }}</p>
                         {% endif %}
+                        <p
+                            id="community-comment-upload-error"
+                            class="media-upload-client-error"
+                            hidden
+                        ></p>
                         {% if comment_form.files.errors %}
                         <ul class="errorlist">
                             {% for error in comment_form.files.errors %}
@@ -163,6 +172,13 @@
                         </ul>
                         {% endif %}
                     </div>
+
+                    <p
+                        id="community-comment-upload-status"
+                        class="media-upload-status"
+                        hidden
+                        aria-live="polite"
+                    ></p>
 
                     <button type="submit" class="community-submit-button">Post Comment</button>
                 </form>
@@ -182,5 +198,6 @@
 
 {% block extra_scripts %}
     <script src="{% static 'gallery/js/gallery.js' %}"></script>
+    <script src="{% static 'gallery/js/media_upload_guard.js' %}"></script>
     <script src="{% static 'community/js/cover-focus.js' %}"></script>
 {% endblock %}
