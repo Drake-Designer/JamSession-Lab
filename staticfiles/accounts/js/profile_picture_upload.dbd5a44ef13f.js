@@ -1,6 +1,9 @@
 /*
  * Immediate profile-picture upload / remove on Edit Profile
- * (no Save Changes needed). Upload reloads the page to show the new photo.
+ * (no Save Changes needed).
+ *
+ * Upload flow: Choose/Change photo → crop picker → Use this photo → upload
+ * (replaces the file on Cloudinary). Focus can only be set at upload time.
  */
 (function () {
     "use strict";
@@ -16,6 +19,8 @@
         const changeLabel = widget.querySelector(".profile-picture-widget__change");
         const removeBtn = widget.querySelector("[data-profile-picture-remove]");
         const fileInput = widget.querySelector("[data-profile-picture-input]");
+        const confirmBtn = widget.querySelector("[data-profile-picture-confirm]");
+        const cancelBtn = widget.querySelector("[data-profile-picture-cancel]");
 
         if (changeLabel) {
             changeLabel.classList.toggle("is-busy", isBusy);
@@ -30,6 +35,50 @@
         }
         if (fileInput) {
             fileInput.disabled = isBusy;
+        }
+        if (confirmBtn) {
+            confirmBtn.disabled = isBusy;
+            confirmBtn.classList.toggle("is-busy", isBusy);
+        }
+        if (cancelBtn) {
+            cancelBtn.disabled = isBusy;
+        }
+    }
+
+    function readFocus(widget) {
+        const xInput = widget.querySelector("[data-profile-picture-focus-x]");
+        const yInput = widget.querySelector("[data-profile-picture-focus-y]");
+        const parse = (input, fallback) => {
+            if (!input) {
+                return fallback;
+            }
+            const value = parseFloat(input.value);
+            if (Number.isNaN(value)) {
+                return fallback;
+            }
+            return Math.min(100, Math.max(0, value));
+        };
+        return {
+            x: parse(xInput, 50),
+            y: parse(yInput, 50),
+        };
+    }
+
+    function resetFocus(widget) {
+        const xInput = widget.querySelector("[data-profile-picture-focus-x]");
+        const yInput = widget.querySelector("[data-profile-picture-focus-y]");
+        if (xInput) {
+            xInput.value = "50";
+        }
+        if (yInput) {
+            yInput.value = "50";
+        }
+    }
+
+    function hidePicker(widget) {
+        const picker = widget.querySelector("#cover-focus-picker");
+        if (picker) {
+            picker.hidden = true;
         }
     }
 
@@ -75,18 +124,48 @@
     function bindUpload(widget) {
         const uploadUrl = widget.getAttribute("data-immediate-upload-url");
         const fileInput = widget.querySelector("[data-profile-picture-input]");
-        if (!uploadUrl || !fileInput) {
+        const confirmBtn = widget.querySelector("[data-profile-picture-confirm]");
+        const cancelBtn = widget.querySelector("[data-profile-picture-cancel]");
+        if (!uploadUrl || !fileInput || !confirmBtn) {
             return;
         }
 
+        // cover-focus.js opens the picker on file change; we only upload
+        // after the user confirms the crop.
         fileInput.addEventListener("change", function () {
             if (!fileInput.files || fileInput.files.length === 0) {
+                hidePicker(widget);
+                return;
+            }
+            resetFocus(widget);
+        });
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener("click", function () {
+                if (cancelBtn.disabled) {
+                    return;
+                }
+                fileInput.value = "";
+                hidePicker(widget);
+                resetFocus(widget);
+            });
+        }
+
+        confirmBtn.addEventListener("click", function () {
+            if (confirmBtn.disabled) {
+                return;
+            }
+            if (!fileInput.files || fileInput.files.length === 0) {
+                window.alert("Please choose a photo first.");
                 return;
             }
 
             const file = fileInput.files[0];
+            const focus = readFocus(widget);
             const formData = new FormData();
             formData.append("profile_picture", file);
+            formData.append("profile_picture_focus_x", String(focus.x));
+            formData.append("profile_picture_focus_y", String(focus.y));
 
             setBusy(widget, true);
 
@@ -115,7 +194,6 @@
                 })
                 .catch(function (error) {
                     setBusy(widget, false);
-                    fileInput.value = "";
                     window.alert(
                         error.message ||
                             "We couldn't upload that photo. Please try again."

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — Register{% endblock %}
+{% block title %}JamSession Lab · Register{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'accounts/css/forms.css' %}">
@@ -9,16 +9,14 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
-            <div class="text-center" data-aos="fade-up">
-                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
-                    Join JamSession Lab
-                </h1>
-                <p class="mt-4 text-lg text-jam-muted">
+        <div class="page-shell page-shell--narrow">
+            <header class="page-header" data-aos="fade-up">
+                <h1 class="page-header__title">Join JamSession Lab</h1>
+                <p class="page-header__lead">
                     Create your free account to register for jam sessions, share photos
                     and videos, and connect with musicians across Ireland.
                 </p>
-            </div>
+            </header>
 
             {% if show_event_rsvp_banner %}
             <div

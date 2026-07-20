@@ -498,6 +498,9 @@ class ProfileEditForm(PhoneNumberFieldsMixin, forms.ModelForm):
         self.fields["profile_picture"].widget.attrs[
             "data-immediate-upload-url"
         ] = reverse("accounts:profile_picture_upload")
+        self.fields["profile_picture"].widget.attrs[
+            "data-heic-preview-url"
+        ] = reverse("accounts:profile_picture_preview")
 
     def clean_display_name(self):
         display_name = (self.cleaned_data.get("display_name") or "").strip()

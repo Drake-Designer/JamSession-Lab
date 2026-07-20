@@ -130,6 +130,13 @@ UNFOLD = {
                             "admin:pages_homecarouselslide_changelist"
                         ),
                     },
+                    {
+                        "title": _("Organisers"),
+                        "icon": "groups",
+                        "link": reverse_lazy(
+                            "admin:pages_aboutorganiser_changelist"
+                        ),
+                    },
                 ],
             },
             {

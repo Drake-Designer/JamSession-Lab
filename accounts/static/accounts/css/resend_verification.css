@@ -1,0 +1,15 @@
+/* Disabled / countdown state for the resend verification button. */
+
+.resend-verification-btn:disabled,
+.resend-verification-btn--waiting {
+    cursor: not-allowed;
+    opacity: 0.55;
+    border-color: #3a3a3a;
+    color: #9a9a9a;
+}
+
+.resend-verification-btn:disabled:hover,
+.resend-verification-btn--waiting:hover {
+    border-color: #3a3a3a;
+    color: #9a9a9a;
+}

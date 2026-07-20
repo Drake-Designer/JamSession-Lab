@@ -1,9 +1,23 @@
-<form method="post" action="{% url 'accounts:resend_verification' %}" class="mt-4">
+<form
+    method="post"
+    action="{% url 'accounts:resend_verification' %}"
+    class="mt-4"
+    data-resend-verification
+    data-cooldown-seconds="{{ resend_cooldown_seconds|default:0 }}"
+>
     {% csrf_token %}
     <button
         type="submit"
-        class="inline-flex w-full items-center justify-center rounded-xl border border-jam-grey-light bg-jam-black px-6 py-3 text-base font-bold text-jam-white transition hover:border-jam-red hover:text-jam-red sm:w-auto"
+        class="resend-verification-btn inline-flex w-full items-center justify-center rounded-xl border border-jam-grey-light bg-jam-black px-6 py-3 text-base font-bold text-jam-white transition hover:border-jam-red hover:text-jam-red sm:w-auto"
+        data-resend-verification-btn
+        data-label-ready="Resend verification email"
+        data-label-wait="Resend available in {seconds}s"
+        {% if resend_cooldown_seconds %}disabled{% endif %}
     >
-        Resend verification email
+        {% if resend_cooldown_seconds %}
+            Resend available in {{ resend_cooldown_seconds }}s
+        {% else %}
+            Resend verification email
+        {% endif %}
     </button>
 </form>

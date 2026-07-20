@@ -481,7 +481,82 @@ class EmailVerificationEnforcementTests(TestCase):
         response = self.client.get(reverse("accounts:profile_edit"))
         self.assertEqual(response.status_code, 200)
 
+    def _clear_verification_cooldown(self):
+        session = self.client.session
+        session.pop("email_verification_last_sent_at", None)
+        session.save()
+
+    def test_verification_required_does_not_auto_send_while_logged_in(self):
+        self._clear_verification_cooldown()
+        mail.outbox.clear()
+        old_token = self.user.email_verification_token
+        self.user.refresh_from_db()
+        previous_count = self.user.email_verification_send_count
+
+        response = self.client.get(self.verification_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email_verification_token, old_token)
+        self.assertEqual(self.user.email_verification_send_count, previous_count)
+        self.assertContains(response, "Resend verification email")
+
+    def test_login_auto_sends_verification_email(self):
+        self.client.logout()
+        mail.outbox.clear()
+        old_token = self.user.email_verification_token
+        previous_count = self.user.email_verification_send_count
+
+        response = self.client.post(
+            reverse("accounts:login"),
+            data={"username": "aoife@example.com", "password": "brave-purple-drums!"},
+        )
+        self.assertRedirects(response, self.verification_url)
+        self.assertEqual(len(mail.outbox), 1)
+
+        self.user.refresh_from_db()
+        self.assertNotEqual(self.user.email_verification_token, old_token)
+        self.assertEqual(
+            self.user.email_verification_send_count, previous_count + 1
+        )
+
+    def test_login_does_not_auto_send_when_limit_reached(self):
+        self.user.email_verification_send_count = 5
+        self.user.save(update_fields=["email_verification_send_count"])
+        self.client.logout()
+        mail.outbox.clear()
+
+        response = self.client.post(
+            reverse("accounts:login"),
+            data={"username": "aoife@example.com", "password": "brave-purple-drums!"},
+        )
+        self.assertRedirects(response, self.verification_url)
+        self.assertEqual(len(mail.outbox), 0)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email_verification_send_count, 5)
+
+    def test_verification_send_limit_stops_resend(self):
+        self.user.email_verification_send_count = 5
+        self.user.save(update_fields=["email_verification_send_count"])
+        self._clear_verification_cooldown()
+        mail.outbox.clear()
+
+        response = self.client.get(self.verification_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertContains(response, "Contact JamSession Lab")
+        self.assertContains(response, "Automatic emails have been stopped")
+        self.assertNotContains(response, "Resend verification email")
+
+        response = self.client.post(reverse("accounts:resend_verification"))
+        self.assertRedirects(response, self.verification_url)
+        self.assertEqual(len(mail.outbox), 0)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email_verification_send_count, 5)
+
     def test_resend_verification_sends_new_token(self):
+        self._clear_verification_cooldown()
         old_token = self.user.email_verification_token
         mail.outbox.clear()
 
@@ -494,6 +569,7 @@ class EmailVerificationEnforcementTests(TestCase):
         self.assertIn(str(self.user.email_verification_token), mail.outbox[0].body)
 
     def test_resend_verification_rate_limited(self):
+        self._clear_verification_cooldown()
         self.client.post(reverse("accounts:resend_verification"))
         mail.outbox.clear()
 
@@ -1083,7 +1159,15 @@ class ProfileEditTests(TestCase):
         self.user.profile_picture.name = (
             "JamSession Lab/aoife_b/profile_pictures/IMG_4599"
         )
-        self.user.save(update_fields=["profile_picture"])
+        self.user.profile_picture_focus_x = 30.0
+        self.user.profile_picture_focus_y = 70.0
+        self.user.save(
+            update_fields=[
+                "profile_picture",
+                "profile_picture_focus_x",
+                "profile_picture_focus_y",
+            ]
+        )
 
         response = self.client.get(
             reverse(
@@ -1094,6 +1178,8 @@ class ProfileEditTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "f_auto")
         self.assertContains(response, "profile_pictures/IMG_4599")
+        self.assertContains(response, 'data-cover-focus-x="30"')
+        self.assertContains(response, 'data-cover-focus-y="70"')
 
     def test_edit_form_shows_immediate_picture_remove_control(self):
         storage_path = "JamSession Lab/aoife_b/profile_pictures/IMG_4599"
@@ -1123,7 +1209,15 @@ class ProfileEditTests(TestCase):
         self.user.profile_picture.name = (
             "JamSession Lab/aoife_b/profile_pictures/to_clear"
         )
-        self.user.save(update_fields=["profile_picture"])
+        self.user.profile_picture_focus_x = 30.0
+        self.user.profile_picture_focus_y = 70.0
+        self.user.save(
+            update_fields=[
+                "profile_picture",
+                "profile_picture_focus_x",
+                "profile_picture_focus_y",
+            ]
+        )
 
         with patch("jamsession.cloudinary_cleanup._delete_stored_file") as mock_cleanup:
             response = self.client.post(
@@ -1134,6 +1228,8 @@ class ProfileEditTests(TestCase):
         self.assertEqual(response.json(), {"ok": True})
         self.user.refresh_from_db()
         self.assertFalse(bool(self.user.profile_picture))
+        self.assertEqual(self.user.profile_picture_focus_x, 50.0)
+        self.assertEqual(self.user.profile_picture_focus_y, 50.0)
         mock_cleanup.assert_called_once()
         cleaned_value = mock_cleanup.call_args.args[0]
         self.assertEqual(
@@ -1157,12 +1253,65 @@ class ProfileEditTests(TestCase):
 
         response = self.client.post(
             reverse("accounts:profile_picture_upload"),
-            data={"profile_picture": upload},
+            data={
+                "profile_picture": upload,
+                "profile_picture_focus_x": "35.5",
+                "profile_picture_focus_y": "20",
+            },
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"ok": True})
         self.user.refresh_from_db()
         self.assertTrue(bool(self.user.profile_picture))
+        self.assertEqual(self.user.profile_picture_focus_x, 35.5)
+        self.assertEqual(self.user.profile_picture_focus_y, 20.0)
+
+    def test_edit_form_shows_crop_picker_for_new_upload(self):
+        response = self.client.get(self.edit_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="cover-focus-picker"')
+        self.assertContains(response, "data-cover-ratio=\"1\"")
+        self.assertContains(response, "Use this photo")
+        self.assertContains(response, "data-profile-picture-confirm")
+        self.assertContains(response, "data-heic-preview-url")
+        # Must not pre-load an existing photo into the cropper — crop only
+        # after Choose / Change photo.
+        self.assertNotContains(response, "data-existing-cover-url")
+
+    def test_profile_picture_preview_converts_heic_to_jpeg(self):
+        from io import BytesIO
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        try:
+            import pillow_heif  # noqa: F401
+        except ImportError:
+            self.skipTest("pillow_heif is required for HEIC conversion")
+
+        from pillow_heif import register_heif_opener
+
+        register_heif_opener()
+        buffer = BytesIO()
+        Image.new("RGB", (32, 32), color=(10, 20, 30)).save(
+            buffer, format="HEIF"
+        )
+        upload = SimpleUploadedFile(
+            "avatar.heic",
+            buffer.getvalue(),
+            content_type="image/heic",
+        )
+
+        response = self.client.post(
+            reverse("accounts:profile_picture_preview"),
+            data={"profile_picture": upload},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/jpeg")
+        self.assertGreater(len(response.content), 0)
+        # Preview must not persist the photo on the user.
+        self.user.refresh_from_db()
+        self.assertFalse(bool(self.user.profile_picture))
 
     def test_profile_picture_upload_endpoint_rejects_missing_file(self):
         response = self.client.post(reverse("accounts:profile_picture_upload"))

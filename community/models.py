@@ -92,8 +92,8 @@ class CommunityPost(ModeratedContent):
 
     def __str__(self):
         if self.author:
-            return f"{self.title} — @{self.author.username}"
-        return f"{self.title} — (deleted account)"
+            return f"{self.title} · @{self.author.username}"
+        return f"{self.title} · (deleted account)"
 
     def save(self, *args, **kwargs):
         if not self.slug:

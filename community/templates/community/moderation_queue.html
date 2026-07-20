@@ -2,7 +2,7 @@
 {% load static %}
 {% load community_extras %}
 
-{% block title %}JamSession Lab — Review Items{% endblock %}
+{% block title %}JamSession Lab · Review Items{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
@@ -11,13 +11,13 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-            <div class="mx-auto max-w-2xl text-center" data-aos="fade-up">
-                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">Review Items</h1>
-                <p class="mt-4 text-lg text-jam-muted">
+        <div class="page-shell">
+            <header class="page-header" data-aos="fade-up">
+                <h1 class="page-header__title">Review Items</h1>
+                <p class="page-header__lead">
                     Community posts, comments, and gallery submissions awaiting approval, oldest first.
                 </p>
-            </div>
+            </header>
 
             <section class="moderation-section mt-14" data-aos="fade-up" data-aos-delay="100">
                 <h2 class="moderation-section__title">Pending posts ({{ pending_posts|length }})</h2>

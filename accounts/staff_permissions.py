@@ -14,6 +14,7 @@ STAFF_GROUP_NAME = "Staff"
 # actions are subsets of add / change / delete / view
 _STAFF_MODEL_PERMISSIONS = (
     ("pages", "homecarouselslide", ("add", "change", "delete", "view")),
+    ("pages", "aboutorganiser", ("add", "change", "delete", "view")),
     ("gallery", "galleryitem", ("add", "change", "delete", "view")),
     ("community", "communitypost", ("add", "change", "delete", "view")),
     ("community", "communitypostmedia", ("add", "change", "delete", "view")),

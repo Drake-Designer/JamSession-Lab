@@ -55,8 +55,8 @@ class GalleryItem(ModeratedContent):
     def __str__(self):
         label = self.title or self.get_media_type_display()
         if self.uploaded_by:
-            return f"{label} — @{self.uploaded_by.username}"
-        return f"{label} — (deleted account)"
+            return f"{label} · @{self.uploaded_by.username}"
+        return f"{label} · (deleted account)"
 
     def upload_options(self):
         """

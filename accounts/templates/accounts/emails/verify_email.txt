@@ -1,6 +1,6 @@
 Hi {{ user.display_name }},
 
-Welcome to JamSession Lab — we're delighted to have you in the community!
+Welcome to JamSession Lab · we're delighted to have you in the community!
 
 Please confirm your email address by opening this link:
 

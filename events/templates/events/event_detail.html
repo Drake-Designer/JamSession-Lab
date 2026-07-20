@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — {{ event.title }}{% endblock %}
+{% block title %}JamSession Lab · {{ event.title }}{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'events/css/event_detail.css' %}">
@@ -9,19 +9,17 @@
 
 {% block content %}
     <section class="event-detail bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-            <div class="text-center" data-aos="fade-up">
+        <div class="page-shell page-shell--prose">
+            <header class="page-header" data-aos="fade-up">
                 {% if not event.is_active %}
-                <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Inactive</p>
+                <p class="page-header__eyebrow">Inactive</p>
                 {% elif event.is_upcoming %}
-                <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Upcoming event</p>
+                <p class="page-header__eyebrow">Upcoming event</p>
                 {% else %}
-                <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Past event</p>
+                <p class="page-header__eyebrow">Past event</p>
                 {% endif %}
-                <h1 class="mt-2 text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
-                    {{ event.title }}
-                </h1>
-            </div>
+                <h1 class="page-header__title">{{ event.title }}</h1>
+            </header>
 
             {% if event.poster %}
             <div class="event-detail__poster mt-8 overflow-hidden rounded-2xl border border-jam-grey-light" data-aos="fade-up">
@@ -71,14 +69,14 @@
                         {% if event.is_upcoming %}
                         <a
                             href="{% url 'events:register_edit' event.pk %}"
-                            class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black shadow-md transition hover:bg-jam-red-hover sm:w-auto"
+                            class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black shadow-lg shadow-jam-red/20 transition hover:bg-jam-red-hover sm:w-auto"
                         >
                             Edit registration
                         </a>
                         {% endif %}
                         <a
                             href="{% url 'events:register_confirmation' event.pk %}"
-                            class="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-jam-grey-light px-6 py-3 text-base font-bold text-jam-white transition hover:border-jam-red sm:ml-3 sm:mt-0 sm:w-auto"
+                            class="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-jam-grey-light px-8 py-3.5 text-base font-bold text-jam-white transition hover:border-jam-red sm:ml-3 sm:mt-0 sm:w-auto"
                         >
                             View your registration
                         </a>
@@ -103,7 +101,7 @@
                         {% if event.is_registration_allowed %}
                         <a
                             href="{% url 'events:register' event.pk %}"
-                            class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black shadow-md transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-black sm:w-auto"
+                            class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black shadow-lg shadow-jam-red/20 transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-black sm:w-auto"
                         >
                             Register
                         </a>
@@ -115,7 +113,7 @@
                     {% else %}
                         <a
                             href="{% url 'accounts:register' %}?next={% url 'events:register' event.pk %}"
-                            class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black shadow-md transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-black sm:w-auto"
+                            class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black shadow-lg shadow-jam-red/20 transition hover:bg-jam-red-hover focus:outline-none focus:ring-2 focus:ring-jam-red focus:ring-offset-2 focus:ring-offset-jam-black sm:w-auto"
                         >
                             Register
                         </a>

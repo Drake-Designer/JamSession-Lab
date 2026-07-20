@@ -31,6 +31,11 @@ urlpatterns = [
         name="profile_picture_remove",
     ),
     path(
+        "profile/picture/preview/",
+        views.profile_picture_preview,
+        name="profile_picture_preview",
+    ),
+    path(
         "profile/picture/upload/",
         views.profile_picture_upload,
         name="profile_picture_upload",

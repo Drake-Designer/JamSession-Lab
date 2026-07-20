@@ -94,4 +94,4 @@ class EventAdmin(ModelAdmin):
                     "height": 40,
                 },
             )
-        return (None, None, "—", None)
+        return (None, None, "-", None)

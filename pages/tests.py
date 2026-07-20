@@ -135,3 +135,124 @@ class ContactFormViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(mail.outbox), 1)
         self.assertContains(response, "Please wait a minute")
+
+
+@override_settings(
+    STORAGES={
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    },
+)
+class AboutOrganiserTests(TestCase):
+    def setUp(self):
+        self._media_root = tempfile.mkdtemp()
+        self._override = override_settings(MEDIA_ROOT=self._media_root)
+        self._override.enable()
+
+        from pages.models import AboutOrganiser
+
+        self.organiser = AboutOrganiser.objects.create(
+            name="Dario",
+            role="Founder",
+            bio="Founder bio for tests.",
+            initials="D",
+            order=0,
+            is_active=True,
+            photo=SimpleUploadedFile(
+                "dario.png",
+                MINIMAL_PNG,
+                content_type="image/png",
+            ),
+        )
+        AboutOrganiser.objects.filter(pk=self.organiser.pk).update(
+            photo="JamSession Lab/site/about_organisers/dario_id"
+        )
+        self.organiser.refresh_from_db()
+
+    def tearDown(self):
+        self._override.disable()
+
+    def test_about_page_shows_active_organisers(self):
+        from pages.models import AboutOrganiser
+
+        AboutOrganiser.objects.create(
+            name="Hidden",
+            role="Staff",
+            bio="Should not appear.",
+            initials="H",
+            order=9,
+            is_active=False,
+        )
+        response = self.client.get(reverse("pages:about"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Dario")
+        self.assertContains(response, "Founder")
+        self.assertContains(response, "Founder bio for tests.")
+        self.assertNotContains(response, "Should not appear.")
+
+    def test_edit_role_without_reuploading_photo_is_valid(self):
+        from pages.admin import AboutOrganiserAdminForm
+
+        form = AboutOrganiserAdminForm(
+            data={
+                "name": self.organiser.name,
+                "role": "Founder",
+                "bio": "Updated bio only.",
+                "initials": self.organiser.initials,
+                "is_active": True,
+                "order": self.organiser.order,
+            },
+            instance=self.organiser,
+        )
+        self.assertTrue(form.is_valid(), msg=form.errors.as_json())
+        self.assertEqual(form.cleaned_data["bio"], "Updated bio only.")
+
+    @patch.object(FileSystemStorage, "delete", return_value=None)
+    def test_delete_organiser_removes_stored_photo(self, mock_delete):
+        photo_name = self.organiser.photo.name
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self.organiser.delete()
+
+        mock_delete.assert_called_once_with(photo_name)
+
+    @patch.object(FileSystemStorage, "delete", return_value=None)
+    def test_replace_photo_deletes_previous_file(self, mock_delete):
+        from pages.models import AboutOrganiser
+
+        old_name = self.organiser.photo.name
+        self.organiser.photo = SimpleUploadedFile(
+            "dario-new.png",
+            MINIMAL_PNG,
+            content_type="image/png",
+        )
+        self.organiser.save()
+
+        mock_delete.assert_called_once_with(old_name)
+        refreshed = AboutOrganiser.objects.get(pk=self.organiser.pk)
+        self.assertNotEqual(refreshed.photo.name, old_name)
+
+    def test_admin_form_saves_photo_focus(self):
+        from pages.admin import AboutOrganiserAdminForm
+
+        form = AboutOrganiserAdminForm(
+            data={
+                "name": self.organiser.name,
+                "role": self.organiser.role,
+                "bio": self.organiser.bio,
+                "initials": self.organiser.initials,
+                "is_active": True,
+                "order": self.organiser.order,
+                "photo_focus_x": "30",
+                "photo_focus_y": "70",
+            },
+            instance=self.organiser,
+        )
+        self.assertTrue(form.is_valid(), msg=form.errors.as_json())
+        organiser = form.save()
+        self.assertEqual(organiser.photo_focus_x, 30.0)
+        self.assertEqual(organiser.photo_focus_y, 70.0)

@@ -1,16 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}JamSession Lab — Already registered{% endblock %}
+{% block title %}JamSession Lab · Already registered{% endblock %}
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-xl px-4 sm:px-6 lg:px-8">
+        <div class="page-shell page-shell--narrow">
             <div class="rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up">
-                <h1 class="text-2xl font-bold text-jam-red">You are already registered</h1>
-                <p class="mt-4 text-jam-muted-on-grey">
-                    You are already registered for
-                    <span class="font-semibold text-jam-white">{{ event.title }}</span>.
-                </p>
+                <header class="page-header">
+                    <h1 class="page-header__title">You are already registered</h1>
+                    <p class="page-header__lead">
+                        You are already registered for
+                        <span class="font-semibold text-jam-white">{{ event.title }}</span>.
+                    </p>
+                </header>
                 <div class="mt-8 flex flex-wrap gap-3">
                     <a
                         href="{% url 'events:register_edit' event.pk %}"

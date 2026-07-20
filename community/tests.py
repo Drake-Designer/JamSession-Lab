@@ -3039,14 +3039,18 @@ class CommunityMembersSidebarTests(TestCase):
         self.assertContains(response, "members-sidebar")
         self.assertContains(response, "Members")
 
-    def test_sidebar_present_on_detail_and_create(self):
+    def test_sidebar_present_on_list_and_create_not_detail(self):
         post = _make_post(
             self.author, title="Sidebar Post", status=ApprovalStatus.APPROVED
         )
+        list_response = self.client.get(reverse("community:list"))
+        self.assertEqual(list_response.status_code, 200)
+        self.assertContains(list_response, "members-sidebar")
+
         detail = self.client.get(reverse("community:post_detail", args=[post.slug]))
         self.assertEqual(detail.status_code, 200)
-        self.assertIn("community_members", detail.context)
-        self.assertContains(detail, "members-sidebar")
+        self.assertNotContains(detail, "members-sidebar")
+        self.assertContains(detail, "community-detail")
 
         self.client.force_login(self.author)
         create = self.client.get(reverse("community:post_create"))
@@ -3151,24 +3155,25 @@ class CommunityMembersSidebarTests(TestCase):
 
     def test_mobile_accordion_markup_is_present_for_alpine(self):
         """
-        No Selenium/Playwright in this project — assert the Alpine accordion
-        contract in the rendered HTML so open/close wiring cannot regress silently.
+        Assert the Alpine accordion contract: closed by default, toggle wiring
+        present, and community.js loaded (no browser automation in this project).
         """
         response = self.client.get(reverse("community:list"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'x-data="membersSidebar()"')
         self.assertContains(response, "members-sidebar__toggle")
         self.assertContains(response, 'aria-controls="community-members-panel"')
+        self.assertContains(response, 'aria-expanded="false"')
         self.assertContains(response, ':aria-expanded="open.toString()"')
         self.assertContains(
             response, ":class=\"{ 'members-sidebar__panel--open': open }\""
         )
-        self.assertContains(response, "community/js/community.js")
+        self.assertContains(response, "community/js/community")
 
     def test_create_form_uses_stacked_layout_below_desktop(self):
         """
-        Below 1024px the CSS keeps community-layout as a column, so the sidebar
-        sits under the form and does not squeeze the multi-field create form.
+        Below 1024px the CSS keeps community-layout as a column. Members uses
+        order:-1 so it sits above the form; the form keeps a readable max width.
         """
         self.client.force_login(self.author)
         response = self.client.get(reverse("community:post_create"))

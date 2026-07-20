@@ -1,0 +1,167 @@
+/* Photo crop editor for About organisers (admin) — square / circular frame.
+ * Markup reuses community cover-focus class names; ratio is 1:1 via JS.
+ */
+
+.cover-focus {
+    margin-top: 0.5rem;
+    max-width: 40rem;
+}
+
+.cover-focus__hint {
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #a3a3a3;
+}
+
+.cover-focus__error {
+    margin-bottom: 0.75rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(230, 57, 70, 0.55);
+    background-color: rgba(230, 57, 70, 0.1);
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #ff4d5a;
+}
+
+.cover-focus__status {
+    margin-bottom: 0.75rem;
+    border-radius: 0.75rem;
+    border: 1px solid #404040;
+    background-color: #111111;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #d1d1d1;
+}
+
+.cover-focus__workspace {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    height: min(28rem, 70vh);
+    border-radius: 0.75rem;
+    border: 1px solid #262626;
+    background-color: #0a0a0a;
+    touch-action: none;
+    user-select: none;
+}
+
+.cover-focus__image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    max-width: none;
+    display: block;
+    pointer-events: none;
+}
+
+.cover-focus__crop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    box-sizing: border-box;
+    border: 2px solid #ffffff;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.72);
+    cursor: grab;
+    touch-action: none;
+    /* Hidden until JS measures the workspace — otherwise the 9999px shadow
+       paints a solid black overlay over the whole editor. */
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.cover-focus__crop.is-ready {
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.cover-focus__crop.is-dragging {
+    cursor: grabbing;
+}
+
+.cover-focus__crop:focus-visible {
+    outline: 2px solid #e63946;
+    outline-offset: 3px;
+}
+
+.cover-focus__crop-label {
+    position: absolute;
+    left: 50%;
+    top: 0.5rem;
+    transform: translateX(-50%);
+    border-radius: 9999px;
+    background-color: rgba(0, 0, 0, 0.75);
+    padding: 0.25rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #ffffff;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.cover-focus__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    margin-top: 0.75rem;
+}
+
+.cover-focus__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: #a3a3a3;
+}
+
+.cover-focus__legend-item::before {
+    content: "";
+    display: block;
+    width: 0.875rem;
+    height: 0.875rem;
+    border-radius: 0.25rem;
+    border: 1px solid #525252;
+}
+
+.cover-focus__legend-item--kept::before {
+    background-color: rgba(255, 255, 255, 0.85);
+}
+
+.cover-focus__legend-item--cut::before {
+    background-color: rgba(0, 0, 0, 0.72);
+}
+
+.cover-focus__result {
+    margin-top: 1.25rem;
+}
+
+.cover-focus__result-label {
+    margin-bottom: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #d1d1d1;
+}
+
+.cover-focus__result-frame--circle {
+    overflow: hidden;
+    width: 11.5rem;
+    height: 11.5rem;
+    margin-inline: auto;
+    border-radius: 9999px;
+    border: 2px solid rgba(230, 57, 70, 0.4);
+    background-color: #000000;
+}
+
+.cover-focus__result-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+}

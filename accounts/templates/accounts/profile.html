@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — {{ profile_user.display_name|default:profile_user.username }}{% endblock %}
+{% block title %}JamSession Lab · {{ profile_user.display_name|default:profile_user.username }}{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'accounts/css/profile.css' %}">
@@ -12,10 +12,10 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+        <div class="page-shell page-shell--prose">
 
             <header
-                class="profile-header flex flex-col flex-wrap items-center gap-5 rounded-2xl border border-jam-grey-light bg-jam-grey p-8 text-center sm:flex-row sm:items-start sm:text-left sm:p-10"
+                class="profile-header{% if is_owner and show_staff_tools %} profile-header--staff{% elif is_owner %} profile-header--simple-owner{% endif %} flex flex-col flex-wrap items-center gap-5 rounded-2xl border border-jam-grey-light bg-jam-grey p-8 text-center sm:flex-row {% if is_owner and show_staff_tools %}sm:items-stretch{% else %}sm:items-start{% endif %} sm:text-left sm:p-10"
                 data-aos="fade-up"
             >
                 <div class="profile-header__avatar-col">
@@ -23,20 +23,22 @@
                     <img
                         src="{{ profile_user.display_profile_picture_url }}"
                         alt="Profile picture of {{ profile_user.display_name|default:profile_user.username }}"
-                        class="profile-header__avatar h-28 w-28 shrink-0 rounded-full border-2 border-jam-grey-light object-cover"
-                        width="112"
-                        height="112"
+                        class="profile-header__avatar"
+                        width="176"
+                        height="176"
+                        data-cover-focus-x="{{ profile_user.profile_picture_focus_x|stringformat:'g' }}"
+                        data-cover-focus-y="{{ profile_user.profile_picture_focus_y|stringformat:'g' }}"
                     >
                     {% else %}
                     <div
-                        class="profile-header__avatar flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-2 border-jam-grey-light bg-jam-black text-4xl font-extrabold text-jam-red"
+                        class="profile-header__avatar profile-header__avatar--placeholder"
                         aria-hidden="true"
                     >
                         {{ profile_user.display_name|default:profile_user.username|slice:":1"|upper }}
                     </div>
                     {% endif %}
 
-                    {% if is_owner %}
+                    {% if is_owner and show_staff_tools %}
                     <a
                         href="{% url 'accounts:profile_edit' %}"
                         class="profile-edit-btn"
@@ -46,7 +48,7 @@
                     {% endif %}
                 </div>
 
-                <div class="min-w-0 flex-1">
+                <div class="profile-header__info min-w-0 flex-1">
                     <h1 class="break-words text-3xl font-extrabold tracking-tight text-jam-white">
                         <span class="profile-header__name-row">
                             {{ profile_user.public_display_name }}
@@ -171,6 +173,17 @@
                 {% else %}
                 </div>
                 {% endif %}
+                {% endif %}
+
+                {% if is_owner and not show_staff_tools %}
+                <div class="profile-header__owner-cta">
+                    <a
+                        href="{% url 'accounts:profile_edit' %}"
+                        class="profile-edit-btn"
+                    >
+                        Edit profile
+                    </a>
+                </div>
                 {% endif %}
             </header>
 

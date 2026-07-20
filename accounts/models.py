@@ -8,6 +8,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import F
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -91,6 +92,22 @@ class User(AbstractUser):
         null=True,
         validators=[validate_profile_picture],
     )
+    # Percentages (0–100) for CSS object-position when the photo is cropped
+    # to a circle — set only when uploading / replacing the picture.
+    profile_picture_focus_x = models.FloatField(
+        _("profile picture focus X"),
+        default=50,
+        help_text=_(
+            "Horizontal focal point as a percentage (0 = left, 100 = right)."
+        ),
+    )
+    profile_picture_focus_y = models.FloatField(
+        _("profile picture focus Y"),
+        default=50,
+        help_text=_(
+            "Vertical focal point as a percentage (0 = top, 100 = bottom)."
+        ),
+    )
 
     date_of_birth = models.DateField(
         blank=True,
@@ -167,6 +184,15 @@ class User(AbstractUser):
     email_verification_token = models.UUIDField(
         default=uuid.uuid4,
         editable=False,
+    )
+    email_verification_send_count = models.PositiveSmallIntegerField(
+        _("verification emails sent"),
+        default=0,
+        help_text=_(
+            "How many verification emails have been sent while this account "
+            "is still unverified. After the limit, the member must contact "
+            "JamSession Lab for manual activation."
+        ),
     )
 
     # When the user ticked the Terms of Service checkbox at registration.
@@ -245,12 +271,27 @@ class User(AbstractUser):
 
     @property
     def display_profile_picture_url(self):
-        """Browser-friendly profile photo URL (converts HEIC on delivery)."""
+        """
+        Browser-friendly profile photo URL — scaled, not hard-cropped.
+
+        Cropping is done in CSS with object-fit/object-position so
+        profile_picture_focus_x/y still apply on circular avatars.
+        """
+        if not self.profile_picture:
+            return ""
         return web_image_url(
             self.profile_picture,
-            width=400,
-            height=400,
-            crop="fill",
+            width=640,
+            crop="limit",
+            quality="auto",
+        )
+
+    @property
+    def profile_picture_focus_style(self):
+        """CSS object-position value derived from the stored focal point."""
+        return (
+            f"{self.profile_picture_focus_x:g}% "
+            f"{self.profile_picture_focus_y:g}%"
         )
 
     def _profile_field_is_complete(self, field_key):
@@ -383,6 +424,17 @@ class User(AbstractUser):
         """Issue a fresh token, invalidating any previously emailed link."""
         self.email_verification_token = uuid.uuid4()
         self.save(update_fields=["email_verification_token"])
+
+    def has_exhausted_verification_emails(self, limit: int) -> bool:
+        """True when no more verification emails may be sent for this user."""
+        return self.email_verification_send_count >= limit
+
+    def record_verification_email_sent(self) -> None:
+        """Increment the verification-email counter (concurrency-safe)."""
+        type(self).objects.filter(pk=self.pk).update(
+            email_verification_send_count=F("email_verification_send_count") + 1
+        )
+        self.refresh_from_db(fields=["email_verification_send_count"])
 
     def __str__(self):
         return self.display_name or self.username

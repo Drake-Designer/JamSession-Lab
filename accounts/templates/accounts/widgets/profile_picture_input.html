@@ -1,4 +1,4 @@
-{# Custom clearable image input — centred preview + equal Change/Remove buttons. #}
+{# Custom clearable image input — preview + Change/Remove + crop on upload. #}
 <div
     class="profile-picture-widget"
     {% if widget.immediate_upload_url %}
@@ -13,9 +13,13 @@
         src="{{ widget.preview_url }}"
         alt="{% if widget.attrs.alt %}{{ widget.attrs.alt }}{% else %}Current profile photo{% endif %}"
         class="profile-picture-widget__preview"
-        width="96"
-        height="96"
+        width="128"
+        height="128"
         data-profile-picture-preview
+        {% if widget.focus_x is not None and widget.focus_y is not None %}
+        data-cover-focus-x="{{ widget.focus_x|stringformat:'g' }}"
+        data-cover-focus-y="{{ widget.focus_y|stringformat:'g' }}"
+        {% endif %}
     >
     {% endif %}
 
@@ -61,4 +65,79 @@
             {% endif %}
         {% endfor %}
     >
+
+    {% if widget.immediate_upload_url %}
+    <input
+        type="hidden"
+        id="id_profile_picture_focus_x"
+        name="profile_picture_focus_x"
+        value="50"
+        data-profile-picture-focus-x
+    >
+    <input
+        type="hidden"
+        id="id_profile_picture_focus_y"
+        name="profile_picture_focus_y"
+        value="50"
+        data-profile-picture-focus-y
+    >
+
+    {# Crop only after Choose / Change photo — never for the current saved photo. #}
+    <div
+        id="cover-focus-picker"
+        class="cover-focus profile-picture-focus"
+        hidden
+        data-cover-ratio="1"
+        data-focus-x-id="id_profile_picture_focus_x"
+        data-focus-y-id="id_profile_picture_focus_y"
+        data-file-input="[data-profile-picture-input]"
+        {% if widget.heic_preview_url %}
+        data-heic-preview-url="{{ widget.heic_preview_url }}"
+        {% endif %}
+    >
+        <p class="cover-focus__hint">
+            Drag the circle to choose which part of the photo appears on your
+            profile. The dimmed area is cropped away. To adjust later, use
+            Change photo and upload again.
+        </p>
+        <div id="cover-focus-workspace" class="cover-focus__workspace">
+            <img id="cover-focus-preview" class="cover-focus__image" alt="" draggable="false">
+            <div
+                id="cover-focus-crop"
+                class="cover-focus__crop"
+                role="slider"
+                tabindex="0"
+                aria-label="Visible area of the profile photo"
+            >
+                <span class="cover-focus__crop-label">Visible area</span>
+            </div>
+        </div>
+        <div class="cover-focus__legend" aria-hidden="true">
+            <span class="cover-focus__legend-item cover-focus__legend-item--kept">Visible</span>
+            <span class="cover-focus__legend-item cover-focus__legend-item--cut">Cropped</span>
+        </div>
+        <div class="cover-focus__result">
+            <p class="cover-focus__result-label">How it will look on your profile</p>
+            <div class="cover-focus__result-frame cover-focus__result-frame--circle">
+                <img id="cover-focus-result-image" class="cover-focus__result-image" alt="" draggable="false">
+            </div>
+        </div>
+        <div class="profile-picture-focus__confirm-actions">
+            <button
+                type="button"
+                class="profile-picture-focus__confirm"
+                data-profile-picture-confirm
+            >
+                Use this photo
+            </button>
+            <button
+                type="button"
+                class="profile-picture-focus__cancel"
+                data-profile-picture-cancel
+            >
+                Cancel
+            </button>
+        </div>
+    </div>
+    {% endif %}
 </div>

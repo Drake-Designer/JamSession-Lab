@@ -102,7 +102,7 @@ class GalleryItemAdmin(ModelAdmin):
     @display(description=_("Preview"), header=True)
     def media_thumbnail(self, obj):
         if not obj.file:
-            return (None, None, "—", None)
+            return (None, None, "-", None)
 
         if obj.is_video:
             return (
@@ -137,7 +137,7 @@ class GalleryItemAdmin(ModelAdmin):
     def display_media_type(self, obj):
         if obj.media_type:
             return obj.get_media_type_display()
-        return "—"
+        return "-"
 
     @display(
         description=_("Status"),

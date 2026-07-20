@@ -16,7 +16,7 @@ from django.urls import reverse
 
 logger = logging.getLogger(__name__)
 
-VERIFICATION_EMAIL_SUBJECT = "Welcome to JamSession Lab — please verify your email"
+VERIFICATION_EMAIL_SUBJECT = "Welcome to JamSession Lab · please verify your email"
 
 
 @dataclass(frozen=True)

@@ -148,7 +148,7 @@ class GalleryBatchUploadForm(forms.Form):
                 success_count += 1
             except Exception:
                 failures.append(
-                    (uploaded_file.name, "upload failed — please try again")
+                    (uploaded_file.name, "upload failed: please try again")
                 )
 
         return success_count, failures

@@ -1,18 +1,20 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — Delete {{ event.title }}{% endblock %}
+{% block title %}JamSession Lab · Delete {{ event.title }}{% endblock %}
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-xl px-4 sm:px-6 lg:px-8">
+        <div class="page-shell page-shell--narrow">
             <div class="rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up">
-                <h1 class="text-2xl font-bold text-jam-red">Delete this event?</h1>
-                <p class="mt-4 text-jam-muted-on-grey">
-                    You are about to permanently delete
-                    <span class="font-semibold text-jam-white">{{ event.title }}</span>
-                    and all related registrations. This cannot be undone.
-                </p>
+                <header class="page-header">
+                    <h1 class="page-header__title">Delete this event?</h1>
+                    <p class="page-header__lead">
+                        You are about to permanently delete
+                        <span class="font-semibold text-jam-white">{{ event.title }}</span>
+                        and all related registrations. This cannot be undone.
+                    </p>
+                </header>
                 <form method="post" class="mt-8 flex flex-wrap gap-3">
                     {% csrf_token %}
                     <button

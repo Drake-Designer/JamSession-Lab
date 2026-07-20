@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — {% if is_edit %}Edit Post{% else %}Start a Discussion{% endif %}{% endblock %}
+{% block title %}JamSession Lab · {% if is_edit %}Edit Post{% else %}Start a Discussion{% endif %}{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
@@ -9,14 +9,14 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div class="community-shell">
             <div class="community-layout">
                 <div class="community-layout__main">
-                    <div class="mx-auto max-w-2xl text-center lg:mx-0 lg:max-w-none lg:text-left" data-aos="fade-up">
-                        <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+                    <header class="page-header" data-aos="fade-up">
+                        <h1 class="page-header__title">
                             {% if is_edit %}Edit Post{% else %}Start a Discussion{% endif %}
                         </h1>
-                        <p class="mt-4 text-lg text-jam-muted">
+                        <p class="page-header__lead">
                             {% if is_edit %}
                             Update your title, body, cover image, or add more photos and videos.
                             {% else %}
@@ -24,14 +24,14 @@
                             You can attach photos or videos too.
                             {% endif %}
                         </p>
-                        <p class="mt-3 text-sm text-jam-muted-dark">
+                        <p class="page-header__meta">
                             {% if is_edit %}
                             If you are not staff, your changes will be reviewed before they appear publicly again.
                             {% else %}
                             Your post will be reviewed before it appears publicly.
                             {% endif %}
                         </p>
-                    </div>
+                    </header>
 
                     <form
                         method="post"

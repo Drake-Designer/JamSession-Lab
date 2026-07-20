@@ -2,7 +2,7 @@
 {% load static %}
 {% load community_extras %}
 
-{% block title %}JamSession Lab — {{ post.title }}{% endblock %}
+{% block title %}JamSession Lab · {{ post.title }}{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
@@ -11,9 +11,8 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <div class="community-layout">
-                <div class="community-layout__main">
+        <div class="community-shell">
+            <div class="community-detail">
 
             <a href="{% url 'community:list' %}" class="community-back-link" data-aos="fade-up">&larr; Back to Community</a>
 
@@ -174,18 +173,11 @@
                 {% endif %}
             </section>
 
-                </div>
-
-                {% include "community/_members_sidebar.html" %}
             </div>
         </div>
     </section>
 
     {% include "gallery/_lightbox.html" %}
-{% endblock %}
-
-{% block alpine_components %}
-    <script src="{% static 'community/js/community.js' %}"></script>
 {% endblock %}
 
 {% block extra_scripts %}

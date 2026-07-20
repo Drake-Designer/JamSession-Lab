@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — {% if is_edit %}Edit registration{% else %}Register{% endif %} · {{ event.title }}{% endblock %}
+{% block title %}JamSession Lab · {% if is_edit %}Edit registration{% else %}Register{% endif %} · {{ event.title }}{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'accounts/css/forms.css' %}">
@@ -10,23 +10,21 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
-            <div class="text-center" data-aos="fade-up">
-                <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">
+        <div class="page-shell page-shell--narrow">
+            <header class="page-header" data-aos="fade-up">
+                <p class="page-header__eyebrow">
                     {% if is_edit %}Edit registration{% else %}Event registration{% endif %}
                 </p>
-                <h1 class="mt-2 text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
-                    {{ event.title }}
-                </h1>
-                <p class="mt-4 text-lg text-jam-muted">
+                <h1 class="page-header__title">{{ event.title }}</h1>
+                <p class="page-header__lead">
                     {{ event.starts_at|date:"l, j F Y · g:i A" }} · {{ event.venue_name }}
                 </p>
                 {% if is_edit %}
-                <p class="mt-3 text-sm text-jam-muted">
+                <p class="page-header__meta">
                     Update your sessions, songs, or notes below. Your place at the event is kept.
                 </p>
                 {% endif %}
-            </div>
+            </header>
 
             <div class="mt-8 rounded-2xl border border-jam-grey-light bg-jam-grey p-6" data-aos="fade-up">
                 <h2 class="text-sm font-medium uppercase tracking-wider text-jam-muted">Your profile (from account)</h2>
@@ -72,7 +70,7 @@
                         Which session(s) would you like to join?
                     </legend>
                     <p class="text-sm text-jam-muted">
-                        Select all that apply — one session is guaranteed; additional selections depend on availability.
+                        Select all that apply. One session is guaranteed; additional selections depend on availability.
                     </p>
                     <div class="space-y-3">
                         <label class="flex items-start gap-3 text-sm text-jam-white">

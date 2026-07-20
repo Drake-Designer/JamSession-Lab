@@ -100,6 +100,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                     "password",
                     "email",
                     "is_email_verified",
+                    "email_verification_send_count",
                     "phone_number",
                 ),
             },
@@ -132,7 +133,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                 "description": _(
                     "Access flags and Django permissions. "
                     "Turning on Staff automatically adds the user to the Staff group "
-                    "(carousel, gallery, community, events, and user profile edits — "
+                    "(carousel, gallery, community, events, and user profile edits, "
                     "not user deletion). Superuser bypasses all permission checks and "
                     "is the only role that can delete user accounts."
                 ),
@@ -234,7 +235,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
             ),
             "user_permissions": _(
                 "Extra individual permissions for this user only. "
-                "Usually unnecessary for staff — the Staff group already covers "
+                "Usually unnecessary for staff: the Staff group already covers "
                 "carousel, gallery, community, events, and profile edits."
             ),
         }
@@ -296,12 +297,12 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
     def display_age(self, obj):
         age = obj.age
         if age is None:
-            return "—"
+            return "-"
         return f"{age} years old"
 
     @display(description=_("Instruments"))
     def display_instruments(self, obj):
-        return obj.get_instruments_display() or "—"
+        return obj.get_instruments_display() or "-"
 
     @display(description=_("Email verified"), boolean=True, ordering="is_email_verified")
     def display_is_verified(self, obj):

@@ -131,7 +131,7 @@ def _media_preview(obj, *, width=220, height=160):
     """
     url = _resolve_media_url(obj, width=width)
     if not url:
-        return "—"
+        return "-"
 
     if obj.media_type == MediaType.VIDEO:
         return format_html(
@@ -286,7 +286,7 @@ class CommunityPostAdmin(ModelAdmin):
     @display(description=_("Attachments preview"))
     def media_gallery(self, obj):
         if not obj.pk:
-            return "—"
+            return "-"
         return _media_gallery_preview(obj.media.all(), width=300, height=300)
 
 
@@ -385,7 +385,7 @@ class CommunityCommentAdmin(ModelAdmin):
     @display(description=_("Attachments preview"))
     def media_gallery(self, obj):
         if not obj.pk:
-            return "—"
+            return "-"
         return _media_gallery_preview(obj.media.all(), width=300, height=300)
 
 

@@ -20,14 +20,23 @@ class ProfilePictureInput(ClearableFileInput):
     def get_context(self, name, value, attrs):
         context = super().get_context(name, value, attrs)
         preview_url = ""
+        focus_x = None
+        focus_y = None
         if self.is_initial(value):
+            # Scaled full image — crop is applied in CSS via object-position.
             preview_url = web_image_url(
                 value,
-                width=200,
-                height=200,
-                crop="fill",
+                width=320,
+                crop="limit",
+                quality="auto",
             )
+            instance = getattr(value, "instance", None)
+            if instance is not None:
+                focus_x = getattr(instance, "profile_picture_focus_x", 50)
+                focus_y = getattr(instance, "profile_picture_focus_y", 50)
         context["widget"]["preview_url"] = preview_url
+        context["widget"]["focus_x"] = focus_x
+        context["widget"]["focus_y"] = focus_y
         # Pop so these are not dumped onto the <input type="file"> element.
         widget_attrs = context["widget"]["attrs"]
         context["widget"]["immediate_remove_url"] = widget_attrs.pop(
@@ -36,6 +45,10 @@ class ProfilePictureInput(ClearableFileInput):
         )
         context["widget"]["immediate_upload_url"] = widget_attrs.pop(
             "data-immediate-upload-url",
+            "",
+        )
+        context["widget"]["heic_preview_url"] = widget_attrs.pop(
+            "data-heic-preview-url",
             "",
         )
         return context

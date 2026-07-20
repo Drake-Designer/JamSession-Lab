@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — Attendees · {{ event.title }}{% endblock %}
+{% block title %}JamSession Lab · Attendees · {{ event.title }}{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'registrations/css/staff_lists.css' %}">
@@ -9,13 +9,13 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div class="page-shell">
             <div class="flex flex-wrap items-end justify-between gap-4" data-aos="fade-up">
-                <div>
-                    <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">Staff</p>
-                    <h1 class="mt-1 text-3xl font-bold text-jam-red">{{ event.title }}</h1>
-                    <p class="mt-2 text-jam-muted">Registrations and cancellations</p>
-                </div>
+                <header class="page-header">
+                    <p class="page-header__eyebrow">Staff</p>
+                    <h1 class="page-header__title">{{ event.title }}</h1>
+                    <p class="page-header__lead">Registrations and cancellations</p>
+                </header>
                 <a href="{% url 'events:manage' %}#event-{{ event.pk }}" class="text-sm font-semibold text-jam-red hover:text-jam-red-hover">
                     Back to events
                 </a>

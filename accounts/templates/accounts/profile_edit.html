@@ -1,20 +1,21 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — Edit Profile{% endblock %}
+{% block title %}JamSession Lab · Edit Profile{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'accounts/css/forms.css' %}">
     <link rel="stylesheet" href="{% static 'accounts/css/profile_picture_widget.css' %}">
+    <link rel="stylesheet" href="{% static 'pages/css/organiser-photo-focus.css' %}">
 {% endblock %}
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+        <div class="page-shell page-shell--narrow">
             <div class="rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up">
-                <h1 class="mb-8 text-center text-3xl font-bold tracking-tight text-jam-red">
-                    Edit Profile
-                </h1>
+                <header class="page-header page-header--center mb-8">
+                    <h1 class="page-header__title">Edit Profile</h1>
+                </header>
 
                 <form method="post" enctype="multipart/form-data" class="jam-form space-y-6" novalidate>
                     {% csrf_token %}
@@ -60,7 +61,7 @@
                             <span class="form-field__missing-badge">Missing</span>
                             {% endif %}
                         </legend>
-                        <p class="mb-3 text-xs text-jam-muted">Optional — pick as many as you like.</p>
+                        <p class="mb-3 text-xs text-jam-muted">Optional: pick as many as you like.</p>
                         <div class="genres-grid">
                             {{ form.preferred_genres }}
                         </div>
@@ -88,7 +89,7 @@
                             {% endif %}
                         </legend>
                         <p class="mb-3 text-xs text-jam-muted">
-                            Optional — add up to {{ social_link_formset.max_num }} links.
+                            Optional: add up to {{ social_link_formset.max_num }} links.
                             Spotify, YouTube, Instagram, Facebook, SoundCloud and TikTok
                             are recognised automatically on your public profile.
                         </p>
@@ -275,6 +276,7 @@
     {# Reused from the registration page: dependent County/Town dropdown and
        the "Other" instrument/genre toggles target the same element IDs. #}
     <script src="{% static 'accounts/js/register.js' %}"></script>
-    <script src="{% static 'accounts/js/profile_picture_remove.js' %}"></script>
+    <script src="{% static 'community/js/cover-focus.js' %}"></script>
+    <script src="{% static 'accounts/js/profile_picture_upload.js' %}"></script>
     <script src="{% static 'accounts/js/social_links_formset.js' %}"></script>
 {% endblock %}

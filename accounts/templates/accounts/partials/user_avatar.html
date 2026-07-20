@@ -11,6 +11,8 @@ Optional: ``avatar_size`` class modifier (default user-avatar--sm).
         width="28"
         height="28"
         loading="lazy"
+        data-cover-focus-x="{{ avatar_user.profile_picture_focus_x|stringformat:'g' }}"
+        data-cover-focus-y="{{ avatar_user.profile_picture_focus_y|stringformat:'g' }}"
     >
     {% else %}
     {{ avatar_user.public_display_name|slice:":1"|upper }}

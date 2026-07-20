@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — Community{% endblock %}
+{% block title %}JamSession Lab · Community{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
@@ -9,31 +9,27 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div class="community-shell">
+            {# Page intro sits above the feed so Members can align with the first post #}
+            <header class="page-header" data-aos="fade-up">
+                <h1 class="page-header__title">Community</h1>
+                <p class="page-header__lead">
+                    Stories, questions and photos shared by fellow musicians.
+                </p>
+            </header>
+
+            {% if user.is_authenticated %}
+            <div class="page-header__actions" data-aos="fade-up" data-aos-delay="100">
+                <a href="{% url 'community:post_create' %}" class="page-header__cta">
+                    Start a Discussion
+                </a>
+            </div>
+            {% endif %}
+
             <div class="community-layout">
                 <div class="community-layout__main">
-                    <div class="mx-auto max-w-2xl text-center lg:mx-0 lg:text-left" data-aos="fade-up">
-                        <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
-                            Community
-                        </h1>
-                        <p class="mt-4 text-lg text-jam-muted">
-                            Stories, questions and photos shared by fellow musicians.
-                        </p>
-                    </div>
-
-                    {% if user.is_authenticated %}
-                    <div class="mt-10 flex justify-center lg:justify-start" data-aos="fade-up" data-aos-delay="100">
-                        <a
-                            href="{% url 'community:post_create' %}"
-                            class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black shadow-lg shadow-jam-red/20 transition hover:bg-jam-red-hover sm:w-auto"
-                        >
-                            Start a Discussion
-                        </a>
-                    </div>
-                    {% endif %}
-
                     {% if page_obj.object_list %}
-                    <div class="community-list mt-14" data-aos="fade-up" data-aos-delay="120">
+                    <div class="community-list" data-aos="fade-up" data-aos-delay="120">
                         {% for post in page_obj %}
                         <article class="community-card">
                             <div class="community-card__cover{% if not post.cover_display_url %} community-card__cover--fallback{% endif %}">
@@ -97,7 +93,7 @@
                     {% endif %}
 
                     {% else %}
-                    <div class="community-empty mt-14" data-aos="fade-up" data-aos-delay="150">
+                    <div class="community-empty" data-aos="fade-up" data-aos-delay="150">
                         <p>No community posts yet. Be the first to start a discussion.</p>
                     </div>
                     {% endif %}

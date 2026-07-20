@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — Edit Comment{% endblock %}
+{% block title %}JamSession Lab · Edit Comment{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
@@ -9,22 +9,20 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div class="community-shell">
             <div class="community-layout">
                 <div class="community-layout__main">
                     <a href="{% url 'community:post_detail' post.slug %}" class="community-back-link" data-aos="fade-up">&larr; Back to post</a>
 
-                    <div class="mx-auto max-w-2xl text-center lg:mx-0 lg:max-w-none lg:text-left mt-6" data-aos="fade-up" data-aos-delay="50">
-                        <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
-                            Edit Comment
-                        </h1>
-                        <p class="mt-4 text-lg text-jam-muted">
+                    <header class="page-header mt-6" data-aos="fade-up" data-aos-delay="50">
+                        <h1 class="page-header__title">Edit Comment</h1>
+                        <p class="page-header__lead">
                             Update your reply on &ldquo;{{ post.title }}&rdquo;.
                         </p>
-                        <p class="mt-3 text-sm text-jam-muted-dark">
+                        <p class="page-header__meta">
                             If you are not staff, your changes will be reviewed before they appear publicly again.
                         </p>
-                    </div>
+                    </header>
 
                     <form
                         method="post"

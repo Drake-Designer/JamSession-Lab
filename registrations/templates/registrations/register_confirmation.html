@@ -1,19 +1,21 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — Registered for {{ event.title }}{% endblock %}
+{% block title %}JamSession Lab · Registered for {{ event.title }}{% endblock %}
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+        <div class="page-shell page-shell--narrow">
             <div class="rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up">
-                <p class="text-sm font-medium uppercase tracking-wider text-jam-muted">You're in</p>
-                <h1 class="mt-2 text-3xl font-bold text-jam-red">Registration confirmed</h1>
-                <p class="mt-4 text-jam-muted-on-grey">
-                    You are registered for
-                    <span class="font-semibold text-jam-white">{{ event.title }}</span>
-                    on {{ event.starts_at|date:"l, j F Y · g:i A" }}.
-                </p>
+                <header class="page-header">
+                    <p class="page-header__eyebrow">You're in</p>
+                    <h1 class="page-header__title">Registration confirmed</h1>
+                    <p class="page-header__lead">
+                        You are registered for
+                        <span class="font-semibold text-jam-white">{{ event.title }}</span>
+                        on {{ event.starts_at|date:"l, j F Y · g:i A" }}.
+                    </p>
+                </header>
 
                 <dl class="mt-8 space-y-3 text-sm">
                     <div>

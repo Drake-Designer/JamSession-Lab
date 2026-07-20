@@ -1,3 +1,4 @@
+import math
 import time
 
 from django.conf import settings
@@ -7,7 +8,7 @@ from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -36,9 +37,73 @@ from .validators import validate_profile_picture
 
 
 AUTH_BACKEND = "django.contrib.auth.backends.ModelBackend"
-RESEND_VERIFICATION_COOLDOWN_SECONDS = 60
+RESEND_VERIFICATION_COOLDOWN_SECONDS = 20
 RESEND_VERIFICATION_SESSION_KEY = "email_verification_last_sent_at"
+MAX_VERIFICATION_EMAILS = 5
 SOCIAL_LINKS_FORMSET_PREFIX = "social_links"
+
+
+def _verification_cooldown_remaining(request) -> int:
+    """Seconds left before another verification email may be sent."""
+    last_sent = request.session.get(RESEND_VERIFICATION_SESSION_KEY)
+    if last_sent is None:
+        return 0
+    remaining = RESEND_VERIFICATION_COOLDOWN_SECONDS - (time.time() - float(last_sent))
+    # ceil so a just-sent email still shows a full cooldown (not 9s for 10).
+    return max(0, math.ceil(remaining))
+
+
+def _mark_verification_email_sent(request) -> None:
+    """Record the send time used by the resend cooldown."""
+    request.session[RESEND_VERIFICATION_SESSION_KEY] = time.time()
+
+
+def _verification_send_limit_reached(user) -> bool:
+    """True when this member has used up automatic verification emails."""
+    return user.has_exhausted_verification_emails(MAX_VERIFICATION_EMAILS)
+
+
+def _verification_page_context(request):
+    """Shared template context for welcome / verification_required."""
+    limit_reached = _verification_send_limit_reached(request.user)
+    return {
+        "whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK,
+        "resend_cooldown_seconds": (
+            0 if limit_reached else _verification_cooldown_remaining(request)
+        ),
+        "verification_send_limit_reached": limit_reached,
+        "max_verification_emails": MAX_VERIFICATION_EMAILS,
+    }
+
+
+def _maybe_send_verification_on_login(request, user) -> None:
+    """
+    Auto-send a verification email only after a fresh sign-in.
+
+    Visiting /accounts/verify-email/required/ while already logged in does
+    not send; the member must use Resend (until the send limit is reached).
+    """
+    if (
+        not user.is_authenticated
+        or user.is_email_verified
+        or user.is_staff
+        or user.is_superuser
+        or _verification_send_limit_reached(user)
+    ):
+        return
+
+    user.regenerate_email_verification_token()
+    queue_verification_email(user, request)
+    user.record_verification_email_sent()
+    _mark_verification_email_sent(request)
+    messages.info(
+        request,
+        _(
+            "A verification email has been sent to %(email)s. "
+            "Please check your inbox."
+        )
+        % {"email": user.email},
+    )
 
 
 class LoginView(auth_views.LoginView):
@@ -47,6 +112,11 @@ class LoginView(auth_views.LoginView):
     template_name = "accounts/login.html"
     authentication_form = LoginForm
     redirect_authenticated_user = True
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        _maybe_send_verification_on_login(self.request, self.request.user)
+        return response
 
     def get_success_url(self):
         user = self.request.user
@@ -92,9 +162,13 @@ def register(request):
             # turn a successful signup into a 500. Failures are logged inside
             # accounts.emails; the member can use "resend verification".
             queue_verification_email(user, request)
+            user.record_verification_email_sent()
             # Soft-block: stay signed in, but middleware restricts member
             # actions until the email is verified.
             login(request, user)
+            # Start the resend cooldown so welcome / verification_required
+            # do not immediately auto-send a second email.
+            _mark_verification_email_sent(request)
             if next_url:
                 return redirect(next_url)
             return redirect("accounts:welcome")
@@ -122,7 +196,7 @@ def welcome(request):
     return render(
         request,
         "accounts/welcome.html",
-        {"whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK},
+        _verification_page_context(request),
     )
 
 
@@ -131,10 +205,13 @@ def verification_required(request):
     """Landing page for members who must verify their email before continuing."""
     if request.user.is_email_verified:
         return redirect("pages:home")
+
+    # No auto-send here: revisiting this page while already signed in requires
+    # an explicit Resend click. Auto-send happens only on a fresh login.
     return render(
         request,
         "accounts/verification_required.html",
-        {"whatsapp_link": settings.WHATSAPP_COMMUNITY_LINK},
+        _verification_page_context(request),
     )
 
 
@@ -145,17 +222,25 @@ def resend_verification(request):
     if request.user.is_email_verified:
         return redirect("pages:home")
 
-    now = time.time()
-    last_sent = request.session.get(RESEND_VERIFICATION_SESSION_KEY)
-    if (
-        last_sent is not None
-        and now - float(last_sent) < RESEND_VERIFICATION_COOLDOWN_SECONDS
-    ):
+    if _verification_send_limit_reached(request.user):
+        messages.error(
+            request,
+            _(
+                "We have already sent the maximum number of verification emails. "
+                "Please contact JamSession Lab to activate your account."
+            ),
+        )
+        return redirect("accounts:verification_required")
+
+    remaining = _verification_cooldown_remaining(request)
+    if remaining > 0:
         messages.warning(
             request,
             _(
-                "Please wait a minute before requesting another verification email."
-            ),
+                "Please wait %(seconds)s seconds before requesting another "
+                "verification email."
+            )
+            % {"seconds": remaining},
         )
         return redirect("accounts:verification_required")
 
@@ -168,12 +253,13 @@ def resend_verification(request):
             request,
             _(
                 "We could not send the verification email just now. "
-                "Please try again in a minute."
+                "Please try again in a few seconds."
             ),
         )
         return redirect("accounts:verification_required")
 
-    request.session[RESEND_VERIFICATION_SESSION_KEY] = now
+    request.user.record_verification_email_sent()
+    _mark_verification_email_sent(request)
     messages.success(
         request,
         _("A new verification email has been sent. Please check your inbox."),
@@ -349,8 +435,70 @@ def profile_picture_remove(request):
     user = request.user
     if user.profile_picture:
         user.profile_picture = None
-        user.save(update_fields=["profile_picture"])
+        user.profile_picture_focus_x = 50.0
+        user.profile_picture_focus_y = 50.0
+        user.save(
+            update_fields=[
+                "profile_picture",
+                "profile_picture_focus_x",
+                "profile_picture_focus_y",
+            ]
+        )
     return JsonResponse({"ok": True})
+
+
+def _parse_profile_picture_focus(raw_value, *, default=50.0):
+    """Clamp a focus percentage from the upload form to 0–100."""
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, min(100.0, value))
+
+
+@login_required
+@require_POST
+def profile_picture_preview(request):
+    """
+    Convert an upload (including HEIC) to a browser-safe JPEG for the crop UI.
+
+    Does not save the photo — only returns JPEG bytes so the cropper can run
+    in browsers that cannot decode HEIC natively.
+    """
+    uploaded = request.FILES.get("profile_picture")
+    if uploaded is None:
+        return JsonResponse(
+            {"ok": False, "error": str(_("Please choose a photo to upload."))},
+            status=400,
+        )
+
+    try:
+        picture = convert_heic_upload_to_jpeg(
+            uploaded,
+            field_name="profile_picture",
+        )
+        validate_profile_picture(picture)
+    except ValidationError as exc:
+        message = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+        return JsonResponse({"ok": False, "error": message}, status=400)
+    except Exception:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": str(
+                    _(
+                        "We couldn't open that photo. Please try a "
+                        "JPG or PNG instead."
+                    )
+                ),
+            },
+            status=400,
+        )
+
+    picture.seek(0)
+    response = HttpResponse(picture.read(), content_type="image/jpeg")
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 @login_required
@@ -374,10 +522,21 @@ def profile_picture_upload(request):
         message = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
         return JsonResponse({"ok": False, "error": message}, status=400)
 
+    focus_x = _parse_profile_picture_focus(request.POST.get("profile_picture_focus_x"))
+    focus_y = _parse_profile_picture_focus(request.POST.get("profile_picture_focus_y"))
+
     user = request.user
     try:
         user.profile_picture = picture
-        user.save(update_fields=["profile_picture"])
+        user.profile_picture_focus_x = focus_x
+        user.profile_picture_focus_y = focus_y
+        user.save(
+            update_fields=[
+                "profile_picture",
+                "profile_picture_focus_x",
+                "profile_picture_focus_y",
+            ]
+        )
     except cloudinary.exceptions.Error:
         return JsonResponse(
             {

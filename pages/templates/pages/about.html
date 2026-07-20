@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — About{% endblock %}
+{% block title %}JamSession Lab · About{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'community/js/cover-focus.js' %}"></script>
+{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'pages/css/about.css' %}">
@@ -16,15 +20,19 @@
 
         <div class="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
             <div class="mx-auto max-w-3xl" data-aos="fade-up">
-                <h1 class="text-center text-3xl font-bold tracking-tight text-jam-red sm:text-4xl md:text-5xl">
+                <h1 class="text-center text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
                     What is JamSession Lab
                 </h1>
                 <div class="mt-6 space-y-4 text-base leading-relaxed text-jam-muted sm:text-lg">
                     <p>
-                        JamSession Lab is a weekly open jam session designed to bring musicians and audiences together through live collaboration, improvisation, and creative exchange. The event runs every week and is structured to provide continuous live music from start to finish, creating a dynamic and engaging atmosphere for the venue. It's open to all instruments, styles, and skill levels, with a strong focus on inclusivity, musical growth, and community building.
+                        JamSession Lab is where musicians jump on stage, try things out, and make a night of it
+                        with a crowd that loves live music as much as we do. All instruments, all styles, all levels:
+                        if you want to play, you are welcome.
                     </p>
                     <p>
-                        Instead of fixed band performances, individual musicians are mixed into rotating groups guided by the organisers. This format encourages interaction, new musical connections, and a fresh live music experience every week.
+                        Forget the usual fixed-band setlist. We mix people into rotating groups, keep the music
+                        flowing, and leave room for surprises. Come for a jam, leave with new mates and a story
+                        worth telling.
                     </p>
                 </div>
             </div>
@@ -42,32 +50,37 @@
             </div>
 
             <div class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
-                <article class="rounded-2xl border border-jam-grey-light bg-jam-black p-6 text-center sm:p-8" data-aos="fade-up" data-aos-delay="50">
-                    <div class="about-organiser-avatar mx-auto" aria-hidden="true">D</div>
-                    <h3 class="mt-5 text-2xl font-bold text-jam-white">Dario</h3>
-                    <p class="mt-1 text-sm font-semibold uppercase tracking-wider text-jam-red">Founder &amp; Drummer</p>
+                {% for organiser in organisers %}
+                <article
+                    class="rounded-2xl border border-jam-grey-light bg-jam-black p-6 text-center sm:p-8{% if forloop.last and not organisers|length|divisibleby:2 %} sm:col-span-2 sm:mx-auto sm:max-w-md lg:col-span-1 lg:max-w-none{% endif %}"
+                    data-aos="fade-up"
+                    data-aos-delay="{% widthratio forloop.counter 1 50 %}"
+                >
+                    {% if organiser.display_photo_url %}
+                    <img
+                        src="{{ organiser.display_photo_url }}"
+                        alt="{{ organiser.name }}"
+                        class="about-organiser-photo mx-auto"
+                        width="184"
+                        height="184"
+                        loading="lazy"
+                        data-cover-focus-x="{{ organiser.photo_focus_x }}"
+                        data-cover-focus-y="{{ organiser.photo_focus_y }}"
+                    >
+                    {% else %}
+                    <div class="about-organiser-avatar mx-auto" aria-hidden="true">{{ organiser.initials }}</div>
+                    {% endif %}
+                    <h3 class="mt-5 text-2xl font-bold text-jam-white">{{ organiser.name }}</h3>
+                    <p class="mt-1 text-sm font-semibold uppercase tracking-wider text-jam-red">{{ organiser.role }}</p>
                     <p class="mt-4 text-sm leading-relaxed text-jam-muted sm:text-base">
-                        Dario founded JamSession Lab and plays drums during the sessions, driving the rhythm and energy of every event.
+                        {{ organiser.bio }}
                     </p>
                 </article>
-
-                <article class="rounded-2xl border border-jam-grey-light bg-jam-black p-6 text-center sm:p-8" data-aos="fade-up" data-aos-delay="100">
-                    <div class="about-organiser-avatar mx-auto" aria-hidden="true">R</div>
-                    <h3 class="mt-5 text-2xl font-bold text-jam-white">Rita</h3>
-                    <p class="mt-1 text-sm font-semibold uppercase tracking-wider text-jam-red">Event &amp; Logistics Coordinator</p>
-                    <p class="mt-4 text-sm leading-relaxed text-jam-muted sm:text-base">
-                        Rita organises the logistics of every event, manages door registrations, and helps musicians and guests understand how the sessions work.
-                    </p>
-                </article>
-
-                <article class="rounded-2xl border border-jam-grey-light bg-jam-black p-6 text-center sm:col-span-2 sm:mx-auto sm:max-w-md lg:col-span-1 lg:max-w-none" data-aos="fade-up" data-aos-delay="150">
-                    <div class="about-organiser-avatar mx-auto" aria-hidden="true">De</div>
-                    <h3 class="mt-5 text-2xl font-bold text-jam-white">Denis</h3>
-                    <p class="mt-1 text-sm font-semibold uppercase tracking-wider text-jam-red">Sound Engineer</p>
-                    <p class="mt-4 text-sm leading-relaxed text-jam-muted sm:text-base">
-                        Denis provides all the top-quality sound equipment and supports everything happening on stage. Without him, we'd be lost.
-                    </p>
-                </article>
+                {% empty %}
+                <p class="sm:col-span-2 lg:col-span-3 text-center text-jam-muted">
+                    Organiser details will appear here soon.
+                </p>
+                {% endfor %}
             </div>
         </div>
     </section>
@@ -100,7 +113,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.92 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
                         </svg>
                     </span>
-                    <span class="text-sm leading-relaxed text-jam-muted sm:text-base">Weekly rotating jam sessions with mixed musicians</span>
+                    <span class="text-sm leading-relaxed text-jam-muted sm:text-base">Rotating jam sessions with mixed musicians</span>
                 </li>
                 <li class="flex items-start gap-3 rounded-2xl border border-jam-grey-light bg-jam-grey p-5">
                     <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-jam-red-muted/30 bg-jam-black text-jam-red">
@@ -128,12 +141,12 @@
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="mx-auto max-w-3xl text-center" data-aos="fade-up">
                 <h2 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
-                    Event Schedule — A Typical Weekly Structure
+                    Event Schedule: a typical night
                 </h2>
             </div>
 
             <div class="mx-auto mt-12 max-w-5xl rounded-2xl border border-jam-grey-light bg-jam-black p-4 sm:p-8 lg:p-10" data-aos="fade-up" data-aos-delay="100">
-                <ol class="about-timeline" aria-label="Typical weekly event schedule">
+                <ol class="about-timeline" aria-label="Typical event schedule">
                     <li class="about-timeline__item">
                         <span class="about-timeline__time">15:30</span>
                         <span class="about-timeline__marker" aria-hidden="true"><span class="about-timeline__dot"></span></span>

@@ -1,0 +1,23 @@
+{% if verification_send_limit_reached %}
+    <div class="mt-4 rounded-xl border border-jam-red/40 bg-jam-black/40 p-4">
+        <p class="text-sm leading-relaxed text-jam-muted">
+            We have already sent
+            <strong class="text-jam-white">{{ max_verification_emails }}</strong>
+            verification emails to
+            <strong class="text-jam-white">{{ user.email }}</strong>
+            and your account is still not verified.
+            Automatic emails have been stopped to protect your inbox.
+        </p>
+        <p class="mt-3 text-sm leading-relaxed text-jam-muted">
+            Please contact JamSession Lab so we can activate your account for you.
+        </p>
+        <a
+            href="{% url 'pages:contact' %}"
+            class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-6 py-3 text-base font-bold text-jam-black shadow-md transition hover:bg-jam-red-hover sm:w-auto"
+        >
+            Contact JamSession Lab
+        </a>
+    </div>
+{% else %}
+    {% include "accounts/partials/resend_verification_form.html" %}
+{% endif %}

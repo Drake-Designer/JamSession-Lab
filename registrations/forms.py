@@ -55,13 +55,13 @@ class EventRegistrationForm(forms.ModelForm):
         }
         labels = {
             "join_open_mic": _(
-                "Open Mic (Solo, Duo, or Trio performing original songs only) — "
+                "Open Mic (Solo, Duo, or Trio performing original songs only). "
                 "This session is dedicated exclusively to original music and is "
                 "designed for artists who want to showcase their own material"
             ),
             "join_open_jam": _(
                 "Open Jam Session (Covers, free improvisation, or playing songs "
-                "by artists performing during the Open Mic) — This session is "
+                "by artists performing during the Open Mic). This session is "
                 "about playing with different people, learning to adapt, "
                 "collaborating on the spot, and developing improvisation skills "
                 "in a supportive environment"

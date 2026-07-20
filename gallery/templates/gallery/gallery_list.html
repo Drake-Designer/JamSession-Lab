@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}JamSession Lab — Gallery{% endblock %}
+{% block title %}JamSession Lab · Gallery{% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'gallery/css/gallery.css' %}">
@@ -9,43 +9,30 @@
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div class="mx-auto max-w-3xl text-center" data-aos="fade-up">
-                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
-                    Gallery
-                </h1>
-                <p class="mt-4 text-lg text-jam-muted">
+        <div class="gallery-shell">
+            <header class="page-header" data-aos="fade-up">
+                <h1 class="page-header__title">Gallery</h1>
+                <p class="page-header__lead">
                     Photos and videos from our jam sessions, shared by the community.
                 </p>
-            </div>
+            </header>
 
             {% if user.is_authenticated %}
-            <div class="mt-10 flex justify-center" data-aos="fade-up" data-aos-delay="100">
-                <a
-                    href="{% url 'gallery:upload' %}"
-                    class="inline-flex w-full items-center justify-center rounded-xl bg-jam-red px-8 py-3.5 text-base font-bold text-jam-black shadow-lg shadow-jam-red/20 transition hover:bg-jam-red-hover sm:w-auto"
-                >
+            <div class="page-header__actions" data-aos="fade-up" data-aos-delay="100">
+                <a href="{% url 'gallery:upload' %}" class="page-header__cta">
                     Upload Photo or Video
                 </a>
             </div>
             {% endif %}
 
             {% if has_gallery_content %}
-            <div class="gallery-columns mt-14" data-aos="fade-up" data-aos-delay="120">
-                {% if photo_items %}
-                <section class="gallery-section">
-                    <h2 class="gallery-section__title">Photos</h2>
-                    <div class="gallery-grid">
-                        {% for item in photo_items %}
-                            {% include "gallery/_gallery_card.html" with gallery_group="photos" %}
-                        {% endfor %}
-                    </div>
-                </section>
-                {% endif %}
-
+            <div class="gallery-sections" data-aos="fade-up" data-aos-delay="120">
                 {% if video_items %}
-                <section class="gallery-section">
-                    <h2 class="gallery-section__title">Videos</h2>
+                <section class="gallery-section" aria-labelledby="gallery-videos-heading">
+                    <div class="gallery-section__heading">
+                        <h2 id="gallery-videos-heading" class="gallery-section__title">Videos</h2>
+                        <span class="gallery-section__count">{{ video_items|length }}</span>
+                    </div>
                     <div class="gallery-grid">
                         {% for item in video_items %}
                             {% include "gallery/_gallery_card.html" with gallery_group="videos" %}
@@ -53,9 +40,23 @@
                     </div>
                 </section>
                 {% endif %}
+
+                {% if photo_items %}
+                <section class="gallery-section" aria-labelledby="gallery-photos-heading">
+                    <div class="gallery-section__heading">
+                        <h2 id="gallery-photos-heading" class="gallery-section__title">Photos</h2>
+                        <span class="gallery-section__count">{{ photo_items|length }}</span>
+                    </div>
+                    <div class="gallery-grid">
+                        {% for item in photo_items %}
+                            {% include "gallery/_gallery_card.html" with gallery_group="photos" %}
+                        {% endfor %}
+                    </div>
+                </section>
+                {% endif %}
             </div>
             {% else %}
-            <div class="gallery-empty mt-14" data-aos="fade-up" data-aos-delay="150">
+            <div class="gallery-empty" data-aos="fade-up" data-aos-delay="150">
                 <p>No approved gallery items yet. Check back soon.</p>
             </div>
             {% endif %}

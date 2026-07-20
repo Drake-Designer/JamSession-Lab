@@ -8,7 +8,7 @@ from registrations.models import EventRegistration, RsvpStatus
 
 from .emails import send_contact_email
 from .forms import ContactForm
-from .models import HomeCarouselSlide
+from .models import AboutOrganiser, HomeCarouselSlide
 
 
 def home(request):
@@ -39,7 +39,8 @@ def home(request):
 
 def about(request):
     """Render the public About page."""
-    return render(request, "pages/about.html")
+    organisers = AboutOrganiser.objects.filter(is_active=True).order_by("order")
+    return render(request, "pages/about.html", {"organisers": organisers})
 
 
 def terms(request):
@@ -59,7 +60,7 @@ def contact(request):
         if (request.POST.get("website") or "").strip():
             messages.success(
                 request,
-                _("Thanks — your message has been sent. We will reply soon."),
+                _("Thanks. Your message has been sent. We will reply soon."),
             )
             return redirect("pages:contact")
 
@@ -85,7 +86,7 @@ def contact(request):
                 request.session["contact_form_sent_at"] = str(timezone.now().timestamp())
                 messages.success(
                     request,
-                    _("Thanks — your message has been sent. We will reply soon."),
+                    _("Thanks. Your message has been sent. We will reply soon."),
                 )
                 return redirect("pages:contact")
             messages.error(

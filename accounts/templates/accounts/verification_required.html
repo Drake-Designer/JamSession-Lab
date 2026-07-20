@@ -1,19 +1,24 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}JamSession Lab — Verify your email{% endblock %}
+{% block title %}JamSession Lab · Verify your email{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'accounts/css/resend_verification.css' %}">
+{% endblock %}
 
 {% block content %}
     <section class="bg-jam-black py-16 sm:py-24">
-        <div class="mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
-            <div data-aos="fade-up">
-                <h1 class="text-3xl font-bold tracking-tight text-jam-red sm:text-4xl">
+        <div class="page-shell page-shell--narrow">
+            <header class="page-header page-header--center" data-aos="fade-up">
+                <h1 class="page-header__title">
                     Verify your email to continue
                 </h1>
-                <p class="mt-4 text-lg text-jam-muted">
+                <p class="page-header__lead">
                     Your account is almost ready. Confirm your email address before
                     accessing your profile, event registrations, or community features.
                 </p>
-            </div>
+            </header>
 
             <div
                 class="mt-10 rounded-2xl border border-jam-grey-light bg-jam-grey p-6 text-left sm:p-8"
@@ -28,7 +33,7 @@
                     Until then you can still browse public pages, but member actions
                     stay locked.
                 </p>
-                {% include "accounts/partials/resend_verification_form.html" %}
+                {% include "accounts/partials/verification_email_actions.html" %}
             </div>
 
             {% if whatsapp_link %}
@@ -63,4 +68,8 @@
             </a>
         </div>
     </section>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{% static 'accounts/js/resend_verification.js' %}"></script>
 {% endblock %}
