@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 
+from django.conf import settings
 from django.contrib.staticfiles.storage import staticfiles_storage
+from django.core.cache import cache
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.translation import gettext as _
@@ -19,6 +21,38 @@ from accounts.emails import (
 logger = logging.getLogger(__name__)
 
 MODERATION_ALERT_SUBJECT = "Content awaiting review · JamSession Lab"
+# Default: at most one alert email burst per submitter every 15 minutes.
+_DEFAULT_MODERATION_ALERT_COOLDOWN_SECONDS = 15 * 60
+
+
+def _moderation_alert_cooldown_seconds() -> int:
+    return int(
+        getattr(
+            settings,
+            "MODERATION_ALERT_COOLDOWN_SECONDS",
+            _DEFAULT_MODERATION_ALERT_COOLDOWN_SECONDS,
+        )
+    )
+
+
+def _acquire_moderation_alert_slot(submitter) -> bool:
+    """
+    Return True once per submitter within the cooldown window.
+
+    Uses cache.add so concurrent requests for the same user share one slot.
+    """
+    submitter_pk = getattr(submitter, "pk", None) or 0
+    key = f"moderation_alert:user:{submitter_pk}"
+    cooldown = _moderation_alert_cooldown_seconds()
+    if cooldown <= 0:
+        return True
+    acquired = cache.add(key, 1, timeout=cooldown)
+    if not acquired:
+        logger.info(
+            "Moderation alert suppressed (cooldown) for user pk=%s",
+            submitter_pk,
+        )
+    return acquired
 
 
 def _absolute_static_url(request, relative_path: str) -> str:
@@ -59,6 +93,7 @@ def queue_moderation_alert(
     """
     Notify every active superuser that one item entered the pending queue.
 
+    Rate-limited per submitter (see MODERATION_ALERT_COOLDOWN_SECONDS).
     Never raises. Non-blocking in production (same pattern as new-user alerts).
     """
     recipients = _superuser_alert_recipients()
@@ -67,6 +102,9 @@ def queue_moderation_alert(
             "Moderation alert skipped (%s) — no active superuser emails",
             content_type,
         )
+        return
+
+    if not _acquire_moderation_alert_slot(submitter):
         return
 
     context = {
@@ -96,6 +134,7 @@ def queue_gallery_batch_moderation_alert(
     """
     One summary email for a multi-file gallery upload that needs review.
 
+    Rate-limited per submitter (same cooldown as single-item alerts).
     Never raises.
     """
     if item_count <= 0:
@@ -115,6 +154,9 @@ def queue_gallery_batch_moderation_alert(
         logger.warning(
             "Gallery batch moderation alert skipped — no active superuser emails"
         )
+        return
+
+    if not _acquire_moderation_alert_slot(submitter):
         return
 
     context = {

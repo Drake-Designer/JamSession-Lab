@@ -378,6 +378,12 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 # see Resend sending + email forwarding / inbound docs).
 CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "staff@jamsessionlab.ie").strip()
 
+# At most one moderation-alert email burst per submitter within this window.
+# Stops verified members from flooding superuser inboxes by re-queuing content.
+MODERATION_ALERT_COOLDOWN_SECONDS = int(
+    os.environ.get("MODERATION_ALERT_COOLDOWN_SECONDS", str(15 * 60))
+)
+
 # Invitation link to the community WhatsApp group, shown after registration
 # and included in the welcome email. Set in .env — never hardcode the real invite.
 WHATSAPP_COMMUNITY_LINK = os.environ.get("WHATSAPP_COMMUNITY_LINK", "").strip()

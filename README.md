@@ -628,6 +628,7 @@ Copy `.env.example` to `.env` and fill in at least:
 | `CLOUD_NAME`, `API_KEY`, `API_SECRET` | Cloudinary media |
 | `RESEND_API_KEY` | Transactional email (or use console backend) |
 | `WHATSAPP_COMMUNITY_LINK` | Private WhatsApp group invite (post-registration / emails) |
+| `MODERATION_ALERT_COOLDOWN_SECONDS` | Optional; default `900` (15 min) between alert emails per submitter |
 | `DEFAULT_FROM_EMAIL` | From address shown to users |
 | `CONTACT_EMAIL` | Inbox for contact form messages |
 | `SITE_URL` | Canonical public origin for SEO links |

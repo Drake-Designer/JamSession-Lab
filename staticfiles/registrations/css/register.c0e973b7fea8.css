@@ -1,8 +1,0 @@
-#originals-in-jam-block[hidden],
-#songs-block[hidden] {
-    display: none !important;
-}
-
-.song-form + .song-form {
-    margin-top: 0;
-}

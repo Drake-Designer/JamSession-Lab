@@ -3273,6 +3273,9 @@ class ModerationAlertEmailTests(TestCase):
     """Superuser email when content enters the pending queue."""
 
     def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
         self.superuser = _make_user(
             "alert_super", is_staff=True, is_superuser=True
         )
@@ -3297,6 +3300,26 @@ class ModerationAlertEmailTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["super@example.com"])
         self.assertIn("Content awaiting review", mail.outbox[0].subject)
         self.assertIn("tab=review", mail.outbox[0].body)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        MODERATION_ALERT_COOLDOWN_SECONDS=900,
+    )
+    def test_second_pending_post_within_cooldown_does_not_email(self):
+        from django.core import mail
+
+        self.client.force_login(self.member)
+        first = self.client.post(
+            reverse("community:post_create"),
+            data={"title": "First pending", "body": "Needs a look."},
+        )
+        second = self.client.post(
+            reverse("community:post_create"),
+            data={"title": "Second pending", "body": "Also needs a look."},
+        )
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(second.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_staff_auto_approved_post_does_not_email(self):

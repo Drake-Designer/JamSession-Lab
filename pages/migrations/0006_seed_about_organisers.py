@@ -23,13 +23,14 @@ ORGANISERS = (
         "order": 1,
     },
     {
-        "name": "Denis",
+        "name": "M.D. Productions",
         "role": "Sound Engineer",
         "bio": (
-            "Denis provides all the top-quality sound equipment and supports everything "
-            "happening on stage. Without him, we'd be lost."
+            "Denis is the owner of M.D. Productions and one of the best sound engineers "
+            "in the area. He provides top-quality sound equipment and supports everything "
+            "happening on stage."
         ),
-        "initials": "De",
+        "initials": "MD",
         "order": 2,
     },
 )
@@ -51,7 +52,7 @@ def seed_organisers(apps, schema_editor):
 def unseed_organisers(apps, schema_editor):
     AboutOrganiser = apps.get_model("pages", "AboutOrganiser")
     AboutOrganiser.objects.filter(
-        name__in=["Dario", "Rita", "Denis"],
+        name__in=["Dario", "Rita", "Denis", "M.D. Productions"],
         photo="",
     ).delete()
 
