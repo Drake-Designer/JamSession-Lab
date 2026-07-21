@@ -3508,15 +3508,17 @@ class CommunityMembersSidebarTests(TestCase):
         self.client.force_login(self.author)
         response = self.client.get(reverse("community:list"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'x-data="membersSidebar()"')
+        self.assertContains(response, 'data-x-data="membersSidebar()"')
         self.assertContains(response, "members-sidebar__toggle")
         self.assertContains(response, 'aria-controls="community-members-panel"')
         self.assertContains(response, 'aria-expanded="false"')
-        self.assertContains(response, ':aria-expanded="open.toString()"')
+        self.assertContains(response, 'data-x-bind:aria-expanded="open.toString()"')
         self.assertContains(
-            response, ":class=\"{ 'members-sidebar__panel--open': open }\""
+            response,
+            "data-x-bind:class=\"{ 'members-sidebar__panel--open': open }\"",
         )
         self.assertContains(response, "community/js/community")
+        self.assertContains(response, "pages/js/navbar")
 
     def test_create_form_has_no_members_sidebar(self):
         """Start a Discussion is a solo form page — Members only on the list."""

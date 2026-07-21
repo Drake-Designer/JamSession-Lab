@@ -257,6 +257,14 @@ class AboutOrganiserTests(TestCase):
         self.assertEqual(organiser.photo_focus_x, 30.0)
         self.assertEqual(organiser.photo_focus_y, 70.0)
 
+    def test_display_photo_url_requests_sharp_cloudinary_delivery(self):
+        url = self.organiser.display_photo_url
+        self.assertIn("w_960", url)
+        self.assertIn("q_auto:best", url)
+        self.assertIn("c_limit", url)
+        self.assertNotIn("w_640", url)
+        self.assertNotIn("q_auto,", url)
+
 
 @override_settings(SITE_URL="https://jamsessionlab.ie")
 class SeoReadinessTests(TestCase):

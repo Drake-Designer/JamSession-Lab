@@ -1,5 +1,5 @@
-/* Hide Alpine-controlled elements until JS is ready */
-[x-cloak] {
+/* Hide Alpine-controlled elements until JS is ready (data-x- HTML-valid prefix) */
+[data-x-cloak] {
     display: none !important;
 }
 

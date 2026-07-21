@@ -234,7 +234,7 @@
 
             {# Danger zone — permanent account deletion with explicit confirmation #}
             <div
-                x-data="{ open: false }"
+                data-x-data="{ open: false }"
                 class="mt-8 rounded-2xl border border-jam-red/40 bg-jam-grey p-6 sm:p-8"
                 data-aos="fade-up"
                 data-aos-delay="100"
@@ -249,8 +249,8 @@
 
                 <button
                     type="button"
-                    x-show="!open"
-                    @click="open = true"
+                    data-x-show="!open"
+                    data-x-on:click="open = true"
                     class="mt-4 inline-flex items-center justify-center rounded-xl border border-jam-red px-6 py-2.5 text-sm font-bold text-jam-red transition hover:bg-jam-red hover:text-jam-black"
                 >
                     Delete my account
@@ -259,8 +259,8 @@
                 <form
                     method="post"
                     action="{% url 'accounts:account_delete' %}"
-                    x-show="open"
-                    x-cloak
+                    data-x-show="open"
+                    data-x-cloak
                     class="jam-form mt-5 space-y-5 border-t border-jam-grey-light pt-5 js-confirm-delete"
                     data-confirm-message="Permanently delete your account? This cannot be undone."
                     data-confirm-label="Delete account"
@@ -289,7 +289,7 @@
                         </button>
                         <button
                             type="button"
-                            @click="open = false"
+                            data-x-on:click="open = false"
                             class="inline-flex items-center justify-center rounded-xl border border-jam-grey-light px-6 py-2.5 text-sm font-medium text-jam-muted transition hover:border-jam-red hover:text-jam-red"
                         >
                             Cancel

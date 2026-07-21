@@ -113,7 +113,13 @@ class AboutOrganiser(models.Model):
         """
         if not self.photo:
             return ""
-        return web_image_url(self.photo, width=640, crop="limit", quality="auto")
+        # ~184 CSS px circles need ~960 delivery px for sharp retina + object-fit zoom.
+        return web_image_url(
+            self.photo,
+            width=960,
+            crop="limit",
+            quality="auto:best",
+        )
 
     @property
     def photo_focus_style(self):

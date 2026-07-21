@@ -1,4 +1,7 @@
 document.addEventListener("alpine:init", () => {
+    // W3C-valid HTML: templates use data-x-* instead of x-/@/:.
+    Alpine.prefix("data-x-");
+
     Alpine.data("navbar", () => ({
         mobileOpen: false,
         scrolled: false,

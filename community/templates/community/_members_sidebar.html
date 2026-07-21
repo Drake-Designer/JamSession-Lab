@@ -4,14 +4,14 @@ from community.context_processors.community_members.
 {% endcomment %}
 <aside
     class="members-sidebar"
-    x-data="membersSidebar()"
+    data-x-data="membersSidebar()"
     aria-label="Community members"
 >
     <button
         type="button"
         class="members-sidebar__toggle"
-        @click="toggle()"
-        :aria-expanded="open.toString()"
+        data-x-on:click="toggle()"
+        data-x-bind:aria-expanded="open.toString()"
         aria-expanded="false"
         aria-controls="community-members-panel"
     >
@@ -20,7 +20,7 @@ from community.context_processors.community_members.
         </span>
         <svg
             class="members-sidebar__chevron"
-            :class="{ 'members-sidebar__chevron--open': open }"
+            data-x-bind:class="{ 'members-sidebar__chevron--open': open }"
             viewBox="0 0 20 20"
             fill="currentColor"
             aria-hidden="true"
@@ -32,7 +32,7 @@ from community.context_processors.community_members.
     <div
         id="community-members-panel"
         class="members-sidebar__panel"
-        :class="{ 'members-sidebar__panel--open': open }"
+        data-x-bind:class="{ 'members-sidebar__panel--open': open }"
     >
         <h2 class="members-sidebar__title">
             Members

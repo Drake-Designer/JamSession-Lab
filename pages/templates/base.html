@@ -67,9 +67,9 @@
 
     {# Sticky navbar — Alpine.js component registered in navbar.js #}
     <header
-        x-data="navbar()"
+        data-x-data="navbar()"
         class="fixed inset-x-0 top-0 z-50 transition-all duration-300"
-        :class="headerClass"
+        data-x-bind:class="headerClass"
     >
         <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Main navigation">
 
@@ -114,15 +114,15 @@
             <button
                 type="button"
                 class="inline-flex items-center justify-center rounded-lg p-2 text-jam-muted transition hover:bg-jam-grey hover:text-jam-red focus:outline-none focus:ring-2 focus:ring-jam-red md:hidden"
-                @click="toggleMobile()"
-                :aria-expanded="mobileOpen.toString()"
+                data-x-on:click="toggleMobile()"
+                data-x-bind:aria-expanded="mobileOpen.toString()"
                 aria-controls="mobile-menu"
                 aria-label="Toggle navigation menu"
             >
-                <svg x-show="!mobileOpen" x-transition class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                <svg data-x-show="!mobileOpen" data-x-transition class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                 </svg>
-                <svg x-show="mobileOpen" x-transition x-cloak class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                <svg data-x-show="mobileOpen" data-x-transition data-x-cloak class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                 </svg>
             </button>
@@ -131,38 +131,38 @@
         {# Mobile dropdown menu #}
         <div
             id="mobile-menu"
-            x-show="mobileOpen"
-            x-transition:enter="transition ease-out duration-200"
-            x-transition:enter-start="opacity-0 -translate-y-2"
-            x-transition:enter-end="opacity-100 translate-y-0"
-            x-transition:leave="transition ease-in duration-150"
-            x-transition:leave-start="opacity-100 translate-y-0"
-            x-transition:leave-end="opacity-0 -translate-y-2"
-            x-cloak
-            @click.outside="closeMobile()"
+            data-x-show="mobileOpen"
+            data-x-transition:enter="transition ease-out duration-200"
+            data-x-transition:enter-start="opacity-0 -translate-y-2"
+            data-x-transition:enter-end="opacity-100 translate-y-0"
+            data-x-transition:leave="transition ease-in duration-150"
+            data-x-transition:leave-start="opacity-100 translate-y-0"
+            data-x-transition:leave-end="opacity-0 -translate-y-2"
+            data-x-cloak
+            data-x-on:click.outside="closeMobile()"
             class="border-b border-jam-grey-light bg-jam-black/95 backdrop-blur-md md:hidden"
         >
             <ul class="space-y-1 px-4 py-4">
-                <li><a href="{% url 'pages:home' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Home</a></li>
-                <li><a href="{% url 'pages:about' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">About</a></li>
-                <li><a href="{% url 'gallery:list' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Gallery</a></li>
-                <li><a href="{% url 'community:list' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Community</a></li>
-                <li><a href="{% url 'events:list' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Events</a></li>
+                <li><a href="{% url 'pages:home' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" data-x-on:click="closeMobile()">Home</a></li>
+                <li><a href="{% url 'pages:about' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" data-x-on:click="closeMobile()">About</a></li>
+                <li><a href="{% url 'gallery:list' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" data-x-on:click="closeMobile()">Gallery</a></li>
+                <li><a href="{% url 'community:list' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" data-x-on:click="closeMobile()">Community</a></li>
+                <li><a href="{% url 'events:list' %}" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" data-x-on:click="closeMobile()">Events</a></li>
                 <li class="border-t border-jam-grey-light pt-3">
                     <div class="flex flex-col gap-2">
                         {% if user.is_authenticated %}
                         <a
                             href="{% url 'accounts:profile' %}"
                             class="relative mx-auto cursor-pointer px-1 py-2.5 text-center text-sm font-semibold text-jam-white transition-all duration-200 after:absolute after:inset-x-1 after:bottom-1.5 after:h-0.5 after:origin-left after:scale-x-0 after:rounded-full after:bg-jam-red after:transition-transform after:duration-200 after:content-[''] hover:scale-105 hover:text-jam-red hover:after:scale-x-100"
-                            @click="closeMobile()"
+                            data-x-on:click="closeMobile()"
                         >{{ user.display_name|default:user.username }}</a>
                         <form method="post" action="{% url 'accounts:logout' %}">
                             {% csrf_token %}
                             <button type="submit" class="block w-full rounded-lg border border-jam-grey-light px-3 py-2.5 text-center text-sm font-medium text-jam-muted hover:border-jam-red hover:text-jam-red">Log out</button>
                         </form>
                         {% else %}
-                        <a href="{% url 'accounts:login' %}" class="block rounded-lg px-3 py-2.5 text-center text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" @click="closeMobile()">Login</a>
-                        <a href="{% url 'accounts:register' %}" class="block rounded-lg bg-jam-red px-3 py-2.5 text-center text-sm font-semibold text-jam-black hover:bg-jam-red-hover" @click="closeMobile()">Register</a>
+                        <a href="{% url 'accounts:login' %}" class="block rounded-lg px-3 py-2.5 text-center text-sm font-medium text-jam-muted hover:bg-jam-grey hover:text-jam-red" data-x-on:click="closeMobile()">Login</a>
+                        <a href="{% url 'accounts:register' %}" class="block rounded-lg bg-jam-red px-3 py-2.5 text-center text-sm font-semibold text-jam-black hover:bg-jam-red-hover" data-x-on:click="closeMobile()">Register</a>
                         {% endif %}
                     </div>
                 </li>
@@ -261,51 +261,51 @@
 
     {# Shared confirmation modal (Alpine store) — used by any .js-confirm-delete form #}
     <div
-        x-data
-        x-show="$store.confirmModal.open"
-        x-cloak
+        data-x-data
+        data-x-show="$store.confirmModal.open"
+        data-x-cloak
         class="confirm-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
-        @keydown.escape.window="$store.confirmModal.cancel()"
+        data-x-on:keydown.escape.window="$store.confirmModal.cancel()"
     >
         <div
             class="confirm-modal__backdrop"
-            x-show="$store.confirmModal.open"
-            x-transition:enter="transition ease-out duration-200"
-            x-transition:enter-start="opacity-0"
-            x-transition:enter-end="opacity-100"
-            x-transition:leave="transition ease-in duration-150"
-            x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0"
-            @click="$store.confirmModal.cancel()"
+            data-x-show="$store.confirmModal.open"
+            data-x-transition:enter="transition ease-out duration-200"
+            data-x-transition:enter-start="opacity-0"
+            data-x-transition:enter-end="opacity-100"
+            data-x-transition:leave="transition ease-in duration-150"
+            data-x-transition:leave-start="opacity-100"
+            data-x-transition:leave-end="opacity-0"
+            data-x-on:click="$store.confirmModal.cancel()"
         ></div>
         <div
             class="confirm-modal__dialog"
-            x-show="$store.confirmModal.open"
-            x-transition:enter="transition ease-out duration-200"
-            x-transition:enter-start="opacity-0 -translate-y-2"
-            x-transition:enter-end="opacity-100 translate-y-0"
-            x-transition:leave="transition ease-in duration-150"
-            x-transition:leave-start="opacity-100 translate-y-0"
-            x-transition:leave-end="opacity-0 -translate-y-2"
-            @click.stop
+            data-x-show="$store.confirmModal.open"
+            data-x-transition:enter="transition ease-out duration-200"
+            data-x-transition:enter-start="opacity-0 -translate-y-2"
+            data-x-transition:enter-end="opacity-100 translate-y-0"
+            data-x-transition:leave="transition ease-in duration-150"
+            data-x-transition:leave-start="opacity-100 translate-y-0"
+            data-x-transition:leave-end="opacity-0 -translate-y-2"
+            data-x-on:click.stop
         >
             <h2 id="confirm-modal-title" class="confirm-modal__title">Please confirm</h2>
-            <p class="confirm-modal__message" x-text="$store.confirmModal.message"></p>
+            <p class="confirm-modal__message" data-x-text="$store.confirmModal.message"></p>
             <div class="confirm-modal__actions">
                 <button
                     type="button"
                     class="confirm-modal__btn confirm-modal__btn--confirm"
-                    @click="$store.confirmModal.confirm()"
-                    x-text="$store.confirmModal.confirmLabel"
+                    data-x-on:click="$store.confirmModal.confirm()"
+                    data-x-text="$store.confirmModal.confirmLabel"
                 ></button>
                 <button
                     type="button"
                     class="confirm-modal__btn confirm-modal__btn--cancel"
-                    @click="$store.confirmModal.cancel()"
-                    x-text="$store.confirmModal.cancelLabel"
+                    data-x-on:click="$store.confirmModal.cancel()"
+                    data-x-text="$store.confirmModal.cancelLabel"
                 ></button>
             </div>
         </div>
