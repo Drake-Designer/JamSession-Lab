@@ -1,5 +1,7 @@
 # JamSession Lab
 
+![JamSession Lab](docs/images/post-img.png)
+
 **JamSession Lab** is a full-stack Django website for organising and managing live jam session music events in Ireland. Members can discover upcoming jams, RSVP, share photos and videos, and take part in a moderated community forum.
 
 ## Quick Links
