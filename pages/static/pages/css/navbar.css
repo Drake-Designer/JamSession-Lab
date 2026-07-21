@@ -1,0 +1,114 @@
+/* Mobile centre profile shortcut (between logo and hamburger) */
+.navbar-profile-icon {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 9999px;
+    color: #e63946;
+    transform: translate(-50%, -50%);
+    transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.navbar-profile-icon:hover,
+.navbar-profile-icon:focus-visible {
+    background-color: rgba(230, 57, 70, 0.15);
+    color: #ff4d5a;
+    outline: none;
+}
+
+.navbar-profile-icon:active {
+    transform: translate(-50%, -50%) scale(0.95);
+}
+
+.navbar-profile-icon__svg {
+    width: 1.625rem;
+    height: 1.625rem;
+}
+
+@media (min-width: 768px) {
+    .navbar-profile-icon {
+        display: none;
+    }
+}
+
+/* Mobile menu — authenticated profile entry */
+.navbar-mobile-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid rgba(230, 57, 70, 0.45);
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, rgba(230, 57, 70, 0.12) 0%, rgba(26, 26, 26, 0.9) 100%);
+    color: #ffffff;
+    text-decoration: none;
+    transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.15s ease;
+}
+
+.navbar-mobile-profile:hover,
+.navbar-mobile-profile:focus-visible {
+    border-color: #e63946;
+    background: linear-gradient(135deg, rgba(230, 57, 70, 0.22) 0%, rgba(38, 38, 38, 0.95) 100%);
+    outline: none;
+}
+
+.navbar-mobile-profile:active {
+    transform: scale(0.98);
+}
+
+.navbar-mobile-profile__icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 9999px;
+    background-color: rgba(230, 57, 70, 0.2);
+    color: #e63946;
+}
+
+.navbar-mobile-profile__icon-svg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.navbar-mobile-profile__text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    flex: 1;
+    text-align: left;
+}
+
+.navbar-mobile-profile__label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #e63946;
+}
+
+.navbar-mobile-profile__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.navbar-mobile-profile__chevron {
+    flex-shrink: 0;
+    width: 1.125rem;
+    height: 1.125rem;
+    color: #e63946;
+    opacity: 0.85;
+}

@@ -45,6 +45,7 @@
 
     {# Site-wide styles #}
     <link rel="stylesheet" href="{% static 'pages/css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'pages/css/navbar.css' %}">
     <link rel="stylesheet" href="{% static 'pages/css/confirm-modal.css' %}">
     <link rel="stylesheet" href="{% static 'accounts/css/user_badge.css' %}">
 
@@ -71,7 +72,7 @@
         class="fixed inset-x-0 top-0 z-50 transition-all duration-300"
         data-x-bind:class="headerClass"
     >
-        <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Main navigation">
+        <nav class="relative mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Main navigation">
 
             {# Brand logo image #}
             <a href="{% url 'pages:home' %}" class="shrink-0 transition opacity-90 hover:opacity-100">
@@ -92,6 +93,20 @@
                 <li><a href="{% url 'community:list' %}" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">Community</a></li>
                 <li><a href="{% url 'events:list' %}" class="rounded-lg px-3 py-2 text-sm font-medium text-jam-muted transition hover:bg-jam-grey hover:text-jam-red">Events</a></li>
             </ul>
+
+            {# Mobile profile shortcut — centred between logo and hamburger #}
+            {% if user.is_authenticated %}
+            <a
+                href="{% url 'accounts:profile' %}"
+                class="navbar-profile-icon"
+                aria-label="My profile"
+                title="My profile"
+            >
+                <svg class="navbar-profile-icon__svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                </svg>
+            </a>
+            {% endif %}
 
             {# Desktop auth buttons #}
             <div class="hidden items-center gap-3 md:flex">
@@ -153,9 +168,22 @@
                         {% if user.is_authenticated %}
                         <a
                             href="{% url 'accounts:profile' %}"
-                            class="relative mx-auto cursor-pointer px-1 py-2.5 text-center text-sm font-semibold text-jam-white transition-all duration-200 after:absolute after:inset-x-1 after:bottom-1.5 after:h-0.5 after:origin-left after:scale-x-0 after:rounded-full after:bg-jam-red after:transition-transform after:duration-200 after:content-[''] hover:scale-105 hover:text-jam-red hover:after:scale-x-100"
+                            class="navbar-mobile-profile"
                             data-x-on:click="closeMobile()"
-                        >{{ user.display_name|default:user.username }}</a>
+                        >
+                            <span class="navbar-mobile-profile__icon" aria-hidden="true">
+                                <svg class="navbar-mobile-profile__icon-svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                                </svg>
+                            </span>
+                            <span class="navbar-mobile-profile__text">
+                                <span class="navbar-mobile-profile__label">My profile</span>
+                                <span class="navbar-mobile-profile__name">{{ user.display_name|default:user.username }}</span>
+                            </span>
+                            <svg class="navbar-mobile-profile__chevron" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                            </svg>
+                        </a>
                         <form method="post" action="{% url 'accounts:logout' %}">
                             {% csrf_token %}
                             <button type="submit" class="block w-full rounded-lg border border-jam-grey-light px-3 py-2.5 text-center text-sm font-medium text-jam-muted hover:border-jam-red hover:text-jam-red">Log out</button>
