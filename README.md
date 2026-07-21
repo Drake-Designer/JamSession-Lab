@@ -424,7 +424,7 @@ jamsession/static/images/   → logo and favicons
 * **Git** + **GitHub**
 * Hosting target: **Render** with custom domain **jamsessionlab.ie**
 
-### Testing
+### Test framework
 
 * Django’s built-in test framework (`python manage.py test`)
 
@@ -654,7 +654,7 @@ The production site is intended for **Render** (or similar) with:
 * **Neon PostgreSQL** as the database
 * **Cloudinary** for media
 * **Resend** for email
-* Custom domain **https://jamsessionlab.ie**
+* Custom domain [jamsessionlab.ie](https://jamsessionlab.ie)
 
 Typical production environment variables mirror `.env.example`, with:
 
