@@ -669,8 +669,8 @@ def build_document() -> None:
                 ],
                 [
                     "WhatsApp",
-                    "Link invite community hardcoded in settings "
-                    "(chat.whatsapp.com/…), usato in welcome/community.",
+                    "Link invite community da WHATSAPP_COMMUNITY_LINK in .env, "
+                    "usato in welcome/community.",
                     "Link esterno",
                 ],
                 [

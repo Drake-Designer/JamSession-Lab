@@ -58,7 +58,7 @@ Public-facing language is **English (UK)**. Time zone is **Europe/Dublin**.
 * Rich member profiles with badges and profile completion tracking
 * Event listings with Open Mic / Open Jam RSVP options and song lists
 * Moderated gallery and community forum
-* Staff tools for event management, moderation, and member announcements
+* Staff tools for event management, capacity, attendance check-in, moderation, and member announcements
 * SEO basics (meta tags, Open Graph, JSON-LD, sitemap, robots.txt)
 
 ### Who It Is For
@@ -76,8 +76,8 @@ Public-facing language is **English (UK)**. Time zone is **Europe/Dublin**.
 2. Users register with name, email, display name, and instrument details.
 3. A verification email is sent. Until the email is verified, most member areas are soft-blocked.
 4. Verified members can edit their profile, RSVP to events, upload gallery media, and post in the community.
-5. Staff review pending gallery items, posts, and comments before they go live.
-6. Organisers create and manage events, open or close registrations, and can email members about a jam.
+5. Staff review pending gallery items, posts, and comments in the Admin Tool before they go live. Superusers also receive an email alert when new content enters the queue.
+6. Organisers create and manage events (including optional capacity), open or close registrations, check attendance on the night, and can email members about a jam.
 
 ---
 
@@ -107,26 +107,30 @@ Public-facing language is **English (UK)**. Time zone is **Europe/Dublin**.
 * Membership badges (Founder, STAFF, Member, New Member)
 * Account settings for email change and password change
 * Account deletion
+* Admin flag to hide a member from the community members sidebar without disabling the account
 
 ### Events and Registrations
 
 * Public event list and detail pages
-* Staff create / edit / delete events
+* Staff create / edit / delete events (date + start/end times, including jams that run past midnight)
+* Optional event **capacity** with spots remaining and “event full” handling
 * Toggle event active state and open/close registrations
 * RSVP with Open Mic and Open Jam options
 * Optional original songs (title, key, basic chords)
-* Staff attendee lists
-* Attendance status fields for tracking no-shows (`unknown` / `attended` / `no_show`)
+* Staff attendee lists with live **attendance check-in** (`unknown` / `attended` / `no_show`)
 * Manual event announcement emails to members
 
 ### Gallery and Community
 
 * Public gallery of approved photos and videos
+* Optional link from gallery uploads to a specific jam event
+* Staff **pin order** so featured photos/videos appear first in their section
 * Batch upload for authenticated members
 * Community posts with optional cover image and media attachments
 * Comments, likes, and edit/delete for own content
 * Shared moderation model for pending / approved / rejected content
-* On-site moderation queue and Admin Tool for staff
+* Unified **Admin Tool** hub (To review / Gallery / Community) with bulk moderate and pin controls
+* Email alerts to superusers when new content enters the pending queue
 
 ---
 
@@ -151,32 +155,41 @@ Public-facing language is **English (UK)**. Time zone is **Europe/Dublin**.
 * **Profile picture** — Upload, replace, or remove; HEIC/HEIF supported; Cloudinary storage
 * **Focal point** — X/Y focus percentages so circular crops keep the important part of the photo
 * **Privacy flags** — Age and location can be hidden from the public profile
-* **Phone number** — Private contact field (not shown publicly); used for community WhatsApp invitation context
+* **Phone number** — Private contact field (never shown on public profiles); used only for the automatic community WhatsApp invitation
+* **Hide from members list** — Admin-only flag to omit a user from the community members sidebar without disabling login
 * **Profile completion** — Percentage based on key profile fields, with UI hints for missing items
 * **Badges** — Visual membership status across the site
 
 ### Events
 
 * **Public browsing** — List and detail pages for active events
-* **Next event on home** — Home page highlights the next upcoming jam
+* **Next event on home** — Home page highlights the next upcoming jam (with registration count for capacity)
 * **Staff management dashboard** — Create events, edit details, manage posters and descriptions
+* **Simpler schedule fields** — Staff enter one date plus start/end times; end times at or before start are stored on the next calendar day (past-midnight jams)
+* **Optional capacity** — Maximum active registrations; blank means unlimited
+* **Spots remaining** — Shown on the event detail page when capacity is set
 * **Registration controls** — Open or close RSVPs independently of the event remaining active
 * **Notify members** — Staff can send an announcement email for a specific event
 
 ### Event Registrations (RSVP)
 
-* **Register for an event** — Authenticated, verified members can RSVP while registrations are open
+* **Register for an event** — Authenticated, verified members can RSVP while registrations are open and the event is not full
+* **Capacity-safe RSVP** — Registration uses a row lock so two simultaneous sign-ups cannot oversell capacity
+* **Full vs closed messaging** — Distinct “event full” and “registrations closed” pages/copy
 * **Open Mic / Open Jam** — Choose how you want to take part
 * **Original songs** — Add song titles, keys, and basic chords when relevant
 * **Instrument and experience snapshots** — Stored on the registration so staff see what the member played at sign-up time
 * **Edit or cancel RSVP** — Members can update or cancel before the event policy blocks it
 * **Confirmation page** — Clear success state after registering
-* **Staff attendee list** — Organisers can review who is coming
+* **Staff attendee list** — Organisers can review who is coming, see capacity, and set attendance on the night
+* **Attendance check-in** — Quick buttons for `unknown` / `attended` / `no_show`, plus a summary count on the staff list
 
 ### Gallery
 
 * **Public gallery** — Approved images and videos only
 * **Member upload** — Authenticated upload flow with batch support
+* **Related event** — Optional link from an upload (or admin edit) to a specific jam night
+* **Pin order** — Staff can pin up to featured positions per section (photos and videos separately); unique pin numbers within each section
 * **Moderation** — New uploads start as pending (staff/superuser uploads can auto-approve)
 * **Cloudinary cleanup** — Rejected or deleted media can purge remote assets
 * **Large uploads** — File size limits configured for media-heavy use (images and videos)
@@ -189,9 +202,11 @@ Public-facing language is **English (UK)**. Time zone is **Europe/Dublin**.
 * **Media attachments** — Images/videos on posts and comments
 * **Comments** — Threaded discussion under posts
 * **Likes** — One like per user per post
-* **Members sidebar** — Community context for browsing other members
-* **Moderation queue** — Staff approve, reject (with optional reason), or delete content
-* **Admin Tool** — Staff overview with previews and bulk actions
+* **Members sidebar** — Community context for browsing other members (respects `hide_from_members_list`)
+* **Admin Tool hub** — Staff overview with three tabs: **To review**, **Gallery**, and **Community**
+* **To review** — Approve / reject (optional reason) pending gallery items, posts, and comments; supports bulk moderate
+* **Gallery / Community tabs** — Browse, filter by status, preview, delete, and set gallery pin order without leaving the site
+* **Legacy moderation URL** — `/community/moderate/` redirects into Admin Tool `?tab=review` so old bookmarks still work
 
 ### Public Pages and SEO
 
@@ -207,7 +222,7 @@ Public-facing language is **English (UK)**. Time zone is **Europe/Dublin**.
 * **Staff group sync** — `is_staff` keeps a Django “Staff” group in sync
 * **Content permissions** — Staff get full CRUD on events, gallery, community, and related models
 * **User safety** — Staff can view/change users but only superusers can delete user accounts
-* **On-site tools** — Moderation and event manage views outside the Django admin where useful
+* **On-site tools** — Admin Tool hub, attendance check-in, and event manage views outside the Django admin where useful
 
 ---
 
@@ -220,16 +235,17 @@ Public-facing language is **English (UK)**. Time zone is **Europe/Dublin**.
 | Terms | `/terms/` | Public | Terms of use |
 | Privacy | `/privacy/` | Public | Privacy information |
 | Contact | `/contact/` | Public | Contact form |
-| Gallery | `/gallery/` | Public | Approved photos and videos |
-| Gallery upload | `/gallery/upload/` | Authenticated | Upload media for moderation |
+| Gallery | `/gallery/` | Public | Approved photos and videos (pinned items first) |
+| Gallery upload | `/gallery/upload/` | Authenticated | Upload media for moderation (optional event link) |
 | Community | `/community/` | Public (approved content) | Forum list |
 | Post detail / CRUD | `/community/...` | Mixed | View approved posts; authors manage own content |
-| Moderation | `/community/moderate/` | Staff | Approve / reject queue |
-| Admin Tool | `/community/admin-tool/` | Staff | Staff content overview |
+| Moderation (legacy) | `/community/moderate/` | Staff | Redirects to Admin Tool → To review |
+| Admin Tool | `/community/admin-tool/` | Staff | Review / Gallery / Community hub |
 | Events | `/events/` | Public | Event list |
-| Event detail | `/events/<id>/` | Public | Event details and RSVP entry |
+| Event detail | `/events/<id>/` | Public | Event details, capacity, and RSVP entry |
 | Event manage / create | `/events/manage/`, `/events/create/` | Staff | Organiser tools |
 | RSVP | `/events/<id>/register/` | Authenticated + verified | Register for a jam |
+| Staff attendee list | `/events/<id>/attendees/` | Staff | Registrations, capacity, attendance check-in |
 | Register | `/accounts/register/` | Public | Create an account |
 | Login | `/accounts/login/` | Public | Sign in |
 | Logout | `/accounts/logout/` | Authenticated | Sign out (POST) |
@@ -321,10 +337,10 @@ Production and local development both use **PostgreSQL** (Neon) through `DATABAS
 | --- | --- |
 | `accounts` | Custom user, auth flows, verification middleware, profiles, badges, staff permissions, account emails |
 | `pages` | Home, About, Terms, Privacy, Contact, carousel, organisers, SEO/sitemaps, base template, global static assets, error pages |
-| `events` | Event model, public list/detail, staff CRUD and manage tools, announcement emails |
-| `registrations` | RSVP models and views (register, edit, cancel, confirmation, staff attendee lists) |
-| `community` | Forum posts, comments, likes, media, moderation queue, Admin Tool |
-| `gallery` | Moderated gallery items and upload flows |
+| `events` | Event model (including optional capacity), public list/detail, staff CRUD and manage tools, announcement emails |
+| `registrations` | RSVP models and views (register, edit, cancel, confirmation, staff attendee lists, attendance check-in) |
+| `community` | Forum posts, comments, likes, media, Admin Tool hub, moderation alert emails |
+| `gallery` | Moderated gallery items, event linking, pin order, and upload flows |
 | `jamsession` | Settings, URLs, WSGI/ASGI, shared moderation, storage helpers, Cloudinary utilities, image format helpers |
 
 ---
@@ -438,12 +454,13 @@ User-generated media and forum content is **not** public by default.
 
 1. A member uploads a gallery item or creates a post/comment.
 2. The record is saved with status **pending** (unless the author is staff/superuser and auto-approval applies).
-3. Staff review items in:
-   * `/community/moderate/`
-   * `/community/admin-tool/`
+3. Active superusers receive a branded **moderation alert** email (one email per item, or one summary email for a multi-file gallery batch), with a link straight to Admin Tool → To review.
+4. Staff review items in:
+   * `/community/admin-tool/?tab=review` (primary hub; also Gallery and Community tabs)
+   * `/community/moderate/` (legacy URL → redirects to the To review tab)
    * Django admin (Unfold sidebar includes pending filters)
-4. Staff **approve** (content goes live) or **reject** (optionally with a reason).
-5. Rejected or deleted media can be removed from Cloudinary to avoid orphaned files.
+5. Staff **approve** (content goes live) or **reject** (optionally with a reason). Bulk moderate is available in the Admin Tool.
+6. Rejected or deleted media can be removed from Cloudinary to avoid orphaned files.
 
 This workflow is central to keeping a public music community safe and presentable.
 
@@ -453,14 +470,14 @@ This workflow is central to keeping a public music community safe and presentabl
 
 ### Core entities
 
-* **User** — Custom auth user with profile fields, verification state, badges, and privacy flags
+* **User** — Custom auth user with profile fields, verification state, badges, privacy flags, and optional `hide_from_members_list`
 * **SocialLink** — Ordered links belonging to a user (max five on the edit form)
 * **HomeCarouselSlide** — Homepage carousel images
 * **AboutOrganiser** — About page organiser cards
-* **Event** — Jam session event (venue, schedule, poster, registration flags)
-* **EventRegistration** — RSVP linking a user to an event (unique together)
+* **Event** — Jam session event (venue, schedule, poster, optional capacity, registration flags)
+* **EventRegistration** — RSVP linking a user to an event (unique together), including attendance status
 * **RegistrationSong** — Songs attached to a registration
-* **GalleryItem** — Moderated image/video
+* **GalleryItem** — Moderated image/video, optional link to an Event, optional `pin_order` per media type
 * **CommunityPost** / **CommunityComment** / media / likes — Forum graph with moderation
 
 ### Important relationships
@@ -468,6 +485,7 @@ This workflow is central to keeping a public music community safe and presentabl
 * User → SocialLink: one-to-many
 * User → EventRegistration → Event: many-to-many through registrations
 * EventRegistration → RegistrationSong: one-to-many
+* Event → GalleryItem: optional one-to-many (`related_name="gallery_items"`)
 * User → GalleryItem / CommunityPost / CommunityComment: authorship
 * CommunityPost → likes and media attachments
 * Moderated models share approval fields via the abstract `ModeratedContent` base
@@ -476,8 +494,11 @@ This workflow is central to keeping a public music community safe and presentabl
 
 * Age and years of experience are **derived**, not stored as static integers that go stale
 * Registration stores **snapshots** of instrument/experience so historical RSVPs stay meaningful if the profile changes later
-* Attendance status exists on registrations to support reducing no-shows over time
+* Attendance status exists on registrations to support reducing no-shows over time; staff can update it from the on-site attendee list
+* Event capacity is optional; `is_registration_allowed` also requires the event not to be full
+* Gallery pin order is unique within photos or within videos (not across both), so each section can feature its own top items
 * Irish location data uses county + town/city validation lists in `accounts/constants.py`
+* Phone numbers are never shown on public profiles; the `show_phone_publicly` flag is retained only for database compatibility
 
 ---
 
@@ -489,12 +510,12 @@ Staff can manage:
 
 * Homepage carousel slides (sortable)
 * About organisers (sortable)
-* Users
-* Events and registrations
-* Gallery items (including pending filter links)
+* Users (including hide-from-members-list and phone help text clarifying private WhatsApp use)
+* Events and registrations (capacity on events; attendance on RSVPs)
+* Gallery items (media preview, related event, editable pin order, pending filter links)
 * Community posts and comments (including pending filter links)
 
-Day-to-day moderation can also happen on the public site via the community moderation views, which is often faster on a phone at a venue.
+Day-to-day moderation and gallery pinning can also happen on the public site via the **Admin Tool**, which is often faster on a phone at a venue.
 
 Create a local superuser with:
 
@@ -512,10 +533,11 @@ Emails are sent for:
 * Password reset
 * Email change confirmation and notice
 * New user alerts to superusers
+* **Moderation alerts** to superusers when gallery items, posts, or comments enter the pending queue (including a batched summary for multi-file gallery uploads)
 * Contact form messages to the staff inbox
 * Event announcement emails to members
 
-Templates live under app email template folders (for example `accounts/templates/accounts/emails/`).
+Templates live under app email template folders (for example `accounts/templates/accounts/emails/` and `community/templates/community/emails/`).
 
 **Production:** Resend + verified domain (`jamsessionlab.ie`), typically sending as `staff@jamsessionlab.ie`.
 
@@ -605,6 +627,7 @@ Copy `.env.example` to `.env` and fill in at least:
 | `DATABASE_URL` | PostgreSQL connection string (required) |
 | `CLOUD_NAME`, `API_KEY`, `API_SECRET` | Cloudinary media |
 | `RESEND_API_KEY` | Transactional email (or use console backend) |
+| `WHATSAPP_COMMUNITY_LINK` | Private WhatsApp group invite (post-registration / emails) |
 | `DEFAULT_FROM_EMAIL` | From address shown to users |
 | `CONTACT_EMAIL` | Inbox for contact form messages |
 | `SITE_URL` | Canonical public origin for SEO links |
@@ -654,12 +677,13 @@ Exact build/start commands depend on the host dashboard settings.
 
 Ideas on the roadmap (not all required for a first public launch):
 
-* Stronger attendance check-in UI for organisers on the night of a jam
+* Richer on-the-night check-in UX (for example offline-friendly or faster mobile layouts) on top of the existing attendance buttons
 * Public member directory with privacy-aware filters
 * Compiled Tailwind build (replace CDN) before long-term production hardening
 * Further pagination and query optimisation as community/gallery data grows
 * Richer Privacy Policy polish for GDPR / Ireland-specific wording as legal copy is finalised
 * Optional Redis/Celery later if background email volume grows beyond threaded sends
+* Gallery browse/filter by related event on the public gallery page
 
 ---
 

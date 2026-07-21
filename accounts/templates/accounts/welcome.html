@@ -37,6 +37,7 @@
                 {% include "accounts/partials/verification_email_actions.html" %}
             </div>
 
+            {% if whatsapp_link %}
             <div
                 class="mt-6 rounded-2xl border border-jam-grey-light bg-jam-grey p-6 text-left sm:p-8"
                 data-aos="fade-up"
@@ -56,6 +57,7 @@
                     Join the WhatsApp Group
                 </a>
             </div>
+            {% endif %}
 
             <a
                 href="{% url 'pages:home' %}"

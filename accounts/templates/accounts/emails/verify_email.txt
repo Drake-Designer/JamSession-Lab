@@ -7,11 +7,13 @@ Please confirm your email address by opening this link:
 {{ verify_url }}
 
 Once verified, you can register for events, edit your profile, and share in the forum.
+{% if whatsapp_link %}
 
 While you're here, join our community WhatsApp group for announcements,
 session line-ups, and chat with fellow musicians:
 
 {{ whatsapp_link }}
+{% endif %}
 
 See you at the next jam!
 

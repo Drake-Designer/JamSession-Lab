@@ -379,8 +379,8 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "staff@jamsessionlab.ie").strip()
 
 # Invitation link to the community WhatsApp group, shown after registration
-# and included in the welcome email. Replace with the real group link.
-WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/JzOeCrY2Lb96ag6zze1qhb"
+# and included in the welcome email. Set in .env — never hardcode the real invite.
+WHATSAPP_COMMUNITY_LINK = os.environ.get("WHATSAPP_COMMUNITY_LINK", "").strip()
 
 # ---------------------------------------------------------------------------
 # SEO / search engines (canonical URLs, Open Graph, sitemap, Search Console)
