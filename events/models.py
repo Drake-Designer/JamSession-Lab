@@ -28,6 +28,14 @@ class Event(models.Model):
         validators=[validate_event_poster],
     )
     description = models.TextField(_("description"), blank=True)
+    capacity = models.PositiveIntegerField(
+        _("capacity"),
+        null=True,
+        blank=True,
+        help_text=_(
+            "Maximum active registrations. Leave blank for no limit."
+        ),
+    )
     is_active = models.BooleanField(_("active"), default=True)
     registrations_open = models.BooleanField(_("registrations open"), default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -42,7 +50,11 @@ class Event(models.Model):
         ]
 
     def __str__(self):
-        return self.title or f"JamSession @ {self.venue_name}"
+        title = self.title or f"JamSession @ {self.venue_name}"
+        if not self.starts_at:
+            return title
+        local_start = timezone.localtime(self.starts_at)
+        return f"{title} · {local_start:%d %b %Y}"
 
     def get_absolute_url(self):
         from django.urls import reverse
@@ -55,6 +67,10 @@ class Event(models.Model):
             raise ValidationError(
                 {"ends_at": _("End time must be after the start time.")}
             )
+        if self.capacity is not None and self.capacity < 1:
+            raise ValidationError(
+                {"capacity": _("Capacity must be at least 1, or left blank.")}
+            )
 
     def save(self, *args, **kwargs):
         self.title = f"JamSession @ {self.venue_name}".strip()
@@ -64,12 +80,36 @@ class Event(models.Model):
     def is_upcoming(self):
         return self.starts_at > timezone.now()
 
+    def registered_count(self):
+        """Active RSVPs (registered, not cancelled). Uses annotation when present."""
+        annotated = getattr(self, "_registered_count", None)
+        if annotated is not None:
+            return annotated
+        from registrations.models import RsvpStatus
+
+        return self.registrations.filter(
+            rsvp_status=RsvpStatus.REGISTERED
+        ).count()
+
+    @property
+    def is_full(self):
+        if self.capacity is None:
+            return False
+        return self.registered_count() >= self.capacity
+
+    @property
+    def spots_remaining(self):
+        if self.capacity is None:
+            return None
+        return max(self.capacity - self.registered_count(), 0)
+
     @property
     def is_registration_allowed(self):
         return (
             self.is_active
             and self.registrations_open
             and self.starts_at > timezone.now()
+            and not self.is_full
         )
 
     @property

@@ -1,4 +1,4 @@
-{# Shared Admin Tool media card — checkbox for bulk delete, click opens lightbox. #}
+{# Shared Admin Tool media card — checkbox, preview, optional pin / moderate / delete. #}
 <article class="admin-tool-card" role="listitem">
     <label class="admin-tool-card__check">
         <input
@@ -54,4 +54,64 @@
             {% endif %}
         </span>
     </button>
+
+    {% if show_pin or show_moderate or delete_url %}
+    <div class="admin-tool-card__actions">
+        {% if show_pin %}
+        <div class="admin-tool-pin-form">
+            <label class="admin-tool-pin-form__label" for="pin-order-{{ item_id }}">Pin</label>
+            <input
+                id="pin-order-{{ item_id }}"
+                type="text"
+                name="pin_order"
+                class="admin-tool-pin-form__input"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                maxlength="3"
+                autocomplete="off"
+                value="{{ pin_order|default_if_none:'' }}"
+                placeholder="—"
+                data-pin-url="{% url 'community:admin_tool_pin_order' item_id %}"
+                data-pin-initial="{{ pin_order|default_if_none:'' }}"
+                aria-label="Pin order for {{ title|default:'item' }}"
+            >
+            <span class="admin-tool-pin-form__status" aria-live="polite"></span>
+        </div>
+        {% endif %}
+
+        {% if show_moderate and status == "pending" %}
+        <div class="admin-tool-card__moderate">
+            <form method="post" action="{{ approve_url }}">
+                {% csrf_token %}
+                <input type="hidden" name="next_tab" value="{{ next_tab|default:'gallery' }}">
+                <button type="submit" class="admin-tool-mini-btn admin-tool-mini-btn--approve">Approve</button>
+            </form>
+            <form method="post" action="{{ reject_url }}">
+                {% csrf_token %}
+                <input type="hidden" name="next_tab" value="{{ next_tab|default:'gallery' }}">
+                <button type="submit" class="admin-tool-mini-btn admin-tool-mini-btn--reject">Reject</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if delete_url %}
+        <form
+            method="post"
+            action="{{ delete_url }}"
+            class="js-confirm-delete admin-tool-card__delete"
+            data-confirm-message="{{ delete_confirm|default:'Delete this item? This cannot be undone.' }}"
+        >
+            {% csrf_token %}
+            <input type="hidden" name="next_tab" value="{{ next_tab|default:'gallery' }}">
+            {% if status_filter %}
+            <input type="hidden" name="next_status" value="{{ status_filter }}">
+            {% endif %}
+            <button type="submit" class="admin-tool-mini-btn admin-tool-mini-btn--delete" aria-label="Delete">
+                {% include "community/_admin_tool_trash_icon.html" %}
+                <span class="admin-tool-mini-btn__label">Delete</span>
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
 </article>

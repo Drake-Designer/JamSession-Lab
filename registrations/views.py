@@ -17,13 +17,31 @@ from .forms import (
     RegistrationSongFormSet,
     song_formset_initial_from_registration,
 )
-from .models import EventRegistration, RegistrationSong, RsvpStatus
+from .models import (
+    AttendanceStatus,
+    EventRegistration,
+    RegistrationSong,
+    RsvpStatus,
+)
 
 
 def _require_moderator(user):
     """Raise PermissionDenied unless the user is staff/superuser."""
     if not (user.is_staff or user.is_superuser):
         raise PermissionDenied
+
+
+def _render_registration_unavailable(request, event):
+    """Show closed or full messaging when new RSVPs are not allowed."""
+    if event.is_full:
+        messages.error(request, _("This event is full."))
+    else:
+        messages.error(request, _("Registrations are currently closed."))
+    return render(
+        request,
+        "registrations/registrations_closed.html",
+        {"event": event},
+    )
 
 
 def _snapshot_instruments(user):
@@ -173,16 +191,6 @@ def register(request, pk):
         if form_valid and formset_valid:
             with transaction.atomic():
                 locked_event = Event.objects.select_for_update().get(pk=event.pk)
-                if not locked_event.is_registration_allowed:
-                    messages.error(
-                        request,
-                        _("Registrations are currently closed."),
-                    )
-                    return render(
-                        request,
-                        "registrations/registrations_closed.html",
-                        {"event": locked_event},
-                    )
 
                 current = (
                     EventRegistration.objects.select_for_update()
@@ -197,6 +205,10 @@ def register(request, pk):
                     return redirect(
                         "events:register_confirmation", pk=locked_event.pk
                     )
+
+                # Capacity / open-window check after lock (prevents oversell).
+                if not locked_event.is_registration_allowed:
+                    return _render_registration_unavailable(request, locked_event)
 
                 registration = form.save(commit=False)
                 if current is not None:
@@ -382,9 +394,21 @@ def registration_list_context(event):
         .prefetch_related("songs")
         .order_by("-cancelled_at")
     )
+    registered_rows = _enrich_registration_rows(registered)
+    attendance_counts = {
+        "unknown": 0,
+        "attended": 0,
+        "no_show": 0,
+    }
+    for row in registered_rows:
+        status = row["registration"].attendance_status
+        if status in attendance_counts:
+            attendance_counts[status] += 1
     return {
-        "registered_rows": _enrich_registration_rows(registered),
+        "registered_rows": registered_rows,
         "cancelled_rows": _enrich_registration_rows(cancelled),
+        "attendance_counts": attendance_counts,
+        "attendance_choices": AttendanceStatus.choices,
     }
 
 
@@ -396,3 +420,34 @@ def staff_lists(request, pk):
     event = get_object_or_404(Event, pk=pk)
     context = {"event": event, **registration_list_context(event)}
     return render(request, "registrations/staff_lists.html", context)
+
+
+@login_required
+@require_POST
+def set_attendance(request, pk, reg_pk):
+    """Staff check-in: set attendance_status for one active registration."""
+    _require_moderator(request.user)
+    event = get_object_or_404(Event, pk=pk)
+    registration = get_object_or_404(
+        EventRegistration,
+        pk=reg_pk,
+        event=event,
+        rsvp_status=RsvpStatus.REGISTERED,
+    )
+    status = request.POST.get("attendance_status", "")
+    valid_statuses = {choice.value for choice in AttendanceStatus}
+    if status not in valid_statuses:
+        messages.error(request, _("Invalid attendance status."))
+    else:
+        registration.attendance_status = status
+        registration.save(update_fields=["attendance_status"])
+        messages.success(request, _("Attendance updated."))
+
+    next_url = request.POST.get("next") or reverse(
+        "events:attendees", kwargs={"pk": event.pk}
+    )
+    if not url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}
+    ):
+        next_url = reverse("events:attendees", kwargs={"pk": event.pk})
+    return redirect(next_url)

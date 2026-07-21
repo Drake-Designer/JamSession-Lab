@@ -1,0 +1,84 @@
+{# Gallery tab — photos / videos with status filter, bulk pin order, delete, pending shortcuts. #}
+
+<div class="admin-tool-filters" role="group" aria-label="Filter gallery by status">
+    <a
+        href="{% url 'community:admin_tool' %}?tab=gallery"
+        class="admin-tool-filters__chip{% if not status_filter %} is-active{% endif %}"
+    >All</a>
+    <a
+        href="{% url 'community:admin_tool' %}?tab=gallery&amp;status=pending"
+        class="admin-tool-filters__chip{% if status_filter == 'pending' %} is-active{% endif %}"
+    >Pending</a>
+    <a
+        href="{% url 'community:admin_tool' %}?tab=gallery&amp;status=approved"
+        class="admin-tool-filters__chip{% if status_filter == 'approved' %} is-active{% endif %}"
+    >Approved</a>
+    <a
+        href="{% url 'community:admin_tool' %}?tab=gallery&amp;status=rejected"
+        class="admin-tool-filters__chip{% if status_filter == 'rejected' %} is-active{% endif %}"
+    >Rejected</a>
+</div>
+
+<section class="admin-tool-section" aria-labelledby="admin-tool-photos-heading" data-admin-tool-section>
+    <div class="admin-tool-section__header">
+        <h2 id="admin-tool-photos-heading" class="admin-tool-section__title">
+            Photos ({{ gallery_photo_count }})
+        </h2>
+        {% if gallery_photos %}
+        <label class="admin-tool-select-all">
+            <input
+                type="checkbox"
+                class="admin-tool-select-all__input"
+                data-select-all-section
+                aria-label="Select all photos"
+            >
+            <span class="admin-tool-select-all__label">Select all</span>
+        </label>
+        {% endif %}
+    </div>
+
+    {% if gallery_photos %}
+    <div class="admin-tool-grid" role="list">
+        {% for item in gallery_photos %}
+            {% url 'community:admin_tool_gallery_delete' item.pk as gallery_delete_url %}
+            {% url 'community:moderation_gallery_approve' item.pk as gallery_approve_url %}
+            {% url 'community:moderation_gallery_reject' item.pk as gallery_reject_url %}
+            {% include "community/_admin_tool_card.html" with kind="gallery" item_id=item.pk aria_label="Select gallery photo" title=item.title|default:"Untitled photo" thumb_url=item.display_image_url preview_src=item.display_media_url preview_poster=item.display_image_url preview_type="image" preview_title=item.title|default:"" credit_user=item.uploaded_by status=item.status status_label=item.get_status_display show_pin=True pin_order=item.pin_order show_moderate=True approve_url=gallery_approve_url reject_url=gallery_reject_url delete_url=gallery_delete_url delete_confirm="Delete this gallery photo? This cannot be undone." next_tab="gallery" status_filter=status_filter csrf_token=csrf_token %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="admin-tool-empty">No gallery photos found.</p>
+    {% endif %}
+</section>
+
+<section class="admin-tool-section" aria-labelledby="admin-tool-videos-heading" data-admin-tool-section>
+    <div class="admin-tool-section__header">
+        <h2 id="admin-tool-videos-heading" class="admin-tool-section__title">
+            Videos ({{ gallery_video_count }})
+        </h2>
+        {% if gallery_videos %}
+        <label class="admin-tool-select-all">
+            <input
+                type="checkbox"
+                class="admin-tool-select-all__input"
+                data-select-all-section
+                aria-label="Select all videos"
+            >
+            <span class="admin-tool-select-all__label">Select all</span>
+        </label>
+        {% endif %}
+    </div>
+
+    {% if gallery_videos %}
+    <div class="admin-tool-grid" role="list">
+        {% for item in gallery_videos %}
+            {% url 'community:admin_tool_gallery_delete' item.pk as gallery_delete_url %}
+            {% url 'community:moderation_gallery_approve' item.pk as gallery_approve_url %}
+            {% url 'community:moderation_gallery_reject' item.pk as gallery_reject_url %}
+            {% include "community/_admin_tool_card.html" with kind="gallery" item_id=item.pk aria_label="Select gallery video" title=item.title|default:"Untitled video" thumb_url=item.display_image_url preview_src=item.display_media_url preview_poster=item.display_image_url preview_type="video" preview_title=item.title|default:"" credit_user=item.uploaded_by status=item.status status_label=item.get_status_display show_pin=True pin_order=item.pin_order show_moderate=True approve_url=gallery_approve_url reject_url=gallery_reject_url delete_url=gallery_delete_url delete_confirm="Delete this gallery video? This cannot be undone." next_tab="gallery" status_filter=status_filter csrf_token=csrf_token %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="admin-tool-empty">No gallery videos found.</p>
+    {% endif %}
+</section>

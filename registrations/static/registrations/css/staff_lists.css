@@ -22,3 +22,44 @@
 .staff-lists__song + .staff-lists__song {
     margin-top: 0.35rem;
 }
+
+.staff-lists__attendance-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.staff-lists__attendance-btn {
+    border: 1px solid #404040;
+    border-radius: 0.5rem;
+    background: #1a1a1a;
+    color: #a3a3a3;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.2;
+    padding: 0.35rem 0.55rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.staff-lists__attendance-btn:hover {
+    border-color: #e63946;
+    color: #ffffff;
+}
+
+.staff-lists__attendance-btn--active {
+    color: #000000;
+    border-color: transparent;
+}
+
+.staff-lists__attendance-btn--unknown.staff-lists__attendance-btn--active {
+    background: #737373;
+}
+
+.staff-lists__attendance-btn--attended.staff-lists__attendance-btn--active {
+    background: #22c55e;
+}
+
+.staff-lists__attendance-btn--no_show.staff-lists__attendance-btn--active {
+    background: #e63946;
+}

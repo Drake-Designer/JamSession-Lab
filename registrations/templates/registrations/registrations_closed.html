@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}JamSession Lab · Registrations closed{% endblock %}
+{% block title %}JamSession Lab · {% if event.is_full %}Event full{% else %}Registrations closed{% endif %}{% endblock %}
 {% block meta_robots %}noindex, nofollow{% endblock %}
 
 {% block content %}
@@ -8,12 +8,20 @@
         <div class="page-shell page-shell--narrow">
             <div class="rounded-2xl border border-jam-grey-light bg-jam-grey p-6 sm:p-8" data-aos="fade-up">
                 <header class="page-header">
+                    {% if event.is_full %}
+                    <h1 class="page-header__title">This event is full</h1>
+                    <p class="page-header__lead">
+                        <span class="font-semibold text-jam-white">{{ event.title }}</span>
+                        has reached its registration capacity. Check back later in case a spot opens up.
+                    </p>
+                    {% else %}
                     <h1 class="page-header__title">Registrations are currently closed</h1>
                     <p class="page-header__lead">
                         Registrations for
                         <span class="font-semibold text-jam-white">{{ event.title }}</span>
                         are not open at the moment.
                     </p>
+                    {% endif %}
                 </header>
                 <a
                     href="{% url 'events:detail' event.pk %}"

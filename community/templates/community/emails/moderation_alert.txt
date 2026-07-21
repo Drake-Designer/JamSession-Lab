@@ -1,0 +1,10 @@
+Content awaiting review · JamSession Lab
+
+{% if is_batch %}{{ item_count }} items need moderation.{% else %}New content needs moderation.{% endif %}
+
+Type: {{ content_type }}
+Submitted by: {{ submitter_label }}
+{{ summary }}
+
+Open Admin Tool (To review):
+{{ review_url }}

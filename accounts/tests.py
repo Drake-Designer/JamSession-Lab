@@ -275,6 +275,7 @@ class RegistrationFormTests(TestCase):
             data=valid_registration_data(
                 display_name="Aoife-B",
                 email="other@example.com",
+                phone_national_number="871234568",
             )
         )
         self.assertTrue(second.is_valid(), msg=second.errors.as_json())
@@ -1025,7 +1026,7 @@ class ProfileMyPostsTests(TestCase):
 
 
 class ProfileReviewItemsTests(TestCase):
-    """Staff-only REVIEW / ADMIN TOOL / EVENTS controls on the owner profile."""
+    """Staff-only ADMIN TOOL / EVENTS controls on the owner profile."""
 
     def setUp(self):
         self.client.post(reverse("accounts:register"), data=valid_registration_data())
@@ -1044,7 +1045,6 @@ class ProfileReviewItemsTests(TestCase):
         self.regular_profile_url = reverse(
             "accounts:profile_detail", kwargs={"username": self.regular.username}
         )
-        self.queue_url = reverse("community:moderation_queue")
         self.admin_tool_url = reverse("community:admin_tool")
         self.events_manage_url = reverse("events:manage")
 
@@ -1056,14 +1056,12 @@ class ProfileReviewItemsTests(TestCase):
         self.assertContains(response, "Edit Profile")
         self.assertContains(response, "profile-action-btn")
         self.assertContains(response, "Account Settings")
-        self.assertNotContains(response, "REVIEW")
         self.assertNotContains(response, "ADMIN TOOL")
         self.assertNotContains(response, "EVENTS")
-        self.assertNotContains(response, self.queue_url)
         self.assertNotContains(response, self.admin_tool_url)
         self.assertNotContains(response, self.events_manage_url)
 
-    def test_staff_with_zero_pending_hides_review_but_shows_admin_and_events(self):
+    def test_staff_with_zero_pending_shows_admin_tool_without_badge(self):
         self.client.force_login(self.staff)
         response = self.client.get(self.staff_profile_url)
 
@@ -1071,14 +1069,13 @@ class ProfileReviewItemsTests(TestCase):
         self.assertEqual(response.context["pending_review_count"], 0)
         self.assertContains(response, "Edit Profile")
         self.assertContains(response, "profile-action-btn")
-        self.assertNotContains(response, "REVIEW")
-        self.assertNotContains(response, f'href="{self.queue_url}"')
         self.assertContains(response, "ADMIN TOOL")
         self.assertContains(response, f'href="{self.admin_tool_url}"')
+        self.assertNotContains(response, "profile-staff-btn__badge")
         self.assertContains(response, "EVENTS")
         self.assertContains(response, f'href="{self.events_manage_url}"')
 
-    def test_staff_with_pending_items_sees_review_link_and_correct_count(self):
+    def test_staff_with_pending_items_sees_admin_tool_badge_and_review_tab(self):
         author = self.regular
         CommunityPost.objects.create(
             author=author,
@@ -1117,12 +1114,13 @@ class ProfileReviewItemsTests(TestCase):
 
         # 2 pending posts + 1 pending comment + 1 pending gallery item
         self.assertEqual(response.context["pending_review_count"], 4)
-        self.assertContains(response, "REVIEW")
-        self.assertContains(response, f'href="{self.queue_url}"')
-        self.assertContains(response, "profile-staff-btn--review")
-        self.assertContains(response, ">4<")
         self.assertContains(response, "ADMIN TOOL")
-        self.assertContains(response, f'href="{self.admin_tool_url}"')
+        self.assertContains(
+            response, f'href="{self.admin_tool_url}?tab=review"'
+        )
+        self.assertContains(response, "profile-staff-btn__badge")
+        self.assertContains(response, ">4<")
+        self.assertNotContains(response, "REVIEW")
         self.assertContains(response, "EVENTS")
         self.assertContains(response, f'href="{self.events_manage_url}"')
 
@@ -1460,7 +1458,7 @@ class ProfileEditTests(TestCase):
             self.edit_url,
             data=self._edit_data(
                 display_name="",
-                phone_number="",
+                phone_national_number="",
                 county="",
                 town_city="",
                 instruments=[],
@@ -1470,7 +1468,7 @@ class ProfileEditTests(TestCase):
         form = response.context["form"]
         for field_name in (
             "display_name",
-            "phone_number",
+            "phone_national_number",
             "county",
             "town_city",
             "instruments",
@@ -2166,6 +2164,13 @@ class ActiveMembersOrderingTests(TestCase):
             display_name="zzz_inactive",
             is_active=False,
         )
+        hidden = User.objects.create_user(
+            username="hidden_user",
+            email="hidden@example.com",
+            password="jam-session-test-pass1",
+            display_name="Hidden Member",
+            hide_from_members_list=True,
+        )
 
         ordered = list(get_active_members())
         names = [member.public_display_name for member in ordered]
@@ -2174,6 +2179,7 @@ class ActiveMembersOrderingTests(TestCase):
         self.assertIn(charlie, ordered)
         self.assertIn(empty, ordered)
         self.assertNotIn(inactive, ordered)
+        self.assertNotIn(hidden, ordered)
         self.assertEqual(names, sorted(names, key=str.casefold))
         # Blank display_name falls back to username for sorting and display.
         self.assertEqual(empty.public_display_name, "zeta_fallback")

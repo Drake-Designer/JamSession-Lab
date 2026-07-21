@@ -1,20 +1,32 @@
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods, require_POST
 
 from gallery.models import GalleryItem
 from jamsession.moderation import ApprovalStatus
 
+from .emails import queue_gallery_batch_moderation_alert, queue_moderation_alert
 from .forms import CommunityCommentForm, CommunityPostForm
 from .models import CommunityComment, CommunityLike, CommunityPost
 
 POSTS_PER_PAGE = 10
+ADMIN_TOOL_TABS = frozenset({"review", "gallery", "community"})
+ADMIN_TOOL_STATUSES = frozenset(
+    {
+        ApprovalStatus.PENDING,
+        ApprovalStatus.APPROVED,
+        ApprovalStatus.REJECTED,
+    }
+)
 
 
 def _user_can_moderate_or_owns(user, author_id):
@@ -57,6 +69,56 @@ def _parse_id_list(raw_values):
         seen.add(parsed)
         ids.append(parsed)
     return ids
+
+
+def _admin_tool_query(tab=None, status=None):
+    """Build query string for Admin Tool redirects (tab + optional status)."""
+    params = {}
+    if tab in ADMIN_TOOL_TABS:
+        params["tab"] = tab
+    if status in ADMIN_TOOL_STATUSES:
+        params["status"] = status
+    if not params:
+        return ""
+    return f"?{urlencode(params)}"
+
+
+def _admin_tool_redirect(request=None, *, tab=None, status=None):
+    """
+    Redirect back to Admin Tool.
+
+    Prefers POST/GET ``next_tab`` / ``next_status`` from the request when
+    present, then falls back to explicit tab/status kwargs.
+    """
+    resolved_tab = tab
+    resolved_status = status
+    if request is not None:
+        posted_tab = request.POST.get("next_tab") or request.GET.get("tab")
+        posted_status = request.POST.get("next_status") or request.GET.get("status")
+        if posted_tab in ADMIN_TOOL_TABS:
+            resolved_tab = posted_tab
+        if posted_status in ADMIN_TOOL_STATUSES or posted_status == "all":
+            resolved_status = None if posted_status == "all" else posted_status
+    return redirect(
+        reverse("community:admin_tool")
+        + _admin_tool_query(resolved_tab, resolved_status)
+    )
+
+
+def _filter_by_status(queryset, status):
+    if status in ADMIN_TOOL_STATUSES:
+        return queryset.filter(status=status)
+    return queryset
+
+
+def _notify_pending_if_needed(request, obj, *, content_type, summary, submitter):
+    if getattr(obj, "status", None) == ApprovalStatus.PENDING:
+        queue_moderation_alert(
+            request,
+            content_type=content_type,
+            submitter=submitter,
+            summary=summary,
+        )
 
 
 def _visible_post_or_404(request, slug):
@@ -143,6 +205,13 @@ def post_create(request):
                 messages.success(
                     request, _("Your post has been submitted for approval.")
                 )
+                _notify_pending_if_needed(
+                    request,
+                    post,
+                    content_type=_("Community post"),
+                    summary=post.title,
+                    submitter=request.user,
+                )
             return redirect("community:post_detail", slug=post.slug)
     else:
         form = CommunityPostForm(user=request.user)
@@ -173,6 +242,7 @@ def post_edit(request, slug):
             request.POST, request.FILES, user=request.user, instance=post
         )
         if form.is_valid():
+            was_pending = post.status == ApprovalStatus.PENDING
             updated = form.save()
             if updated.status == ApprovalStatus.APPROVED:
                 messages.success(request, _("Your post has been updated."))
@@ -181,6 +251,14 @@ def post_edit(request, slug):
                     request,
                     _("Your changes have been submitted for approval."),
                 )
+                if not was_pending and updated.status == ApprovalStatus.PENDING:
+                    _notify_pending_if_needed(
+                        request,
+                        updated,
+                        content_type=_("Community post"),
+                        summary=updated.title,
+                        submitter=request.user,
+                    )
             return redirect("community:post_detail", slug=updated.slug)
     else:
         form = CommunityPostForm(user=request.user, instance=post)
@@ -208,6 +286,13 @@ def comment_add(request, slug):
         else:
             messages.success(
                 request, _("Your comment has been submitted for approval.")
+            )
+            _notify_pending_if_needed(
+                request,
+                comment,
+                content_type=_("Community comment"),
+                summary=(comment.body or "")[:120],
+                submitter=request.user,
             )
     else:
         messages.error(
@@ -296,6 +381,7 @@ def comment_edit(request, pk):
             instance=comment,
         )
         if form.is_valid():
+            was_pending = comment.status == ApprovalStatus.PENDING
             updated = form.save()
             if updated.status == ApprovalStatus.APPROVED:
                 messages.success(request, _("Your comment has been updated."))
@@ -304,6 +390,14 @@ def comment_edit(request, pk):
                     request,
                     _("Your changes have been submitted for approval."),
                 )
+                if not was_pending and updated.status == ApprovalStatus.PENDING:
+                    _notify_pending_if_needed(
+                        request,
+                        updated,
+                        content_type=_("Community comment"),
+                        summary=(updated.body or "")[:120],
+                        submitter=request.user,
+                    )
             return redirect("community:post_detail", slug=post.slug)
     else:
         form = CommunityCommentForm(
@@ -320,40 +414,18 @@ def comment_edit(request, pk):
 @login_required
 def moderation_queue(request):
     """
-    Staff-only page listing every post, comment, and gallery item awaiting
-    approval.
+    Legacy Review Items URL — redirects into the Admin Tool hub.
 
-    Oldest submissions first, so moderators clear the backlog in the order
-    it built up. All the moderation logic itself stays on the model
-    (ModeratedContent.approve()/reject()) and in the action views below —
-    this view only reads and displays the pending queue.
+    Kept so old bookmarks and tests that hit ``community:moderation_queue``
+    still land on the To review tab.
     """
     _require_moderator(request.user)
+    return _admin_tool_redirect(tab="review")
 
-    pending_posts = (
-        CommunityPost.objects.filter(status=ApprovalStatus.PENDING)
-        .select_related("author")
-        .prefetch_related("media")
-        .order_by("created_at")
-    )
-    pending_comments = (
-        CommunityComment.objects.filter(status=ApprovalStatus.PENDING)
-        .select_related("author", "post")
-        .prefetch_related("media")
-        .order_by("created_at")
-    )
-    pending_gallery_items = (
-        GalleryItem.objects.filter(status=ApprovalStatus.PENDING)
-        .select_related("uploaded_by")
-        .order_by("created_at")
-    )
 
-    context = {
-        "pending_posts": pending_posts,
-        "pending_comments": pending_comments,
-        "pending_gallery_items": pending_gallery_items,
-    }
-    return render(request, "community/moderation_queue.html", context)
+def _moderation_redirect(request):
+    """After a single moderation action, return to the To review tab."""
+    return _admin_tool_redirect(request, tab="review")
 
 
 @login_required
@@ -365,7 +437,7 @@ def moderation_post_approve(request, slug):
     post = get_object_or_404(CommunityPost, slug=slug, status=ApprovalStatus.PENDING)
     post.approve(request.user)
     messages.success(request, _("The post has been approved."))
-    return redirect("community:moderation_queue")
+    return _moderation_redirect(request)
 
 
 @login_required
@@ -377,7 +449,7 @@ def moderation_post_reject(request, slug):
     post = get_object_or_404(CommunityPost, slug=slug, status=ApprovalStatus.PENDING)
     post.reject(request.user, reason=request.POST.get("reason", "").strip())
     messages.success(request, _("The post has been rejected."))
-    return redirect("community:moderation_queue")
+    return _moderation_redirect(request)
 
 
 @login_required
@@ -389,7 +461,7 @@ def moderation_post_delete(request, slug):
     post = get_object_or_404(CommunityPost, slug=slug, status=ApprovalStatus.PENDING)
     post.delete()
     messages.success(request, _("The post has been deleted."))
-    return redirect("community:moderation_queue")
+    return _moderation_redirect(request)
 
 
 @login_required
@@ -403,7 +475,7 @@ def moderation_comment_approve(request, pk):
     )
     comment.approve(request.user)
     messages.success(request, _("The comment has been approved."))
-    return redirect("community:moderation_queue")
+    return _moderation_redirect(request)
 
 
 @login_required
@@ -417,7 +489,7 @@ def moderation_comment_reject(request, pk):
     )
     comment.reject(request.user, reason=request.POST.get("reason", "").strip())
     messages.success(request, _("The comment has been rejected."))
-    return redirect("community:moderation_queue")
+    return _moderation_redirect(request)
 
 
 @login_required
@@ -431,7 +503,7 @@ def moderation_comment_delete(request, pk):
     )
     comment.delete()
     messages.success(request, _("The comment has been deleted."))
-    return redirect("community:moderation_queue")
+    return _moderation_redirect(request)
 
 
 @login_required
@@ -443,7 +515,7 @@ def moderation_gallery_approve(request, pk):
     item = get_object_or_404(GalleryItem, pk=pk, status=ApprovalStatus.PENDING)
     item.approve(request.user)
     messages.success(request, _("The gallery submission has been approved."))
-    return redirect("community:moderation_queue")
+    return _moderation_redirect(request)
 
 
 @login_required
@@ -455,7 +527,7 @@ def moderation_gallery_reject(request, pk):
     item = get_object_or_404(GalleryItem, pk=pk, status=ApprovalStatus.PENDING)
     item.reject(request.user, reason=request.POST.get("reason", "").strip())
     messages.success(request, _("The gallery submission has been rejected."))
-    return redirect("community:moderation_queue")
+    return _moderation_redirect(request)
 
 
 @login_required
@@ -467,40 +539,88 @@ def moderation_gallery_delete(request, pk):
     item = get_object_or_404(GalleryItem, pk=pk, status=ApprovalStatus.PENDING)
     item.delete()
     messages.success(request, _("The gallery submission has been deleted."))
-    return redirect("community:moderation_queue")
+    return _moderation_redirect(request)
 
 
 @login_required
 def admin_tool(request):
     """
-    Staff-only hub listing every gallery item, post, and comment (all statuses).
+    Staff-only hub: To review, Gallery, and Community in one place.
 
-    Separate from the pending-only moderation queue: this page is for browsing
-    and bulk deletion across the full catalogue. Gallery is split into photos
-    and videos so moderators can scan media like the public gallery grid.
+    Default tab is To review when anything is pending, otherwise Gallery.
+    Gallery and Community tabs support an optional ``status`` filter.
     """
     _require_moderator(request.user)
 
-    gallery_items = list(
-        GalleryItem.objects.select_related("uploaded_by").order_by("-created_at")
+    pending_posts = list(
+        CommunityPost.objects.filter(status=ApprovalStatus.PENDING)
+        .select_related("author")
+        .prefetch_related("media")
+        .order_by("created_at")
     )
+    pending_comments = list(
+        CommunityComment.objects.filter(status=ApprovalStatus.PENDING)
+        .select_related("author", "post")
+        .prefetch_related("media")
+        .order_by("created_at")
+    )
+    pending_gallery_items = list(
+        GalleryItem.objects.filter(status=ApprovalStatus.PENDING)
+        .select_related("uploaded_by")
+        .order_by("created_at")
+    )
+    pending_count = (
+        len(pending_posts) + len(pending_comments) + len(pending_gallery_items)
+    )
+
+    requested_tab = request.GET.get("tab")
+    if requested_tab in ADMIN_TOOL_TABS:
+        active_tab = requested_tab
+    elif pending_count > 0:
+        active_tab = "review"
+    else:
+        active_tab = "gallery"
+
+    status_filter = request.GET.get("status")
+    if status_filter not in ADMIN_TOOL_STATUSES:
+        status_filter = None
+
+    gallery_qs = _filter_by_status(
+        GalleryItem.objects.select_related("uploaded_by", "event"),
+        status_filter,
+    ).order_by(*GalleryItem.display_order_by())
+    gallery_items = list(gallery_qs)
     gallery_photos = [item for item in gallery_items if not item.is_video]
     gallery_videos = [item for item in gallery_items if item.is_video]
+
     posts = list(
-        CommunityPost.objects.select_related("author")
-        .prefetch_related("media")
-        .order_by("-created_at")
+        _filter_by_status(
+            CommunityPost.objects.select_related("author").prefetch_related("media"),
+            status_filter,
+        ).order_by("-created_at")
     )
     comments = list(
-        CommunityComment.objects.select_related("author", "post")
-        .prefetch_related("media")
-        .order_by("-created_at")
+        _filter_by_status(
+            CommunityComment.objects.select_related("author", "post").prefetch_related(
+                "media"
+            ),
+            status_filter,
+        ).order_by("-created_at")
     )
 
     return render(
         request,
         "community/admin_tool.html",
         {
+            "active_tab": active_tab,
+            "status_filter": status_filter,
+            "pending_count": pending_count,
+            "pending_posts": pending_posts,
+            "pending_comments": pending_comments,
+            "pending_gallery_items": pending_gallery_items,
+            "pending_post_count": len(pending_posts),
+            "pending_comment_count": len(pending_comments),
+            "pending_gallery_count": len(pending_gallery_items),
             "gallery_photos": gallery_photos,
             "gallery_videos": gallery_videos,
             "gallery_photo_count": len(gallery_photos),
@@ -574,7 +694,7 @@ def admin_tool_gallery_delete(request, pk):
     item = get_object_or_404(GalleryItem, pk=pk)
     item.delete()
     messages.success(request, _("The gallery item has been deleted."))
-    return redirect("community:admin_tool")
+    return _admin_tool_redirect(request, tab="gallery")
 
 
 @login_required
@@ -586,7 +706,7 @@ def admin_tool_post_delete(request, slug):
     post = get_object_or_404(CommunityPost, slug=slug)
     post.delete()
     messages.success(request, _("The post has been deleted."))
-    return redirect("community:admin_tool")
+    return _admin_tool_redirect(request, tab="community")
 
 
 @login_required
@@ -598,7 +718,99 @@ def admin_tool_comment_delete(request, pk):
     comment = get_object_or_404(CommunityComment, pk=pk)
     comment.delete()
     messages.success(request, _("The comment has been deleted."))
-    return redirect("community:admin_tool")
+    return _admin_tool_redirect(request, tab="community")
+
+
+@login_required
+@require_POST
+def admin_tool_pin_order(request, pk):
+    """
+    Set or clear gallery pin order from the Admin Tool Gallery tab.
+
+    AJAX requests (auto-save) receive JSON; normal form posts redirect back.
+    """
+    _require_moderator(request.user)
+
+    item = get_object_or_404(GalleryItem, pk=pk)
+    raw = (request.POST.get("pin_order") or "").strip()
+    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    def _respond(*, ok, message, status=200, pin_order=None):
+        if wants_json:
+            payload = {"ok": ok, "message": message, "pin_order": pin_order}
+            return JsonResponse(payload, status=status)
+        if ok:
+            messages.success(request, message)
+        else:
+            messages.error(request, message)
+        return _admin_tool_redirect(request, tab="gallery")
+
+    if raw == "" or raw == "0" or (raw.isdigit() and int(raw) == 0):
+        if item.pin_order is not None:
+            item.pin_order = None
+            item.save(update_fields=["pin_order", "updated_at"])
+        return _respond(ok=True, message=_("Pin order cleared."), pin_order=None)
+
+    if not raw.isdigit():
+        return _respond(
+            ok=False,
+            message=_("Pin order must contain digits only (1–999)."),
+            status=400,
+            pin_order=item.pin_order,
+        )
+
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return _respond(
+            ok=False,
+            message=_("Pin order must be a whole number from 1 to 999."),
+            status=400,
+            pin_order=item.pin_order,
+        )
+
+    if value < 1 or value > 999:
+        return _respond(
+            ok=False,
+            message=_("Pin order must be a whole number from 1 to 999."),
+            status=400,
+            pin_order=item.pin_order,
+        )
+
+    if item.pin_order == value:
+        return _respond(
+            ok=True,
+            message=_("Pin order saved."),
+            pin_order=value,
+        )
+
+    previous = item.pin_order
+    item.pin_order = value
+    try:
+        item.validate_unique_pin_order()
+    except ValidationError as exc:
+        item.pin_order = previous
+        messages_list = getattr(exc, "messages", None) or [
+            _("That pin number is already in use.")
+        ]
+        if hasattr(exc, "error_dict") and "pin_order" in exc.error_dict:
+            messages_list = [
+                error.message for error in exc.error_dict["pin_order"]
+            ]
+        return _respond(
+            ok=False,
+            message=str(messages_list[0]),
+            status=400,
+            pin_order=previous,
+        )
+
+    item.save(update_fields=["pin_order", "updated_at"])
+
+    return _respond(
+        ok=True,
+        message=_("Pin order saved."),
+        pin_order=value,
+    )
 
 
 @login_required
@@ -641,4 +853,66 @@ def admin_tool_bulk_delete(request):
             _("%(count)d items have been deleted.") % {"count": deleted_count},
         )
 
-    return redirect("community:admin_tool")
+    return _admin_tool_redirect(request)
+
+
+@login_required
+@require_POST
+def admin_tool_bulk_moderate(request):
+    """Bulk approve or reject selected pending gallery items, posts, and comments."""
+    _require_moderator(request.user)
+
+    action = (request.POST.get("action") or "").strip()
+    if action not in {"approve", "reject"}:
+        messages.error(request, _("Unknown bulk moderation action."))
+        return _admin_tool_redirect(request, tab="review")
+
+    reason = request.POST.get("reason", "").strip()
+    gallery_ids = _parse_id_list(request.POST.getlist("gallery_ids"))
+    post_ids = _parse_id_list(request.POST.getlist("post_ids"))
+    comment_ids = _parse_id_list(request.POST.getlist("comment_ids"))
+
+    updated_count = 0
+
+    with transaction.atomic():
+        for item in GalleryItem.objects.filter(
+            pk__in=gallery_ids, status=ApprovalStatus.PENDING
+        ):
+            if action == "approve":
+                item.approve(request.user)
+            else:
+                item.reject(request.user, reason=reason)
+            updated_count += 1
+
+        for post in CommunityPost.objects.filter(
+            pk__in=post_ids, status=ApprovalStatus.PENDING
+        ):
+            if action == "approve":
+                post.approve(request.user)
+            else:
+                post.reject(request.user, reason=reason)
+            updated_count += 1
+
+        for comment in CommunityComment.objects.filter(
+            pk__in=comment_ids, status=ApprovalStatus.PENDING
+        ):
+            if action == "approve":
+                comment.approve(request.user)
+            else:
+                comment.reject(request.user, reason=reason)
+            updated_count += 1
+
+    if updated_count == 0:
+        messages.info(request, _("No pending items were selected."))
+    elif action == "approve":
+        messages.success(
+            request,
+            _("%(count)d item(s) approved.") % {"count": updated_count},
+        )
+    else:
+        messages.success(
+            request,
+            _("%(count)d item(s) rejected.") % {"count": updated_count},
+        )
+
+    return _admin_tool_redirect(request, tab="review")

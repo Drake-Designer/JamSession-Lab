@@ -97,20 +97,14 @@
 
                     {% if is_owner and show_staff_tools %}
                     <div class="profile-staff-actions" aria-label="Staff tools">
-                        {% if pending_review_count > 0 %}
                         <a
-                            href="{% url 'community:moderation_queue' %}"
-                            class="profile-staff-btn profile-staff-btn--review"
-                        >
-                            REVIEW
-                            <span class="profile-staff-btn__badge">{{ pending_review_count }}</span>
-                        </a>
-                        {% endif %}
-                        <a
-                            href="{% url 'community:admin_tool' %}"
+                            href="{% url 'community:admin_tool' %}{% if pending_review_count > 0 %}?tab=review{% endif %}"
                             class="profile-staff-btn"
                         >
                             ADMIN TOOL
+                            {% if pending_review_count > 0 %}
+                            <span class="profile-staff-btn__badge">{{ pending_review_count }}</span>
+                            {% endif %}
                         </a>
                         <a
                             href="{% url 'events:manage' %}"

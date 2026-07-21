@@ -2,6 +2,8 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
+from events.models import Event
+
 from .models import GalleryItem
 from .validators import (
     gallery_file_rejection_reason,
@@ -94,6 +96,13 @@ class GalleryBatchUploadForm(forms.Form):
             "quality) before uploading."
         ),
     )
+    event = forms.ModelChoiceField(
+        label=_("Related event (optional)"),
+        queryset=Event.objects.none(),
+        required=False,
+        empty_label=_("No specific event"),
+        help_text=_("Link these uploads to a jam night when possible."),
+    )
     title = forms.CharField(
         label=_("Title (optional)"),
         max_length=120,
@@ -108,6 +117,10 @@ class GalleryBatchUploadForm(forms.Form):
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
         super().__init__(*args, **kwargs)
+        self.fields["event"].queryset = Event.objects.filter(
+            is_active=True
+        ).order_by("-starts_at")
+        self.fields["event"].label_from_instance = str
 
     def clean_files(self):
         files = self.cleaned_data.get("files") or []
@@ -127,6 +140,7 @@ class GalleryBatchUploadForm(forms.Form):
 
         title = self.cleaned_data.get("title", "")
         caption = self.cleaned_data.get("caption", "")
+        event = self.cleaned_data.get("event")
         files = self.cleaned_data["files"]
 
         success_count = 0
@@ -144,6 +158,7 @@ class GalleryBatchUploadForm(forms.Form):
                     file=uploaded_file,
                     title=title,
                     caption=caption,
+                    event=event,
                 )
                 item.apply_initial_moderation(self.user)
                 item.save()
@@ -162,10 +177,42 @@ class GalleryItemAdminForm(
     class Meta:
         model = GalleryItem
         fields = "__all__"
+        widgets = {
+            "pin_order": forms.TextInput(
+                attrs={
+                    "inputmode": "numeric",
+                    "pattern": "[0-9]*",
+                    "maxlength": "3",
+                    "autocomplete": "off",
+                    "class": "gallery-admin-pin-order",
+                }
+            ),
+        }
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
         super().__init__(*args, **kwargs)
+
+    def clean_pin_order(self):
+        pin_order = self.cleaned_data.get("pin_order")
+        if pin_order in (None, ""):
+            return None
+        try:
+            pin_order = int(pin_order)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(
+                _("Pin order must contain digits only (1–999).")
+            ) from exc
+        if pin_order == 0:
+            return None
+        self.instance.pin_order = pin_order
+        try:
+            self.instance.validate_unique_pin_order()
+        except ValidationError as exc:
+            if hasattr(exc, "error_dict") and "pin_order" in exc.error_dict:
+                raise ValidationError(exc.error_dict["pin_order"]) from exc
+            raise
+        return pin_order
 
     def save(self, commit=True):
         instance = super().save(commit=False)

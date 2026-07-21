@@ -157,6 +157,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                     "is_staff",
                     "is_superuser",
                     "force_member_badge",
+                    "hide_from_members_list",
                     "groups",
                     "user_permissions",
                 ),
@@ -204,6 +205,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
         "is_active",
         "is_superuser",
         "force_member_badge",
+        "hide_from_members_list",
     )
     search_fields = ("username", "display_name", "email", "first_name", "last_name")
     readonly_fields = (
@@ -232,7 +234,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
                 "Off = account disabled (cannot log in). Prefer this over deleting."
             ),
             "is_staff": _(
-                "On = site moderator (REVIEW, ADMIN TOOL, EVENTS) and admin access "
+                "On = site moderator (ADMIN TOOL, EVENTS) and admin access "
                 "via the Staff group: carousel, gallery, community, events, and "
                 "editing user profiles. Staff cannot delete user accounts."
             ),
@@ -243,6 +245,11 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
             "force_member_badge": _(
                 "Regular members only. If on, shows “Member” instead of “New Member” "
                 "even if they joined less than 30 days ago. Hidden for staff/superuser."
+            ),
+            "hide_from_members_list": _(
+                "If on, this user does not appear in the community members sidebar. "
+                "They can still log in and use the site. Useful for test accounts "
+                "or people who should stay private in the directory."
             ),
             "groups": _(
                 "Staff users are auto-added to the Staff group when Staff status is on. "

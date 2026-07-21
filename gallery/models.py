@@ -1,5 +1,8 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator
 from django.db import models
+from django.db.models import F, Q
 from django.utils.translation import gettext_lazy as _
 
 from jamsession.cloudinary_delivery import web_image_url
@@ -34,6 +37,25 @@ class GalleryItem(ModeratedContent):
     )
     title = models.CharField(max_length=120, blank=True)
     caption = models.TextField(blank=True)
+    event = models.ForeignKey(
+        "events.Event",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gallery_items",
+        verbose_name=_("event"),
+    )
+    pin_order = models.PositiveSmallIntegerField(
+        _("pin order"),
+        null=True,
+        blank=True,
+        validators=[MaxValueValidator(999)],
+        help_text=_(
+            "Optional. Set 1, 2, 3… to show this item first in its section "
+            "(photos or videos). Each number can be used only once per section. "
+            "Leave blank for normal newest-first order. Maximum three digits (1–999)."
+        ),
+    )
     # Override ModeratedContent's generic related_name to keep the exact
     # reverse accessor already used in production (and in the initial
     # migration): status/approved_at/rejection_reason are inherited as-is.
@@ -48,9 +70,62 @@ class GalleryItem(ModeratedContent):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["pin_order", "-created_at"]
         verbose_name = _("gallery item")
         verbose_name_plural = _("gallery items")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["media_type", "pin_order"],
+                condition=Q(pin_order__isnull=False) & ~Q(media_type=""),
+                name="galleryitem_unique_pin_per_media_type",
+            ),
+        ]
+
+    @staticmethod
+    def display_order_by():
+        """Pinned items first (1, 2, 3…), then newest-first for the rest."""
+        return (F("pin_order").asc(nulls_last=True), "-created_at")
+
+    def pin_section_key(self):
+        """Photos and videos are pinned in separate sequences."""
+        if self.media_type in {MediaType.IMAGE, MediaType.VIDEO}:
+            return self.media_type
+        return MediaType.VIDEO if self.is_video else MediaType.IMAGE
+
+    def clean(self):
+        super().clean()
+        self.validate_unique_pin_order()
+
+    def validate_unique_pin_order(self):
+        """
+        Ensure pin_order is unique within the photos or videos section.
+
+        Raises ValidationError with a pin_order key when another item already
+        uses the same number in the same section. Zero is treated as no pin.
+        """
+        if self.pin_order is None or self.pin_order == 0:
+            self.pin_order = None
+            return
+
+        section = self.pin_section_key()
+        clash = GalleryItem.objects.filter(
+            media_type=section,
+            pin_order=self.pin_order,
+        )
+        if self.pk:
+            clash = clash.exclude(pk=self.pk)
+
+        if clash.exists():
+            kind = _("video") if section == MediaType.VIDEO else _("photo")
+            raise ValidationError(
+                {
+                    "pin_order": _(
+                        "Pin %(number)d is already used by another %(kind)s. "
+                        "Choose a different number."
+                    )
+                    % {"number": self.pin_order, "kind": kind}
+                }
+            )
 
     def __str__(self):
         label = self.title or self.get_media_type_display()

@@ -11,7 +11,7 @@ from events.views import event_detail
 from pages.views import home
 
 from .forms import EventRegistrationForm, RegistrationSongFormSet
-from .models import EventRegistration, RegistrationSong, RsvpStatus
+from .models import AttendanceStatus, EventRegistration, RegistrationSong, RsvpStatus
 
 User = get_user_model()
 
@@ -397,6 +397,77 @@ class EventRegistrationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Cancellations")
         self.assertContains(response, "@player2")
+
+    def test_post_blocked_when_event_is_full(self):
+        self.event.capacity = 1
+        self.event.save(update_fields=["capacity", "updated_at"])
+        other = _make_user("early_bird")
+        EventRegistration.objects.create(
+            user=other,
+            event=self.event,
+            join_open_mic=True,
+            rsvp_status=RsvpStatus.REGISTERED,
+            instruments_snapshot=["vocals"],
+            experience_level_snapshot="beginner",
+            first_registered_at=timezone.now(),
+            registered_at=timezone.now(),
+        )
+        self.client.login(username="player2", password="jam-session-test-pass1")
+        response = self.client.post(
+            reverse("events:register", kwargs={"pk": self.event.pk}),
+            _rsvp_post_data(),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This event is full")
+        self.assertFalse(
+            EventRegistration.objects.filter(
+                user=self.user, event=self.event, rsvp_status=RsvpStatus.REGISTERED
+            ).exists()
+        )
+
+    def test_staff_can_set_attendance(self):
+        self.client.login(username="player2", password="jam-session-test-pass1")
+        self.client.post(
+            reverse("events:register", kwargs={"pk": self.event.pk}),
+            _rsvp_post_data(),
+        )
+        reg = EventRegistration.objects.get(user=self.user, event=self.event)
+        self.assertEqual(reg.attendance_status, AttendanceStatus.UNKNOWN)
+
+        self.client.login(username="mod_staff", password="jam-session-test-pass1")
+        url = reverse(
+            "events:set_attendance",
+            kwargs={"pk": self.event.pk, "reg_pk": reg.pk},
+        )
+        self.assertEqual(self.client.get(url).status_code, 405)
+        response = self.client.post(
+            url, {"attendance_status": AttendanceStatus.ATTENDED}
+        )
+        self.assertEqual(response.status_code, 302)
+        reg.refresh_from_db()
+        self.assertEqual(reg.attendance_status, AttendanceStatus.ATTENDED)
+
+        attendees = self.client.get(
+            reverse("events:attendees", kwargs={"pk": self.event.pk})
+        )
+        self.assertContains(attendees, "Attendance")
+        self.assertContains(attendees, "Attended")
+
+    def test_member_cannot_set_attendance(self):
+        self.client.login(username="player2", password="jam-session-test-pass1")
+        self.client.post(
+            reverse("events:register", kwargs={"pk": self.event.pk}),
+            _rsvp_post_data(),
+        )
+        reg = EventRegistration.objects.get(user=self.user, event=self.event)
+        response = self.client.post(
+            reverse(
+                "events:set_attendance",
+                kwargs={"pk": self.event.pk, "reg_pk": reg.pk},
+            ),
+            {"attendance_status": AttendanceStatus.ATTENDED},
+        )
+        self.assertEqual(response.status_code, 403)
 
 
 class QueryCountTests(TestCase):

@@ -4,3 +4,30 @@
     color: #a3a3a3;
     font-size: 0.875rem;
 }
+
+.event-form__when {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-inline-size: 0;
+}
+
+.event-form__when-legend {
+    margin-bottom: 0.75rem;
+    padding: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.event-form__times {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+    .event-form__times {
+        grid-template-columns: 1fr 1fr;
+    }
+}

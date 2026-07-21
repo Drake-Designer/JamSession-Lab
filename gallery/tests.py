@@ -16,6 +16,7 @@ by patching jamsession.cloudinary_cleanup.destroy (the shared Cloudinary cleanup
 helper used by gallery/signals.py — see Phase 3 of PROJECT_PLAN.md).
 """
 
+from datetime import timedelta
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -26,8 +27,11 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.datastructures import MultiValueDict
 from PIL import Image
+
+from events.models import Event
 
 from .admin import approve_gallery_items, reject_gallery_items
 from .forms import GalleryBatchUploadForm
@@ -259,6 +263,63 @@ class GalleryListViewTests(TestCase):
         self.assertFalse(response.context["has_gallery_content"])
         self.assertContains(response, "No approved gallery items yet.")
 
+    def test_pinned_photos_and_videos_appear_before_unpinned(self):
+        older_photo = GalleryItem.objects.create(
+            file="image/upload/v1/older_photo.jpg",
+            media_type=MediaType.IMAGE,
+            title="Older Photo",
+            status=ApprovalStatus.APPROVED,
+        )
+        newer_photo = GalleryItem.objects.create(
+            file="image/upload/v1/newer_photo.jpg",
+            media_type=MediaType.IMAGE,
+            title="Newer Photo",
+            status=ApprovalStatus.APPROVED,
+        )
+        pinned_second = GalleryItem.objects.create(
+            file="image/upload/v1/pinned_second.jpg",
+            media_type=MediaType.IMAGE,
+            title="Pinned Second",
+            status=ApprovalStatus.APPROVED,
+            pin_order=2,
+        )
+        pinned_first = GalleryItem.objects.create(
+            file="image/upload/v1/pinned_first.jpg",
+            media_type=MediaType.IMAGE,
+            title="Pinned First",
+            status=ApprovalStatus.APPROVED,
+            pin_order=1,
+        )
+        older_video = GalleryItem.objects.create(
+            file="video/upload/v1/older_video.mp4",
+            media_type=MediaType.VIDEO,
+            title="Older Video",
+            status=ApprovalStatus.APPROVED,
+        )
+        pinned_video = GalleryItem.objects.create(
+            file="video/upload/v1/pinned_video.mp4",
+            media_type=MediaType.VIDEO,
+            title="Pinned Video",
+            status=ApprovalStatus.APPROVED,
+            pin_order=1,
+        )
+        GalleryItem.objects.filter(
+            pk__in=[older_video.pk, pinned_video.pk]
+        ).update(media_type=MediaType.VIDEO)
+        older_video.refresh_from_db()
+        pinned_video.refresh_from_db()
+
+        response = self.client.get(reverse("gallery:list"))
+
+        self.assertEqual(
+            list(response.context["photo_items"]),
+            [pinned_first, pinned_second, newer_photo, older_photo],
+        )
+        self.assertEqual(
+            list(response.context["video_items"]),
+            [pinned_video, older_video],
+        )
+
 
 class GalleryBatchUploadFormTests(TestCase):
     """Form-level tests for validation and mixed-batch handling."""
@@ -342,6 +403,30 @@ class GalleryBatchUploadFormTests(TestCase):
         item = GalleryItem.objects.get()
         self.assertEqual(item.status, ApprovalStatus.APPROVED)
         self.assertEqual(item.approved_by, self.staff)
+
+    def test_batch_upload_can_link_to_event(self):
+        now = timezone.now()
+        event = Event.objects.create(
+            venue_name="The Sound House",
+            address="1 Temple Bar, Dublin",
+            location_url="https://maps.google.com/?q=Sound+House",
+            starts_at=now - timedelta(days=7),
+            ends_at=now - timedelta(days=7, hours=-3),
+            is_active=True,
+        )
+        form = GalleryBatchUploadForm(
+            data={"title": "Night shots", "caption": "", "event": str(event.pk)},
+            files=MultiValueDict({"files": [_make_image_file()]}),
+            user=self.user,
+        )
+        self.assertTrue(form.is_valid(), msg=form.errors.as_json())
+
+        with patch("cloudinary.uploader.upload_resource", side_effect=_fake_upload_resource):
+            success_count, _failures = form.process_uploads()
+
+        self.assertEqual(success_count, 1)
+        item = GalleryItem.objects.get()
+        self.assertEqual(item.event_id, event.pk)
 
 
 class GalleryUploadViewTests(TestCase):
@@ -634,7 +719,8 @@ class GalleryUploaderCreditLinkTests(TestCase):
         self.assertContains(response, uploader.badge_info.label)
         self.assertContains(response, "gallery-item__credit-row")
 
-    def test_deleted_uploader_shows_deleted_account_without_badge(self):
+    def test_deleted_uploader_removes_gallery_items_for_privacy(self):
+        """Account deletion cascades to gallery items (privacy erasure)."""
         uploader = _make_user("gone_uploader")
         GalleryItem.objects.create(
             uploaded_by=uploader,
@@ -644,6 +730,21 @@ class GalleryUploaderCreditLinkTests(TestCase):
             status=ApprovalStatus.APPROVED,
         )
         uploader.delete()
+
+        response = self.client.get(reverse("gallery:list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(GalleryItem.objects.count(), 0)
+        self.assertNotContains(response, "Orphan Photo")
+
+    def test_null_uploader_shows_deleted_account_without_badge(self):
+        """Legacy/null uploader rows still render a safe credit label."""
+        GalleryItem.objects.create(
+            uploaded_by=None,
+            file="image/upload/v1/orphan_photo.jpg",
+            media_type=MediaType.IMAGE,
+            title="Orphan Photo",
+            status=ApprovalStatus.APPROVED,
+        )
 
         response = self.client.get(reverse("gallery:list"))
         self.assertEqual(response.status_code, 200)

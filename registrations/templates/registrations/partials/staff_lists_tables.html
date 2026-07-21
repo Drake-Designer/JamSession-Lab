@@ -3,8 +3,19 @@
         <h3 class="text-lg font-bold text-jam-white">
             Registrations
             <span class="text-jam-muted">({{ registered_rows|length }})</span>
+            {% if event.capacity %}
+            <span class="text-jam-muted">/ {{ event.capacity }} capacity</span>
+            {% endif %}
         </h3>
         {% if registered_rows %}
+        <p class="staff-lists__attendance-summary mt-2 text-sm text-jam-muted">
+            Attendance:
+            <span class="staff-lists__attendance-stat">{{ attendance_counts.attended }} attended</span>
+            ·
+            <span class="staff-lists__attendance-stat">{{ attendance_counts.no_show }} no-show</span>
+            ·
+            <span class="staff-lists__attendance-stat">{{ attendance_counts.unknown }} unknown</span>
+        </p>
         <div class="staff-lists__table-wrap mt-4 overflow-x-auto">
             <table class="staff-lists__table">
                 <thead>
@@ -17,6 +28,7 @@
                         <th>Songs</th>
                         <th>Notes</th>
                         <th>Registered</th>
+                        <th>Attendance</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -40,6 +52,32 @@
                         </td>
                         <td>{{ row.registration.notes|default:"-"|truncatechars:80 }}</td>
                         <td>{{ row.registration.registered_at|date:"j M Y H:i" }}</td>
+                        <td>
+                            <form
+                                method="post"
+                                action="{% url 'events:set_attendance' event.pk row.registration.pk %}"
+                                class="staff-lists__attendance"
+                            >
+                                {% csrf_token %}
+                                <input
+                                    type="hidden"
+                                    name="next"
+                                    value="{% if request.path %}{{ request.path }}{% else %}{% url 'events:attendees' event.pk %}{% endif %}{% if event.pk %}#event-{{ event.pk }}{% endif %}"
+                                >
+                                <div class="staff-lists__attendance-actions" role="group" aria-label="Attendance for {{ row.registration.user.public_display_name }}">
+                                    {% for value, label in attendance_choices %}
+                                    <button
+                                        type="submit"
+                                        name="attendance_status"
+                                        value="{{ value }}"
+                                        class="staff-lists__attendance-btn{% if row.registration.attendance_status == value %} staff-lists__attendance-btn--active staff-lists__attendance-btn--{{ value }}{% endif %}"
+                                    >
+                                        {{ label }}
+                                    </button>
+                                    {% endfor %}
+                                </div>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

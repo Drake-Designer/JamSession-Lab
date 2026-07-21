@@ -384,8 +384,8 @@ def profile_detail(request, username):
             .order_by("event__starts_at")
         )
 
-    # Staff/superuser owners see REVIEW / ADMIN TOOL / EVENTS on their profile.
-    # REVIEW is shown in the template only when pending_review_count > 0.
+    # Staff/superuser owners see ADMIN TOOL / EVENTS on their profile.
+    # ADMIN TOOL shows a pending badge when pending_review_count > 0.
     show_staff_tools = False
     pending_review_count = 0
     if is_owner and (request.user.is_staff or request.user.is_superuser):

@@ -239,6 +239,16 @@ class User(AbstractUser):
         ),
     )
 
+    # Admin-only: hide from the community members sidebar without disabling login.
+    hide_from_members_list = models.BooleanField(
+        _("hide from members list"),
+        default=False,
+        help_text=_(
+            "If enabled, this user is omitted from the community members sidebar. "
+            "They can still log in and use the site normally."
+        ),
+    )
+
     @property
     def age(self):
         if self.date_of_birth is None:

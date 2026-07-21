@@ -1,0 +1,267 @@
+{% load community_extras %}
+{# To review tab — pending posts, comments, and gallery (oldest first). #}
+
+<section class="moderation-section" data-admin-tool-section aria-labelledby="admin-tool-pending-posts">
+    <div class="admin-tool-section__header">
+        <h2 id="admin-tool-pending-posts" class="admin-tool-section__title">
+            Pending posts ({{ pending_post_count }})
+        </h2>
+        {% if pending_posts %}
+        <label class="admin-tool-select-all">
+            <input
+                type="checkbox"
+                class="admin-tool-select-all__input"
+                data-select-all-section
+                aria-label="Select all pending posts"
+            >
+            <span class="admin-tool-select-all__label">Select all</span>
+        </label>
+        {% endif %}
+    </div>
+
+    {% if pending_posts %}
+    <div class="moderation-list">
+        {% for post in pending_posts %}
+        <article class="moderation-item">
+            <label class="moderation-item__check">
+                <input
+                    type="checkbox"
+                    class="admin-tool-check"
+                    data-kind="post"
+                    data-id="{{ post.pk }}"
+                    aria-label="Select post: {{ post.title }}"
+                >
+            </label>
+            <div class="moderation-item__meta">
+                <span class="community-card__author">
+                    {% include "accounts/partials/user_credit.html" with credit_user=post.author %}
+                </span>
+                <span class="community-card__dot" aria-hidden="true">&middot;</span>
+                <time datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|date:"j M Y, H:i" }}</time>
+            </div>
+
+            <h3 class="moderation-item__title">{{ post.title }}</h3>
+            <p class="moderation-item__body">{{ post.body|urlize_blank|linebreaksbr }}</p>
+
+            {% if post.media.all %}
+            <div class="moderation-media-list">
+                {% for media in post.media.all %}
+                {% include "community/_moderation_media_item.html" with media=media %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="moderation-item__actions">
+                <form method="post" action="{% url 'community:moderation_post_approve' post.slug %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="review">
+                    <button type="submit" class="moderation-button moderation-button--approve">Approve</button>
+                </form>
+
+                <form method="post" action="{% url 'community:moderation_post_reject' post.slug %}" class="moderation-reject-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="review">
+                    <label for="post-reject-reason-{{ post.pk }}" class="moderation-reject-form__label">Rejection reason (optional)</label>
+                    <input type="text" id="post-reject-reason-{{ post.pk }}" name="reason" class="moderation-reject-form__input" placeholder="Let the author know why...">
+                    <button type="submit" class="moderation-button moderation-button--reject">Reject</button>
+                </form>
+
+                <form
+                    method="post"
+                    action="{% url 'community:moderation_post_delete' post.slug %}"
+                    class="js-confirm-delete"
+                    data-confirm-message="Delete this pending post? This cannot be undone."
+                >
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="review">
+                    <button type="submit" class="moderation-button moderation-button--delete">Delete</button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="admin-tool-empty">No pending posts. All caught up!</p>
+    {% endif %}
+</section>
+
+<section class="moderation-section admin-tool-section" data-admin-tool-section aria-labelledby="admin-tool-pending-comments">
+    <div class="admin-tool-section__header">
+        <h2 id="admin-tool-pending-comments" class="admin-tool-section__title">
+            Pending comments ({{ pending_comment_count }})
+        </h2>
+        {% if pending_comments %}
+        <label class="admin-tool-select-all">
+            <input
+                type="checkbox"
+                class="admin-tool-select-all__input"
+                data-select-all-section
+                aria-label="Select all pending comments"
+            >
+            <span class="admin-tool-select-all__label">Select all</span>
+        </label>
+        {% endif %}
+    </div>
+
+    {% if pending_comments %}
+    <div class="moderation-list">
+        {% for comment in pending_comments %}
+        <article class="moderation-item">
+            <label class="moderation-item__check">
+                <input
+                    type="checkbox"
+                    class="admin-tool-check"
+                    data-kind="comment"
+                    data-id="{{ comment.pk }}"
+                    aria-label="Select comment"
+                >
+            </label>
+            <div class="moderation-item__meta">
+                <span class="community-card__author">
+                    {% include "accounts/partials/user_credit.html" with credit_user=comment.author %}
+                </span>
+                <span class="community-card__dot" aria-hidden="true">&middot;</span>
+                <time datetime="{{ comment.created_at|date:'c' }}">{{ comment.created_at|date:"j M Y, H:i" }}</time>
+                <span class="community-card__dot" aria-hidden="true">&middot;</span>
+                <span>
+                    on
+                    <a
+                        href="{% if comment.post.status == 'approved' %}{% url 'community:post_detail' comment.post.slug %}{% else %}{% url 'community:admin_post_preview' comment.post.slug %}{% endif %}"
+                        class="moderation-item__post-link"
+                    >{{ comment.post.title }}</a>
+                </span>
+            </div>
+
+            <p class="moderation-item__body">{{ comment.body|urlize_blank|linebreaksbr }}</p>
+
+            {% if comment.media.all %}
+            <div class="moderation-media-list">
+                {% for media in comment.media.all %}
+                {% include "community/_moderation_media_item.html" with media=media %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="moderation-item__actions">
+                <form method="post" action="{% url 'community:moderation_comment_approve' comment.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="review">
+                    <button type="submit" class="moderation-button moderation-button--approve">Approve</button>
+                </form>
+
+                <form method="post" action="{% url 'community:moderation_comment_reject' comment.pk %}" class="moderation-reject-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="review">
+                    <label for="comment-reject-reason-{{ comment.pk }}" class="moderation-reject-form__label">Rejection reason (optional)</label>
+                    <input type="text" id="comment-reject-reason-{{ comment.pk }}" name="reason" class="moderation-reject-form__input" placeholder="Let the author know why...">
+                    <button type="submit" class="moderation-button moderation-button--reject">Reject</button>
+                </form>
+
+                <form
+                    method="post"
+                    action="{% url 'community:moderation_comment_delete' comment.pk %}"
+                    class="js-confirm-delete"
+                    data-confirm-message="Delete this pending comment? This cannot be undone."
+                >
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="review">
+                    <button type="submit" class="moderation-button moderation-button--delete">Delete</button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="admin-tool-empty">No pending comments. All caught up!</p>
+    {% endif %}
+</section>
+
+<section class="moderation-section admin-tool-section" data-admin-tool-section aria-labelledby="admin-tool-pending-gallery">
+    <div class="admin-tool-section__header">
+        <h2 id="admin-tool-pending-gallery" class="admin-tool-section__title">
+            Gallery submissions ({{ pending_gallery_count }})
+        </h2>
+        {% if pending_gallery_items %}
+        <label class="admin-tool-select-all">
+            <input
+                type="checkbox"
+                class="admin-tool-select-all__input"
+                data-select-all-section
+                aria-label="Select all pending gallery items"
+            >
+            <span class="admin-tool-select-all__label">Select all</span>
+        </label>
+        {% endif %}
+    </div>
+
+    {% if pending_gallery_items %}
+    <div class="moderation-list">
+        {% for item in pending_gallery_items %}
+        <article class="moderation-item">
+            <label class="moderation-item__check">
+                <input
+                    type="checkbox"
+                    class="admin-tool-check"
+                    data-kind="gallery"
+                    data-id="{{ item.pk }}"
+                    aria-label="Select gallery item"
+                >
+            </label>
+            <div class="moderation-item__meta">
+                <span class="community-card__author">
+                    {% include "accounts/partials/user_credit.html" with credit_user=item.uploaded_by %}
+                </span>
+                <span class="community-card__dot" aria-hidden="true">&middot;</span>
+                <time datetime="{{ item.created_at|date:'c' }}">{{ item.created_at|date:"j M Y, H:i" }}</time>
+            </div>
+
+            {% if item.title %}
+            <h3 class="moderation-item__title">{{ item.title }}</h3>
+            {% endif %}
+            {% if item.caption %}
+            <p class="moderation-item__body">{{ item.caption|linebreaksbr }}</p>
+            {% endif %}
+
+            <div class="moderation-media-list">
+                <div class="moderation-media-item">
+                    {% if item.is_video %}
+                    <video src="{{ item.display_media_url }}" controls playsinline preload="metadata" class="moderation-media-item__video"></video>
+                    {% else %}
+                    <img src="{{ item.display_media_url }}" alt="" loading="lazy" class="moderation-media-item__image">
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="moderation-item__actions">
+                <form method="post" action="{% url 'community:moderation_gallery_approve' item.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="review">
+                    <button type="submit" class="moderation-button moderation-button--approve">Approve</button>
+                </form>
+
+                <form method="post" action="{% url 'community:moderation_gallery_reject' item.pk %}" class="moderation-reject-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="review">
+                    <label for="gallery-reject-reason-{{ item.pk }}" class="moderation-reject-form__label">Rejection reason (optional)</label>
+                    <input type="text" id="gallery-reject-reason-{{ item.pk }}" name="reason" class="moderation-reject-form__input" placeholder="Let the author know why...">
+                    <button type="submit" class="moderation-button moderation-button--reject">Reject</button>
+                </form>
+
+                <form
+                    method="post"
+                    action="{% url 'community:moderation_gallery_delete' item.pk %}"
+                    class="js-confirm-delete"
+                    data-confirm-message="Delete this pending gallery submission? This cannot be undone."
+                >
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="review">
+                    <button type="submit" class="moderation-button moderation-button--delete">Delete</button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="admin-tool-empty">No pending gallery submissions. All caught up!</p>
+    {% endif %}
+</section>

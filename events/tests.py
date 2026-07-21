@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, time, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from registrations.models import EventRegistration, RsvpStatus
 
+from .forms import EventForm
 from .models import Event
 
 User = get_user_model()
@@ -48,6 +49,8 @@ class EventModelTests(TestCase):
     def test_title_generated_from_venue_name(self):
         event = _make_event(venue_name="Whelan's")
         self.assertEqual(event.title, "JamSession @ Whelan's")
+        local_date = timezone.localtime(event.starts_at).strftime("%d %b %Y")
+        self.assertEqual(str(event), f"JamSession @ Whelan's · {local_date}")
 
     def test_title_regenerated_when_venue_name_changes(self):
         event = _make_event(venue_name="Whelan's")
@@ -89,6 +92,77 @@ class EventModelTests(TestCase):
         )
         self.assertFalse(past.is_upcoming)
         self.assertFalse(past.is_registration_allowed)
+
+    def test_capacity_blocks_registration_when_full(self):
+        event = _make_event(capacity=1)
+        member = _make_user("seat_taker")
+        EventRegistration.objects.create(
+            user=member,
+            event=event,
+            join_open_mic=True,
+            rsvp_status=RsvpStatus.REGISTERED,
+            instruments_snapshot=["electric_guitar"],
+            experience_level_snapshot="intermediate",
+            first_registered_at=timezone.now(),
+            registered_at=timezone.now(),
+        )
+        self.assertEqual(event.registered_count(), 1)
+        self.assertTrue(event.is_full)
+        self.assertFalse(event.is_registration_allowed)
+        self.assertEqual(event.spots_remaining, 0)
+
+    def test_blank_capacity_means_unlimited(self):
+        event = _make_event(capacity=None)
+        self.assertFalse(event.is_full)
+        self.assertIsNone(event.spots_remaining)
+        self.assertTrue(event.is_registration_allowed)
+
+
+class EventFormScheduleTests(TestCase):
+    def test_same_evening_combines_date_and_times(self):
+        form = EventForm(
+            data={
+                "venue_name": "Whelan's",
+                "address": "25 Wexford St",
+                "location_url": "https://maps.google.com/?q=whelans",
+                "event_date": "2026-08-15",
+                "start_time": "19:00",
+                "end_time": "23:30",
+                "description": "",
+                "is_active": "on",
+                "registrations_open": "on",
+            }
+        )
+        self.assertTrue(form.is_valid(), msg=form.errors.as_json())
+        event = form.save()
+        local_start = timezone.localtime(event.starts_at)
+        local_end = timezone.localtime(event.ends_at)
+        self.assertEqual(local_start.date(), date(2026, 8, 15))
+        self.assertEqual(local_start.time().replace(second=0, microsecond=0), time(19, 0))
+        self.assertEqual(local_end.date(), date(2026, 8, 15))
+        self.assertEqual(local_end.time().replace(second=0, microsecond=0), time(23, 30))
+
+    def test_end_after_midnight_rolls_to_next_day(self):
+        form = EventForm(
+            data={
+                "venue_name": "The Sound House",
+                "address": "1 Temple Bar",
+                "location_url": "https://maps.google.com/?q=sound+house",
+                "event_date": "2026-08-15",
+                "start_time": "19:00",
+                "end_time": "00:00",
+                "description": "",
+                "is_active": "on",
+                "registrations_open": "on",
+            }
+        )
+        self.assertTrue(form.is_valid(), msg=form.errors.as_json())
+        event = form.save()
+        local_start = timezone.localtime(event.starts_at)
+        local_end = timezone.localtime(event.ends_at)
+        self.assertEqual(local_start.date(), date(2026, 8, 15))
+        self.assertEqual(local_end.date(), date(2026, 8, 16))
+        self.assertEqual(local_end.time().replace(second=0, microsecond=0), time(0, 0))
 
 
 class EventViewTests(TestCase):
@@ -156,16 +230,16 @@ class EventViewTests(TestCase):
     def test_staff_can_create_event(self):
         self.client.login(username="staffer", password="jam-session-test-pass1")
         now = timezone.now()
+        event_day = (now + timedelta(days=30)).date()
         response = self.client.post(
             reverse("events:create"),
             {
                 "venue_name": "New Venue",
                 "address": "2 Main St",
                 "location_url": "https://maps.google.com/?q=new",
-                "starts_at": (now + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M"),
-                "ends_at": (now + timedelta(days=30, hours=2)).strftime(
-                    "%Y-%m-%dT%H:%M"
-                ),
+                "event_date": event_day.isoformat(),
+                "start_time": "19:00",
+                "end_time": "23:30",
                 "description": "Test",
                 "is_active": "on",
                 "registrations_open": "on",
@@ -174,6 +248,14 @@ class EventViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         created = Event.objects.get(venue_name="New Venue")
         self.assertEqual(created.title, "JamSession @ New Venue")
+        local_start = timezone.localtime(created.starts_at)
+        local_end = timezone.localtime(created.ends_at)
+        self.assertEqual(local_start.date(), event_day)
+        self.assertEqual(local_start.hour, 19)
+        self.assertEqual(local_start.minute, 0)
+        self.assertEqual(local_end.date(), event_day)
+        self.assertEqual(local_end.hour, 23)
+        self.assertEqual(local_end.minute, 30)
 
     def test_toggle_active_post_only(self):
         self.client.login(username="staffer", password="jam-session-test-pass1")

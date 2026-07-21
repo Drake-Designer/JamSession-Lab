@@ -1,0 +1,248 @@
+{# Community tab — posts and comments with status filter and delete. #}
+
+<div class="admin-tool-filters" role="group" aria-label="Filter community by status">
+    <a
+        href="{% url 'community:admin_tool' %}?tab=community"
+        class="admin-tool-filters__chip{% if not status_filter %} is-active{% endif %}"
+    >All</a>
+    <a
+        href="{% url 'community:admin_tool' %}?tab=community&amp;status=pending"
+        class="admin-tool-filters__chip{% if status_filter == 'pending' %} is-active{% endif %}"
+    >Pending</a>
+    <a
+        href="{% url 'community:admin_tool' %}?tab=community&amp;status=approved"
+        class="admin-tool-filters__chip{% if status_filter == 'approved' %} is-active{% endif %}"
+    >Approved</a>
+    <a
+        href="{% url 'community:admin_tool' %}?tab=community&amp;status=rejected"
+        class="admin-tool-filters__chip{% if status_filter == 'rejected' %} is-active{% endif %}"
+    >Rejected</a>
+</div>
+
+<section class="admin-tool-section" aria-labelledby="admin-tool-posts-heading" data-admin-tool-section>
+    <div class="admin-tool-section__header">
+        <h2 id="admin-tool-posts-heading" class="admin-tool-section__title">
+            Posts ({{ post_count }})
+        </h2>
+        {% if posts %}
+        <label class="admin-tool-select-all">
+            <input
+                type="checkbox"
+                class="admin-tool-select-all__input"
+                data-select-all-section
+                aria-label="Select all posts"
+            >
+            <span class="admin-tool-select-all__label">Select all</span>
+        </label>
+        {% endif %}
+    </div>
+
+    {% if posts %}
+    <div class="admin-tool-grid" role="list">
+        {% for post in posts %}
+            {% with first_media=post.media.all.0 %}
+            <article class="admin-tool-card" role="listitem">
+                <label class="admin-tool-card__check">
+                    <input
+                        type="checkbox"
+                        class="admin-tool-check"
+                        data-kind="post"
+                        data-id="{{ post.pk }}"
+                        aria-label="Select post: {{ post.title }}"
+                    >
+                </label>
+                <a
+                    href="{% if post.status == 'approved' %}{% url 'community:post_detail' post.slug %}{% else %}{% url 'community:admin_post_preview' post.slug %}{% endif %}"
+                    class="admin-tool-card__trigger{% if first_media.media_type == 'video' and not post.cover_display_url %} admin-tool-card__trigger--video{% endif %}{% if not post.cover_display_url and not first_media %} admin-tool-card__trigger--text{% endif %}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    <span class="admin-tool-card__media">
+                        {% if post.cover_display_url %}
+                        <img src="{{ post.cover_display_url }}" alt="" loading="lazy" class="admin-tool-card__image">
+                        {% elif first_media %}
+                            {% if first_media.media_type == 'video' %}
+                            <span class="admin-tool-card__fallback" aria-hidden="true"></span>
+                            <span class="admin-tool-card__play" aria-hidden="true">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M8 5v14l11-7z"/>
+                                </svg>
+                            </span>
+                            {% else %}
+                            <img src="{{ first_media.display_url }}" alt="" loading="lazy" class="admin-tool-card__image">
+                            {% endif %}
+                        {% else %}
+                        <span class="admin-tool-card__fallback" aria-hidden="true"></span>
+                        <span class="admin-tool-card__excerpt">{{ post.body|truncatewords:24 }}</span>
+                        {% endif %}
+                    </span>
+                    <span class="admin-tool-card__meta">
+                        <span class="admin-tool-card__title">{{ post.title }}</span>
+                        <span class="admin-tool-card__author">
+                            {% include "accounts/partials/user_author_chip.html" with credit_user=post.author %}
+                        </span>
+                        <span class="community-status community-status--{{ post.status }} admin-tool-card__status">
+                            {{ post.get_status_display }}
+                        </span>
+                    </span>
+                </a>
+                <div class="admin-tool-card__actions">
+                    {% if post.status == "pending" %}
+                    <div class="admin-tool-card__moderate">
+                        <form method="post" action="{% url 'community:moderation_post_approve' post.slug %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next_tab" value="community">
+                            <button type="submit" class="admin-tool-mini-btn admin-tool-mini-btn--approve">Approve</button>
+                        </form>
+                        <form method="post" action="{% url 'community:moderation_post_reject' post.slug %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next_tab" value="community">
+                            <button type="submit" class="admin-tool-mini-btn admin-tool-mini-btn--reject">Reject</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                    <form
+                        method="post"
+                        action="{% url 'community:admin_tool_post_delete' post.slug %}"
+                        class="js-confirm-delete admin-tool-card__delete"
+                        data-confirm-message="Delete this post? This cannot be undone."
+                    >
+                        {% csrf_token %}
+                        <input type="hidden" name="next_tab" value="community">
+                        {% if status_filter %}<input type="hidden" name="next_status" value="{{ status_filter }}">{% endif %}
+                        <button type="submit" class="admin-tool-mini-btn admin-tool-mini-btn--delete" aria-label="Delete post">
+                            {% include "community/_admin_tool_trash_icon.html" %}
+                            <span class="admin-tool-mini-btn__label">Delete</span>
+                        </button>
+                    </form>
+                </div>
+            </article>
+            {% endwith %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="admin-tool-empty">No posts found.</p>
+    {% endif %}
+</section>
+
+<section class="admin-tool-section" aria-labelledby="admin-tool-comments-heading" data-admin-tool-section>
+    <div class="admin-tool-section__header">
+        <h2 id="admin-tool-comments-heading" class="admin-tool-section__title">
+            Comments ({{ comment_count }})
+        </h2>
+        {% if comments %}
+        <label class="admin-tool-select-all">
+            <input
+                type="checkbox"
+                class="admin-tool-select-all__input"
+                data-select-all-section
+                aria-label="Select all comments"
+            >
+            <span class="admin-tool-select-all__label">Select all</span>
+        </label>
+        {% endif %}
+    </div>
+
+    {% if comments %}
+    <div class="admin-tool-grid" role="list">
+        {% for comment in comments %}
+            {% with first_media=comment.media.all.0 %}
+            <article class="admin-tool-card" role="listitem">
+                <label class="admin-tool-card__check">
+                    <input
+                        type="checkbox"
+                        class="admin-tool-check"
+                        data-kind="comment"
+                        data-id="{{ comment.pk }}"
+                        aria-label="Select comment"
+                    >
+                </label>
+                {% if comment.post.status == "approved" and comment.status == "approved" %}
+                <a
+                    href="{% url 'community:post_detail' comment.post.slug %}#comment-{{ comment.pk }}"
+                    class="admin-tool-card__trigger{% if first_media.media_type == 'video' %} admin-tool-card__trigger--video{% endif %}{% if not first_media %} admin-tool-card__trigger--text{% endif %}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                {% elif comment.post.status != "approved" %}
+                <a
+                    href="{% url 'community:admin_post_preview' comment.post.slug %}#comment-{{ comment.pk }}"
+                    class="admin-tool-card__trigger{% if first_media.media_type == 'video' %} admin-tool-card__trigger--video{% endif %}{% if not first_media %} admin-tool-card__trigger--text{% endif %}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                {% else %}
+                <a
+                    href="{% url 'community:admin_comment_preview' comment.pk %}"
+                    class="admin-tool-card__trigger{% if first_media.media_type == 'video' %} admin-tool-card__trigger--video{% endif %}{% if not first_media %} admin-tool-card__trigger--text{% endif %}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                {% endif %}
+                    <span class="admin-tool-card__media">
+                        {% if first_media %}
+                            {% if first_media.media_type == 'video' %}
+                            <span class="admin-tool-card__fallback" aria-hidden="true"></span>
+                            <span class="admin-tool-card__play" aria-hidden="true">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M8 5v14l11-7z"/>
+                                </svg>
+                            </span>
+                            {% else %}
+                            <img src="{{ first_media.display_url }}" alt="" loading="lazy" class="admin-tool-card__image">
+                            {% endif %}
+                        {% else %}
+                        <span class="admin-tool-card__fallback" aria-hidden="true"></span>
+                        <span class="admin-tool-card__excerpt">{{ comment.body|truncatewords:28 }}</span>
+                        {% endif %}
+                    </span>
+                    <span class="admin-tool-card__meta">
+                        {% if first_media %}
+                        <span class="admin-tool-card__title">{{ comment.body|truncatewords:12 }}</span>
+                        {% endif %}
+                        <span class="admin-tool-card__author">
+                            {% include "accounts/partials/user_author_chip.html" with credit_user=comment.author %}
+                        </span>
+                        <span class="community-status community-status--{{ comment.status }} admin-tool-card__status">
+                            {{ comment.get_status_display }}
+                        </span>
+                    </span>
+                </a>
+                <div class="admin-tool-card__actions">
+                    {% if comment.status == "pending" %}
+                    <div class="admin-tool-card__moderate">
+                        <form method="post" action="{% url 'community:moderation_comment_approve' comment.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next_tab" value="community">
+                            <button type="submit" class="admin-tool-mini-btn admin-tool-mini-btn--approve">Approve</button>
+                        </form>
+                        <form method="post" action="{% url 'community:moderation_comment_reject' comment.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next_tab" value="community">
+                            <button type="submit" class="admin-tool-mini-btn admin-tool-mini-btn--reject">Reject</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                    <form
+                        method="post"
+                        action="{% url 'community:admin_tool_comment_delete' comment.pk %}"
+                        class="js-confirm-delete admin-tool-card__delete"
+                        data-confirm-message="Delete this comment? This cannot be undone."
+                    >
+                        {% csrf_token %}
+                        <input type="hidden" name="next_tab" value="community">
+                        {% if status_filter %}<input type="hidden" name="next_status" value="{{ status_filter }}">{% endif %}
+                        <button type="submit" class="admin-tool-mini-btn admin-tool-mini-btn--delete" aria-label="Delete comment">
+                            {% include "community/_admin_tool_trash_icon.html" %}
+                            <span class="admin-tool-mini-btn__label">Delete</span>
+                        </button>
+                    </form>
+                </div>
+            </article>
+            {% endwith %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="admin-tool-empty">No comments found.</p>
+    {% endif %}
+</section>

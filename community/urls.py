@@ -77,6 +77,11 @@ urlpatterns = [
         name="admin_tool_gallery_delete",
     ),
     path(
+        "admin-tool/gallery/<int:pk>/pin-order/",
+        views.admin_tool_pin_order,
+        name="admin_tool_pin_order",
+    ),
+    path(
         "admin-tool/post/<slug:slug>/delete/",
         views.admin_tool_post_delete,
         name="admin_tool_post_delete",
@@ -90,5 +95,10 @@ urlpatterns = [
         "admin-tool/bulk-delete/",
         views.admin_tool_bulk_delete,
         name="admin_tool_bulk_delete",
+    ),
+    path(
+        "admin-tool/bulk-moderate/",
+        views.admin_tool_bulk_moderate,
+        name="admin_tool_bulk_moderate",
     ),
 ]

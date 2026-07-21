@@ -46,6 +46,94 @@
     color: #a3a3a3;
 }
 
+/* Tabs */
+.admin-tool-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.75rem;
+    border-bottom: 1px solid #262626;
+    padding-bottom: 0.75rem;
+}
+
+.admin-tool-tabs__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.625rem;
+    border: 1px solid transparent;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #a3a3a3;
+    text-decoration: none;
+    transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.admin-tool-tabs__link:hover {
+    color: #ffffff;
+    border-color: #404040;
+}
+
+.admin-tool-tabs__link.is-active {
+    color: #000000;
+    background-color: #e63946;
+    border-color: #e63946;
+}
+
+.admin-tool-tabs__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.375rem;
+    height: 1.375rem;
+    padding: 0 0.375rem;
+    border-radius: 9999px;
+    background-color: #000000;
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.admin-tool-tabs__link.is-active .admin-tool-tabs__badge {
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+/* Status filter chips */
+.admin-tool-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.admin-tool-filters__chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.25rem;
+    padding: 0.375rem 0.875rem;
+    border-radius: 0.5rem;
+    border: 1px solid #262626;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #a3a3a3;
+    text-decoration: none;
+    transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.admin-tool-filters__chip:hover {
+    color: #ffffff;
+    border-color: #737373;
+}
+
+.admin-tool-filters__chip.is-active {
+    color: #ffffff;
+    border-color: #e63946;
+    background-color: rgba(230, 57, 70, 0.15);
+}
+
 /* Sticky / fixed selection bar — top on desktop, bottom on mobile */
 .admin-tool-bar {
     z-index: 40;
@@ -142,6 +230,25 @@
 
 .admin-tool-bar__btn--delete:hover {
     background-color: #ff4d5a;
+}
+
+.admin-tool-bar__btn--approve {
+    background-color: #16a34a;
+    color: #000000;
+}
+
+.admin-tool-bar__btn--approve:hover {
+    background-color: #22c55e;
+}
+
+.admin-tool-bar__btn--reject {
+    background-color: transparent;
+    border-color: #e63946;
+    color: #e63946;
+}
+
+.admin-tool-bar__btn--reject:hover {
+    background-color: rgba(230, 57, 70, 0.12);
 }
 
 /* Sections */
@@ -369,6 +476,110 @@
     align-self: flex-start;
 }
 
+.admin-tool-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 1rem 1rem;
+    border-top: 1px solid #1f1f1f;
+    padding-top: 0.75rem;
+}
+
+.admin-tool-pin-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.admin-tool-pin-form__label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #a3a3a3;
+}
+
+.admin-tool-pin-form__input {
+    width: 4.5rem;
+    max-width: 4.5rem;
+    min-height: 2.25rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid #262626;
+    background-color: #0a0a0a;
+    color: #ffffff;
+    font-size: 0.875rem;
+}
+
+.admin-tool-pin-form__input.is-saving {
+    border-color: #737373;
+    opacity: 0.75;
+}
+
+.admin-tool-pin-form__input.is-saved {
+    border-color: #16a34a;
+}
+
+.admin-tool-pin-form__input.is-error {
+    border-color: #e63946;
+}
+
+.admin-tool-pin-form__status {
+    min-width: 0;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: #16a34a;
+}
+
+.admin-tool-pin-form__status.is-error {
+    color: #e63946;
+}
+
+.admin-tool-card__moderate {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}
+
+.admin-tool-mini-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 2.25rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 0.5rem;
+    border: 1px solid transparent;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.admin-tool-mini-btn--approve {
+    background-color: #16a34a;
+    color: #000000;
+}
+
+.admin-tool-mini-btn--reject {
+    background-color: transparent;
+    border-color: #e63946;
+    color: #e63946;
+}
+
+.admin-tool-mini-btn--delete {
+    background-color: transparent;
+    border-color: #404040;
+    color: #d1d1d1;
+}
+
+.admin-tool-mini-btn--delete:hover {
+    border-color: #e63946;
+    color: #e63946;
+}
+
+.admin-tool-delete-btn__icon {
+    flex-shrink: 0;
+}
+
 @media (max-width: 639px) {
     .admin-tool {
         padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0));
@@ -381,6 +592,7 @@
 
     .admin-tool-bar__actions {
         width: 100%;
+        flex-wrap: wrap;
     }
 
     .admin-tool-bar__btn {
@@ -388,8 +600,9 @@
     }
 }
 
-/* Hidden bulk delete form — submitted programmatically */
-#admin-tool-bulk-form {
+/* Hidden bulk forms — submitted programmatically */
+#admin-tool-bulk-form,
+#admin-tool-bulk-moderate-form {
     display: none;
 }
 

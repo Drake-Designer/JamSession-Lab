@@ -44,10 +44,19 @@
                 {% include "accounts/_form_field.html" with field=form.venue_name %}
                 {% include "accounts/_form_field.html" with field=form.address %}
                 {% include "accounts/_form_field.html" with field=form.location_url %}
-                {% include "accounts/_form_field.html" with field=form.starts_at %}
-                {% include "accounts/_form_field.html" with field=form.ends_at %}
+
+                <fieldset class="event-form__when">
+                    <legend class="event-form__when-legend">When</legend>
+                    {% include "accounts/_form_field.html" with field=form.event_date %}
+                    <div class="event-form__times">
+                        {% include "accounts/_form_field.html" with field=form.start_time %}
+                        {% include "accounts/_form_field.html" with field=form.end_time %}
+                    </div>
+                </fieldset>
+
                 {% include "accounts/_form_field.html" with field=form.poster %}
                 {% include "accounts/_form_field.html" with field=form.description %}
+                {% include "accounts/_form_field.html" with field=form.capacity %}
                 {% include "accounts/_form_field.html" with field=form.is_active %}
                 {% include "accounts/_form_field.html" with field=form.registrations_open %}
 

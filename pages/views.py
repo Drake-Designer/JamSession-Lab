@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.db.models import Count, Q
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -16,6 +17,12 @@ def home(request):
     carousel_slides = HomeCarouselSlide.objects.filter(is_active=True).order_by("order")
     next_event = (
         Event.objects.filter(is_active=True, starts_at__gt=timezone.now())
+        .annotate(
+            _registered_count=Count(
+                "registrations",
+                filter=Q(registrations__rsvp_status=RsvpStatus.REGISTERED),
+            )
+        )
         .order_by("starts_at")
         .first()
     )

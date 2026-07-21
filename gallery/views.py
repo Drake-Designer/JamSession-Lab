@@ -5,6 +5,8 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 from django.views.decorators.http import require_http_methods
 
+from community.emails import queue_gallery_batch_moderation_alert
+
 from .forms import GalleryBatchUploadForm
 from .models import ApprovalStatus, GalleryItem
 
@@ -13,9 +15,13 @@ def gallery_list(request):
     """Public gallery page showing approved media in separate photo/video sections."""
     approved = (
         GalleryItem.objects.filter(status=ApprovalStatus.APPROVED)
-        .select_related("uploaded_by")
-        .order_by("-created_at")
+        .select_related("uploaded_by", "event")
+        .order_by(*GalleryItem.display_order_by())
     )
+
+    event_filter = request.GET.get("event")
+    if event_filter and event_filter.isdigit():
+        approved = approved.filter(event_id=int(event_filter))
 
     photo_items = [item for item in approved if not item.is_video]
     video_items = [item for item in approved if item.is_video]
@@ -27,6 +33,7 @@ def gallery_list(request):
             "photo_items": photo_items,
             "video_items": video_items,
             "has_gallery_content": bool(photo_items or video_items),
+            "selected_event_id": int(event_filter) if event_filter and event_filter.isdigit() else None,
         },
     )
 
@@ -99,6 +106,12 @@ def gallery_upload(request):
 
             if success_count:
                 messages.success(request, summary)
+                if not auto_published:
+                    queue_gallery_batch_moderation_alert(
+                        request,
+                        submitter=request.user,
+                        item_count=success_count,
+                    )
                 return redirect("gallery:list")
 
             messages.error(request, summary)

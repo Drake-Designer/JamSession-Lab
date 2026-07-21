@@ -1,0 +1,30 @@
+/* Gallery item change form — current media preview on the Media tab. */
+
+.gallery-admin-preview {
+    display: block;
+    max-width: min(100%, 36rem);
+    border-radius: 0.75rem;
+    border: 1px solid #262626;
+    background: #0a0a0a;
+}
+
+.gallery-admin-preview--image {
+    width: auto;
+    height: auto;
+    max-height: 28rem;
+    object-fit: contain;
+}
+
+.gallery-admin-preview--video {
+    width: 100%;
+    max-height: 28rem;
+}
+
+/* Pin order only needs up to three digits (1–999). */
+.gallery-admin-pin-order,
+.field-pin_order input,
+td.field-pin_order input {
+    width: 4.5rem;
+    max-width: 4.5rem;
+    min-width: 4.5rem;
+}

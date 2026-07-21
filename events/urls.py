@@ -37,4 +37,9 @@ urlpatterns = [
     ),
     path("<int:pk>/cancel/", registration_views.cancel, name="cancel"),
     path("<int:pk>/attendees/", registration_views.staff_lists, name="attendees"),
+    path(
+        "<int:pk>/attendees/<int:reg_pk>/attendance/",
+        registration_views.set_attendance,
+        name="set_attendance",
+    ),
 ]

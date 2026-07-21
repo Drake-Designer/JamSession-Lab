@@ -175,21 +175,61 @@
 
 .gallery-item__credit-row {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 0.375rem;
-    padding: 0.875rem 1.125rem 1rem;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.75rem 0.875rem 0.875rem;
     border-top: 1px solid #1f1f1f;
     background-color: #0a0a0a;
+    text-align: center;
+}
+
+.gallery-item__credit-meta {
+    display: flex;
+    justify-content: center;
+    max-width: 100%;
+}
+
+.gallery-item__credit-row .user-credit {
+    justify-content: center;
+    gap: 0.3rem;
 }
 
 .gallery-item__credit-row .user-credit__link {
     font-size: 0.8125rem;
     color: #d1d1d1;
+    max-width: 100%;
+    overflow-wrap: anywhere;
 }
 
 .gallery-item__credit-row .user-credit__deleted {
     font-size: 0.8125rem;
+}
+
+.gallery-item__credit-row .user-badge {
+    padding: 0.05rem 0.35rem;
+    font-size: 0.5rem;
+    letter-spacing: 0.05em;
+    line-height: 1.25;
+}
+
+.gallery-item__event-link {
+    display: block;
+    max-width: 100%;
+    padding: 0 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #a3a3a3;
+    text-decoration: none;
+    text-align: center;
+    overflow-wrap: anywhere;
+    transition: color 0.15s ease;
+}
+
+.gallery-item__event-link:hover {
+    color: #e63946;
 }
 
 /* Lightbox */
@@ -425,6 +465,7 @@ body.gallery-lightbox-open {
 
 .gallery-form input[type="text"],
 .gallery-form input[type="file"],
+.gallery-form select,
 .gallery-form textarea {
     width: 100%;
     border-radius: 0.75rem;

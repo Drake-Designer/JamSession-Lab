@@ -24,7 +24,7 @@ import cloudinary
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
@@ -213,14 +213,14 @@ class CommunityPostModelTests(TestCase):
 
         self.assertEqual(post.slug, original_slug)
 
-    def test_deleting_author_sets_null_and_keeps_post_public(self):
+    def test_deleting_author_cascades_posts_for_privacy(self):
         post = _make_post(self.author)
+        post_pk = post.pk
 
         self.author.delete()
-        post.refresh_from_db()
 
-        self.assertIsNone(post.author)
-        self.assertEqual(CommunityPost.objects.count(), 1)
+        self.assertFalse(CommunityPost.objects.filter(pk=post_pk).exists())
+        self.assertEqual(CommunityPost.objects.count(), 0)
 
     def test_apply_initial_moderation_reused_from_gallery(self):
         """Same ModeratedContent behaviour already proven for GalleryItem."""
@@ -311,16 +311,16 @@ class CommunityCommentModelTests(TestCase):
         self.assertIn(comment, self.post.comments.all())
         self.assertEqual(comment.status, ApprovalStatus.PENDING)
 
-    def test_deleting_commenter_sets_null_and_keeps_comment_public(self):
+    def test_deleting_commenter_cascades_comments_for_privacy(self):
         comment = CommunityComment.objects.create(
             post=self.post, author=self.commenter, body="Nice jam!"
         )
+        comment_pk = comment.pk
 
         self.commenter.delete()
-        comment.refresh_from_db()
 
-        self.assertIsNone(comment.author)
-        self.assertEqual(CommunityComment.objects.count(), 1)
+        self.assertFalse(CommunityComment.objects.filter(pk=comment_pk).exists())
+        self.assertEqual(CommunityComment.objects.count(), 0)
 
     def test_deleting_post_cascades_to_its_comments(self):
         comment = CommunityComment.objects.create(
@@ -977,6 +977,7 @@ class CommunityCommentCreateViewTests(TestCase):
             body="Wo wo wo!",
             status=ApprovalStatus.APPROVED,
         )
+        self.client.force_login(self.commenter)
 
         response = self.client.get(
             reverse("community:post_detail", args=[self.post.slug])
@@ -1619,10 +1620,10 @@ class CommunityAdminMediaPreviewTests(TestCase):
 
 class CommunityModerationQueueViewTests(TestCase):
     """
-    Tests for moderation_queue: access control and the pending-only listing.
+    Tests for the legacy moderation_queue URL and the Admin Tool To review tab.
 
-    Mirrors the permission-testing style of CommunityPostDeletePermissionTests
-    (a forged direct request must be refused, never trusting the template).
+    moderation_queue now redirects into Admin Tool (?tab=review). Content
+    assertions hit the hub directly.
     """
 
     def setUp(self):
@@ -1632,9 +1633,11 @@ class CommunityModerationQueueViewTests(TestCase):
         )
         self.regular = _make_user("queue_regular")
         self.author = _make_user("queue_author")
+        self.queue_url = reverse("community:moderation_queue")
+        self.review_url = reverse("community:admin_tool") + "?tab=review"
 
     def test_queue_requires_login(self):
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.queue_url)
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.url.startswith(reverse("accounts:login")))
@@ -1642,23 +1645,23 @@ class CommunityModerationQueueViewTests(TestCase):
     def test_regular_user_gets_403(self):
         self.client.force_login(self.regular)
 
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.queue_url)
 
         self.assertEqual(response.status_code, 403)
 
     def test_staff_user_can_access_the_queue(self):
         self.client.force_login(self.staff)
 
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.queue_url)
 
-        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, self.review_url)
 
     def test_superuser_can_access_the_queue(self):
         self.client.force_login(self.superuser)
 
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.queue_url)
 
-        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, self.review_url)
 
     def test_only_pending_posts_and_comments_are_listed(self):
         pending_post = _make_post(
@@ -1686,7 +1689,7 @@ class CommunityModerationQueueViewTests(TestCase):
         )
 
         self.client.force_login(self.staff)
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.review_url)
 
         self.assertEqual(
             list(response.context["pending_posts"]), [pending_post]
@@ -1723,7 +1726,7 @@ class CommunityModerationQueueViewTests(TestCase):
         )
 
         self.client.force_login(self.staff)
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.review_url)
 
         self.assertEqual(
             list(response.context["pending_gallery_items"]), [pending_item]
@@ -1747,7 +1750,7 @@ class CommunityModerationQueueViewTests(TestCase):
         )
 
         self.client.force_login(self.staff)
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.review_url)
 
         self.assertEqual(
             list(response.context["pending_posts"]), [older, newer]
@@ -1761,12 +1764,12 @@ class CommunityModerationQueueViewTests(TestCase):
             media_type=MediaType.IMAGE,
         )
         # Reload so CloudinaryField deserialises the stored path into a
-        # CloudinaryResource (same shape the moderation_queue queryset sees).
+        # CloudinaryResource (same shape the review-tab queryset sees).
         media.refresh_from_db()
         expected_url = media.display_url
 
         self.client.force_login(self.staff)
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.review_url)
 
         self.assertTrue(expected_url)
         self.assertIn("f_auto", expected_url)
@@ -1786,7 +1789,7 @@ class CommunityModerationQueueViewTests(TestCase):
         expected_url = item.display_media_url
 
         self.client.force_login(self.staff)
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.review_url)
 
         self.assertTrue(expected_url)
         self.assertIn("f_auto", expected_url)
@@ -1810,7 +1813,7 @@ class CommunityModerationQueueViewTests(TestCase):
         expected_url = item.display_media_url
 
         self.client.force_login(self.staff)
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.review_url)
 
         self.assertTrue(expected_url)
         self.assertTrue(item.is_video)
@@ -1871,7 +1874,7 @@ class CommunityModerationPostActionViewTests(TestCase):
             reverse("community:moderation_post_approve", args=[post.slug])
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         post.refresh_from_db()
         self.assertEqual(post.status, ApprovalStatus.APPROVED)
         self.assertEqual(post.approved_by, self.staff)
@@ -1896,7 +1899,7 @@ class CommunityModerationPostActionViewTests(TestCase):
             {"reason": "Not related to jam sessions"},
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         post.refresh_from_db()
         self.assertEqual(post.status, ApprovalStatus.REJECTED)
         self.assertEqual(post.approved_by, self.staff)
@@ -1910,7 +1913,7 @@ class CommunityModerationPostActionViewTests(TestCase):
             reverse("community:moderation_post_reject", args=[post.slug])
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         post.refresh_from_db()
         self.assertEqual(post.status, ApprovalStatus.REJECTED)
         self.assertEqual(post.rejection_reason, "")
@@ -1935,7 +1938,7 @@ class CommunityModerationPostActionViewTests(TestCase):
             reverse("community:moderation_post_delete", args=[post.slug])
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
 
     def test_regular_user_cannot_delete_from_the_queue(self):
@@ -2007,7 +2010,7 @@ class CommunityModerationCommentActionViewTests(TestCase):
             reverse("community:moderation_comment_approve", args=[comment.pk])
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         comment.refresh_from_db()
         self.assertEqual(comment.status, ApprovalStatus.APPROVED)
         self.assertEqual(comment.approved_by, self.staff)
@@ -2022,7 +2025,7 @@ class CommunityModerationCommentActionViewTests(TestCase):
             {"reason": "Off-topic"},
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         comment.refresh_from_db()
         self.assertEqual(comment.status, ApprovalStatus.REJECTED)
         self.assertEqual(comment.approved_by, self.staff)
@@ -2048,7 +2051,7 @@ class CommunityModerationCommentActionViewTests(TestCase):
             reverse("community:moderation_comment_delete", args=[comment.pk])
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         self.assertFalse(CommunityComment.objects.filter(pk=comment.pk).exists())
 
     def test_regular_user_cannot_delete_from_the_queue(self):
@@ -2135,7 +2138,7 @@ class CommunityModerationGalleryActionViewTests(TestCase):
             reverse("community:moderation_gallery_approve", args=[item.pk])
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         item.refresh_from_db()
         self.assertEqual(item.status, ApprovalStatus.APPROVED)
         self.assertEqual(item.approved_by, self.staff)
@@ -2160,7 +2163,7 @@ class CommunityModerationGalleryActionViewTests(TestCase):
             {"reason": "Blurry photo"},
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         item.refresh_from_db()
         self.assertEqual(item.status, ApprovalStatus.REJECTED)
         self.assertEqual(item.approved_by, self.staff)
@@ -2174,7 +2177,7 @@ class CommunityModerationGalleryActionViewTests(TestCase):
             reverse("community:moderation_gallery_reject", args=[item.pk])
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         item.refresh_from_db()
         self.assertEqual(item.status, ApprovalStatus.REJECTED)
         self.assertEqual(item.rejection_reason, "")
@@ -2199,7 +2202,7 @@ class CommunityModerationGalleryActionViewTests(TestCase):
             reverse("community:moderation_gallery_delete", args=[item.pk])
         )
 
-        self.assertRedirects(response, reverse("community:moderation_queue"))
+        self.assertRedirects(response, reverse("community:admin_tool") + "?tab=review")
         self.assertFalse(GalleryItem.objects.filter(pk=item.pk).exists())
 
     def test_regular_user_cannot_delete_from_the_queue(self):
@@ -2404,7 +2407,11 @@ class AdminToolTests(TestCase):
         self.staff = _make_user("admin_tool_staff", is_staff=True)
         self.regular = _make_user("admin_tool_member")
         self.tool_url = reverse("community:admin_tool")
+        self.gallery_tab_url = self.tool_url + "?tab=gallery"
+        self.community_tab_url = self.tool_url + "?tab=community"
+        self.review_tab_url = self.tool_url + "?tab=review"
         self.bulk_url = reverse("community:admin_tool_bulk_delete")
+        self.bulk_moderate_url = reverse("community:admin_tool_bulk_moderate")
 
     def test_non_staff_gets_403(self):
         self.client.force_login(self.regular)
@@ -2463,6 +2470,13 @@ class AdminToolTests(TestCase):
                 ),
             ),
             ("post", reverse("community:admin_tool_bulk_delete")),
+            ("post", reverse("community:admin_tool_bulk_moderate")),
+            (
+                "post",
+                reverse(
+                    "community:admin_tool_pin_order", kwargs={"pk": gallery.pk}
+                ),
+            ),
         )
 
         self.client.force_login(self.regular)
@@ -2532,15 +2546,20 @@ class AdminToolTests(TestCase):
         response = self.client.get(self.tool_url)
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["active_tab"], "review")
         self.assertEqual(response.context["gallery_count"], 3)
         self.assertEqual(response.context["gallery_photo_count"], 3)
         self.assertEqual(response.context["gallery_video_count"], 0)
         self.assertEqual(response.context["post_count"], 4)
         self.assertEqual(response.context["comment_count"], 3)
-        self.assertContains(response, "Photos (3)")
-        self.assertContains(response, "Videos (0)")
-        self.assertContains(response, "Posts (4)")
-        self.assertContains(response, "Comments (3)")
+
+        gallery_page = self.client.get(self.gallery_tab_url)
+        self.assertContains(gallery_page, "Photos (3)")
+        self.assertContains(gallery_page, "Videos (0)")
+
+        community_page = self.client.get(self.community_tab_url)
+        self.assertContains(community_page, "Posts (4)")
+        self.assertContains(community_page, "Comments (3)")
 
     def test_gallery_splits_photos_and_videos(self):
         GalleryItem.objects.create(
@@ -2562,7 +2581,7 @@ class AdminToolTests(TestCase):
         GalleryItem.objects.filter(pk=video.pk).update(media_type=MediaType.VIDEO)
 
         self.client.force_login(self.staff)
-        response = self.client.get(self.tool_url)
+        response = self.client.get(self.gallery_tab_url)
 
         self.assertEqual(response.context["gallery_photo_count"], 1)
         self.assertEqual(response.context["gallery_video_count"], 1)
@@ -2577,7 +2596,7 @@ class AdminToolTests(TestCase):
             self.regular, title="Public post", status=ApprovalStatus.APPROVED
         )
         self.client.force_login(self.staff)
-        response = self.client.get(self.tool_url)
+        response = self.client.get(self.community_tab_url)
         public_url = reverse("community:post_detail", kwargs={"slug": post.slug})
         self.assertContains(response, public_url)
         self.assertNotContains(
@@ -2593,7 +2612,7 @@ class AdminToolTests(TestCase):
             "community:admin_post_preview", kwargs={"slug": post.slug}
         )
         self.client.force_login(self.staff)
-        response = self.client.get(self.tool_url)
+        response = self.client.get(self.community_tab_url)
         self.assertContains(response, preview_url)
 
         preview = self.client.get(preview_url)
@@ -2653,7 +2672,7 @@ class AdminToolTests(TestCase):
             with self.captureOnCommitCallbacks(execute=True):
                 response = self.client.post(delete_url)
 
-        self.assertRedirects(response, self.tool_url)
+        self.assertRedirects(response, self.tool_url + "?tab=gallery")
         self.assertFalse(GalleryItem.objects.filter(pk=item.pk).exists())
         mock_destroy.assert_called_once_with(
             "to_delete_gal", resource_type="image", invalidate=True
@@ -2673,7 +2692,7 @@ class AdminToolTests(TestCase):
 
         self.client.force_login(self.staff)
         response = self.client.post(delete_url)
-        self.assertRedirects(response, self.tool_url)
+        self.assertRedirects(response, self.tool_url + "?tab=community")
         self.assertFalse(CommunityPost.objects.filter(pk=post.pk).exists())
 
     def test_section_counts_update_after_delete(self):
@@ -2695,26 +2714,28 @@ class AdminToolTests(TestCase):
         )
 
         self.client.force_login(self.staff)
-        before = self.client.get(self.tool_url)
-        self.assertEqual(before.context["gallery_count"], 1)
-        self.assertEqual(before.context["gallery_photo_count"], 1)
-        self.assertEqual(before.context["post_count"], 1)
-        self.assertEqual(before.context["comment_count"], 1)
-        self.assertContains(before, "Photos (1)")
-        self.assertContains(before, "Posts (1)")
-        self.assertContains(before, "Comments (1)")
+        before_gallery = self.client.get(self.gallery_tab_url)
+        before_community = self.client.get(self.community_tab_url)
+        self.assertEqual(before_gallery.context["gallery_count"], 1)
+        self.assertEqual(before_gallery.context["gallery_photo_count"], 1)
+        self.assertEqual(before_community.context["post_count"], 1)
+        self.assertEqual(before_community.context["comment_count"], 1)
+        self.assertContains(before_gallery, "Photos (1)")
+        self.assertContains(before_community, "Posts (1)")
+        self.assertContains(before_community, "Comments (1)")
 
         self.client.post(
             reverse("community:admin_tool_post_delete", kwargs={"slug": post.slug})
         )
         # Deleting the post cascades its comments.
-        after = self.client.get(self.tool_url)
-        self.assertEqual(after.context["gallery_count"], 1)
-        self.assertEqual(after.context["post_count"], 0)
-        self.assertEqual(after.context["comment_count"], 0)
-        self.assertContains(after, "Photos (1)")
-        self.assertContains(after, "Posts (0)")
-        self.assertContains(after, "Comments (0)")
+        after_gallery = self.client.get(self.gallery_tab_url)
+        after_community = self.client.get(self.community_tab_url)
+        self.assertEqual(after_gallery.context["gallery_count"], 1)
+        self.assertEqual(after_community.context["post_count"], 0)
+        self.assertEqual(after_community.context["comment_count"], 0)
+        self.assertContains(after_gallery, "Photos (1)")
+        self.assertContains(after_community, "Posts (0)")
+        self.assertContains(after_community, "Comments (0)")
 
     def test_admin_tool_query_count_does_not_grow_with_row_count(self):
         """
@@ -2860,7 +2881,7 @@ class AdminToolTests(TestCase):
         self.assertEqual(destroyed, {"bulk_one", "bulk_two"})
 
     def test_moderation_queue_still_lists_only_pending(self):
-        """No regression: Review queue stays pending-only."""
+        """No regression: Review tab stays pending-only."""
         _make_post(self.regular, title="Pending only", status=ApprovalStatus.PENDING)
         _make_post(self.regular, title="Approved skip", status=ApprovalStatus.APPROVED)
         GalleryItem.objects.create(
@@ -2879,7 +2900,7 @@ class AdminToolTests(TestCase):
         )
 
         self.client.force_login(self.staff)
-        response = self.client.get(reverse("community:moderation_queue"))
+        response = self.client.get(self.review_tab_url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context["pending_posts"]), 1)
         self.assertEqual(len(response.context["pending_gallery_items"]), 1)
@@ -2894,7 +2915,7 @@ class AdminToolTests(TestCase):
             "community:admin_post_preview", kwargs={"slug": post.slug}
         )
         self.client.force_login(self.staff)
-        response = self.client.get(self.tool_url)
+        response = self.client.get(self.community_tab_url)
         self.assertContains(response, preview_url)
 
         preview = self.client.get(preview_url)
@@ -2924,7 +2945,7 @@ class AdminToolTests(TestCase):
         )
         detail_url = reverse("community:post_detail", kwargs={"slug": host.slug})
         self.client.force_login(self.staff)
-        response = self.client.get(self.tool_url)
+        response = self.client.get(self.community_tab_url)
         self.assertContains(response, f"{detail_url}#comment-{comment.pk}")
 
     def test_approved_gallery_opens_in_lightbox(self):
@@ -2937,7 +2958,7 @@ class AdminToolTests(TestCase):
         )
         gallery_url = reverse("gallery:list")
         self.client.force_login(self.staff)
-        response = self.client.get(self.tool_url)
+        response = self.client.get(self.gallery_tab_url)
         self.assertNotContains(response, f"{gallery_url}#gallery-item-{item.pk}")
         self.assertContains(response, "Anchored gallery")
         self.assertContains(response, "admin-tool-preview")
@@ -2945,7 +2966,7 @@ class AdminToolTests(TestCase):
     def test_rows_reuse_author_chip_partial_with_badge(self):
         _make_post(self.regular, title="Badge row", status=ApprovalStatus.APPROVED)
         self.client.force_login(self.staff)
-        response = self.client.get(self.tool_url)
+        response = self.client.get(self.community_tab_url)
         self.assertContains(response, "user-author-chip")
         self.assertContains(response, "user-avatar")
         self.assertContains(response, self.regular.badge_info.label)
@@ -2974,7 +2995,7 @@ class AdminToolTests(TestCase):
 
         self.client.force_login(self.staff)
         response = self.client.post(delete_url)
-        self.assertRedirects(response, self.tool_url)
+        self.assertRedirects(response, self.tool_url + "?tab=community")
         self.assertFalse(CommunityComment.objects.filter(pk=comment.pk).exists())
 
     def test_bulk_delete_non_staff_gets_403(self):
@@ -3081,6 +3102,213 @@ class AdminToolTests(TestCase):
         mock_destroy.assert_called_once_with(
             "bulk_comment_media", resource_type="image", invalidate=True
         )
+
+    def test_pin_order_can_be_set_and_cleared(self):
+        item = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/pin_me.jpg",
+            media_type=MediaType.IMAGE,
+            title="Pin me",
+            status=ApprovalStatus.APPROVED,
+        )
+        pin_url = reverse("community:admin_tool_pin_order", kwargs={"pk": item.pk})
+
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            pin_url,
+            data={"pin_order": "2", "next_tab": "gallery"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.assertEqual(response.json()["pin_order"], 2)
+        item.refresh_from_db()
+        self.assertEqual(item.pin_order, 2)
+
+        response = self.client.post(
+            pin_url,
+            data={"pin_order": "", "next_tab": "gallery"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.assertIsNone(response.json()["pin_order"])
+        item.refresh_from_db()
+        self.assertIsNone(item.pin_order)
+
+        response = self.client.post(
+            pin_url,
+            data={"pin_order": "0", "next_tab": "gallery"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.assertIsNone(response.json()["pin_order"])
+        item.refresh_from_db()
+        self.assertIsNone(item.pin_order)
+
+        response = self.client.post(
+            pin_url,
+            data={"pin_order": "12a", "next_tab": "gallery"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()["ok"])
+        item.refresh_from_db()
+        self.assertIsNone(item.pin_order)
+
+    def test_pin_order_must_be_unique_within_photos(self):
+        first = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/pin_unique_a.jpg",
+            media_type=MediaType.IMAGE,
+            title="Pin A",
+            status=ApprovalStatus.APPROVED,
+            pin_order=1,
+        )
+        second = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/pin_unique_b.jpg",
+            media_type=MediaType.IMAGE,
+            title="Pin B",
+            status=ApprovalStatus.APPROVED,
+        )
+        # A video may reuse the same pin number in its own section.
+        video = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="video/upload/v1/pin_unique_v.mp4",
+            media_type=MediaType.IMAGE,
+            title="Pin V",
+            status=ApprovalStatus.APPROVED,
+        )
+        GalleryItem.objects.filter(pk=video.pk).update(
+            media_type=MediaType.VIDEO, pin_order=1
+        )
+        video.refresh_from_db()
+
+        pin_url = reverse(
+            "community:admin_tool_pin_order", kwargs={"pk": second.pk}
+        )
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            pin_url,
+            data={"pin_order": "1"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()["ok"])
+        self.assertIn("already used", response.json()["message"].lower())
+        second.refresh_from_db()
+        self.assertIsNone(second.pin_order)
+        first.refresh_from_db()
+        self.assertEqual(first.pin_order, 1)
+        self.assertEqual(video.pin_order, 1)
+
+    def test_gallery_tab_renders_auto_save_pin_inputs(self):
+        item = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/csrf_pin.jpg",
+            media_type=MediaType.IMAGE,
+            title="CSRF pin",
+            status=ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(self.staff)
+        response = self.client.get(self.gallery_tab_url)
+        pin_url = reverse("community:admin_tool_pin_order", kwargs={"pk": item.pk})
+        self.assertContains(response, 'data-pin-url="' + pin_url + '"')
+        self.assertContains(response, "admin-tool-pin-form__input")
+        self.assertNotContains(response, "Save pins")
+
+    def test_bulk_approve_pending_items(self):
+        post = _make_post(
+            self.regular, title="Bulk approve post", status=ApprovalStatus.PENDING
+        )
+        item = GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/bulk_approve.jpg",
+            media_type=MediaType.IMAGE,
+            title="Bulk approve gal",
+            status=ApprovalStatus.PENDING,
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            self.bulk_moderate_url,
+            data={
+                "action": "approve",
+                "post_ids": [str(post.pk)],
+                "gallery_ids": [str(item.pk)],
+            },
+        )
+        self.assertRedirects(response, self.review_tab_url)
+        post.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(post.status, ApprovalStatus.APPROVED)
+        self.assertEqual(item.status, ApprovalStatus.APPROVED)
+
+    def test_status_filter_limits_gallery_tab(self):
+        GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/filter_approved.jpg",
+            media_type=MediaType.IMAGE,
+            title="Filter approved",
+            status=ApprovalStatus.APPROVED,
+        )
+        GalleryItem.objects.create(
+            uploaded_by=self.regular,
+            file="image/upload/v1/filter_pending.jpg",
+            media_type=MediaType.IMAGE,
+            title="Filter pending",
+            status=ApprovalStatus.PENDING,
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(self.tool_url + "?tab=gallery&status=approved")
+        self.assertEqual(response.context["gallery_count"], 1)
+        self.assertContains(response, "Filter approved")
+        self.assertNotContains(response, "Filter pending")
+
+
+class ModerationAlertEmailTests(TestCase):
+    """Superuser email when content enters the pending queue."""
+
+    def setUp(self):
+        self.superuser = _make_user(
+            "alert_super", is_staff=True, is_superuser=True
+        )
+        self.superuser.email = "super@example.com"
+        self.superuser.save(update_fields=["email"])
+        self.staff = _make_user("alert_staff", is_staff=True)
+        self.staff.email = "staff@example.com"
+        self.staff.save(update_fields=["email"])
+        self.member = _make_user("alert_member")
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_pending_post_emails_superuser_only(self):
+        from django.core import mail
+
+        self.client.force_login(self.member)
+        response = self.client.post(
+            reverse("community:post_create"),
+            data={"title": "Needs review", "body": "Please approve me."},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["super@example.com"])
+        self.assertIn("Content awaiting review", mail.outbox[0].subject)
+        self.assertIn("tab=review", mail.outbox[0].body)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_staff_auto_approved_post_does_not_email(self):
+        from django.core import mail
+
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            reverse("community:post_create"),
+            data={"title": "Staff post", "body": "Published immediately."},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(mail.outbox), 0)
 
 
 class CommunityMembersSidebarTests(TestCase):

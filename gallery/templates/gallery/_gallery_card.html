@@ -16,7 +16,7 @@
         data-gallery-poster="{{ item.display_image_url }}"
         data-gallery-title="{{ item.title|default:'' }}"
         data-gallery-caption="{{ item.caption|default:'' }}"
-        data-gallery-credit="{% if item.uploaded_by %}@{{ item.uploaded_by.public_display_name }}{% else %}Deleted account{% endif %}"
+        data-gallery-credit="{% if item.uploaded_by %}@{{ item.uploaded_by.public_display_name }}{% else %}Deleted account{% endif %}{% if item.event %} · {{ item.event.title }}{% endif %}"
         aria-label="{% if item.is_video %}Play video{% else %}View photo{% endif %}{% if item.title %}: {{ item.title }}{% endif %}"
     >
         <span class="gallery-item__media">
@@ -45,6 +45,13 @@
         </span>
     </button>
     <div class="gallery-item__credit-row">
-        {% include "accounts/partials/user_credit.html" with credit_user=item.uploaded_by %}
+        <div class="gallery-item__credit-meta">
+            {% include "accounts/partials/user_credit.html" with credit_user=item.uploaded_by %}
+        </div>
+        {% if item.event %}
+        <a href="{% url 'events:detail' item.event.pk %}" class="gallery-item__event-link">
+            {{ item.event.title }}
+        </a>
+        {% endif %}
     </div>
 </article>

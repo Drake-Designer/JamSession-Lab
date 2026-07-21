@@ -113,7 +113,7 @@
                         </div>
 
                         <div class="event-manage__lists">
-                            {% include "registrations/partials/staff_lists_tables.html" with registered_rows=item.registered_rows cancelled_rows=item.cancelled_rows %}
+                            {% include "registrations/partials/staff_lists_tables.html" with event=item.event registered_rows=item.registered_rows cancelled_rows=item.cancelled_rows attendance_counts=item.attendance_counts attendance_choices=item.attendance_choices %}
                         </div>
                     </div>
                 </li>

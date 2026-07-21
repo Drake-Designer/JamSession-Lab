@@ -68,6 +68,21 @@
                     aria-live="polite"
                 ></p>
 
+                <div class="gallery-form__field{% if form.event.errors %} gallery-form__field--error{% endif %}">
+                    <label for="{{ form.event.id_for_label }}">{{ form.event.label }}</label>
+                    {{ form.event }}
+                    {% if form.event.help_text %}
+                    <p class="mt-2 text-sm text-jam-muted-dark">{{ form.event.help_text }}</p>
+                    {% endif %}
+                    {% if form.event.errors %}
+                    <ul class="errorlist">
+                        {% for error in form.event.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+
                 <div class="gallery-form__field{% if form.title.errors %} gallery-form__field--error{% endif %}">
                     <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
                     {{ form.title }}

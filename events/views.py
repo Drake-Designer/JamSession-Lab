@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
 from django.urls import reverse
@@ -30,7 +31,14 @@ def _require_moderator(user):
 def event_list(request):
     """Public list of active events with key details and register/view CTAs."""
     events = list(
-        Event.objects.filter(is_active=True).order_by("starts_at")
+        Event.objects.filter(is_active=True)
+        .annotate(
+            _registered_count=Count(
+                "registrations",
+                filter=Q(registrations__rsvp_status=RsvpStatus.REGISTERED),
+            )
+        )
+        .order_by("-starts_at")
     )
     registered_event_ids = set()
     if request.user.is_authenticated and events:
@@ -70,6 +78,8 @@ def event_manage(request):
                 "event": event,
                 "registered_rows": lists["registered_rows"],
                 "cancelled_rows": lists["cancelled_rows"],
+                "attendance_counts": lists["attendance_counts"],
+                "attendance_choices": lists["attendance_choices"],
             }
         )
     return render(
@@ -81,7 +91,15 @@ def event_manage(request):
 
 def event_detail(request, pk):
     """Public event detail page."""
-    event = get_object_or_404(Event, pk=pk)
+    event = get_object_or_404(
+        Event.objects.annotate(
+            _registered_count=Count(
+                "registrations",
+                filter=Q(registrations__rsvp_status=RsvpStatus.REGISTERED),
+            )
+        ),
+        pk=pk,
+    )
     if not event.is_active and not (
         request.user.is_authenticated
         and (request.user.is_staff or request.user.is_superuser)

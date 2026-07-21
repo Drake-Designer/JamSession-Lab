@@ -286,9 +286,8 @@ class CommunityLike(models.Model):
         on_delete=models.CASCADE,
         related_name="likes",
     )
-    # CASCADE (unlike author/uploaded_by elsewhere in the project): a like
-    # row with no user has no value as public content, unlike posts/comments
-    # which are intentionally preserved when their author's account is gone.
+    # CASCADE with the liking user — likes are not retained after account
+    # deletion (same privacy erasure as posts/comments/gallery).
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

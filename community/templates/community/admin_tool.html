@@ -6,6 +6,7 @@
 
 {% block extra_head %}
     <link rel="stylesheet" href="{% static 'community/css/community.css' %}">
+    <link rel="stylesheet" href="{% static 'community/css/moderation.css' %}">
     <link rel="stylesheet" href="{% static 'community/css/admin_tool.css' %}">
 {% endblock %}
 
@@ -15,9 +16,33 @@
         <header class="admin-tool__header">
             <h1 class="admin-tool__title">Admin Tool</h1>
             <p class="admin-tool__subtitle">
-                Browse, preview, and delete gallery items, community posts, and comments in one place.
+                Review pending submissions, manage the gallery (including pin order), and moderate community content in one place.
             </p>
         </header>
+
+        <nav class="admin-tool-tabs" aria-label="Admin Tool sections">
+            <a
+                href="{% url 'community:admin_tool' %}?tab=review"
+                class="admin-tool-tabs__link{% if active_tab == 'review' %} is-active{% endif %}"
+            >
+                To review
+                {% if pending_count %}
+                <span class="admin-tool-tabs__badge">{{ pending_count }}</span>
+                {% endif %}
+            </a>
+            <a
+                href="{% url 'community:admin_tool' %}?tab=gallery{% if status_filter %}&amp;status={{ status_filter }}{% endif %}"
+                class="admin-tool-tabs__link{% if active_tab == 'gallery' %} is-active{% endif %}"
+            >
+                Gallery
+            </a>
+            <a
+                href="{% url 'community:admin_tool' %}?tab=community{% if status_filter %}&amp;status={{ status_filter }}{% endif %}"
+                class="admin-tool-tabs__link{% if active_tab == 'community' %} is-active{% endif %}"
+            >
+                Community
+            </a>
+        </nav>
 
         <aside
             id="admin-tool-selection-bar"
@@ -31,6 +56,14 @@
                     <button type="button" class="admin-tool-bar__btn admin-tool-bar__btn--cancel" data-admin-tool-cancel>
                         Cancel selection
                     </button>
+                    {% if active_tab == "review" %}
+                    <button type="button" class="admin-tool-bar__btn admin-tool-bar__btn--approve" data-admin-tool-approve-selected>
+                        Approve selected
+                    </button>
+                    <button type="button" class="admin-tool-bar__btn admin-tool-bar__btn--reject" data-admin-tool-reject-selected>
+                        Reject selected
+                    </button>
+                    {% endif %}
                     <button type="button" class="admin-tool-bar__btn admin-tool-bar__btn--delete" data-admin-tool-delete-selected>
                         Delete selected
                     </button>
@@ -38,227 +71,13 @@
             </div>
         </aside>
 
-        {# —— Gallery Photos —— #}
-        <section class="admin-tool-section" aria-labelledby="admin-tool-photos-heading" data-admin-tool-section>
-            <div class="admin-tool-section__header">
-                <h2 id="admin-tool-photos-heading" class="admin-tool-section__title">
-                    Photos ({{ gallery_photo_count }})
-                </h2>
-                <label class="admin-tool-select-all">
-                    <input
-                        type="checkbox"
-                        class="admin-tool-select-all__input"
-                        data-select-all-section
-                        aria-label="Select all photos"
-                    >
-                    <span class="admin-tool-select-all__label">Select all</span>
-                </label>
-            </div>
-
-            {% if gallery_photos %}
-            <div class="admin-tool-grid" role="list">
-                {% for item in gallery_photos %}
-                    {% include "community/_admin_tool_card.html" with kind="gallery" item_id=item.pk aria_label="Select gallery photo" title=item.title|default:"Untitled photo" thumb_url=item.display_image_url preview_src=item.display_media_url preview_poster=item.display_image_url preview_type="image" preview_title=item.title|default:"" credit_user=item.uploaded_by status=item.status status_label=item.get_status_display only %}
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="admin-tool-empty">No gallery photos found.</p>
-            {% endif %}
-        </section>
-
-        {# —— Gallery Videos —— #}
-        <section class="admin-tool-section" aria-labelledby="admin-tool-videos-heading" data-admin-tool-section>
-            <div class="admin-tool-section__header">
-                <h2 id="admin-tool-videos-heading" class="admin-tool-section__title">
-                    Videos ({{ gallery_video_count }})
-                </h2>
-                <label class="admin-tool-select-all">
-                    <input
-                        type="checkbox"
-                        class="admin-tool-select-all__input"
-                        data-select-all-section
-                        aria-label="Select all videos"
-                    >
-                    <span class="admin-tool-select-all__label">Select all</span>
-                </label>
-            </div>
-
-            {% if gallery_videos %}
-            <div class="admin-tool-grid" role="list">
-                {% for item in gallery_videos %}
-                    {% include "community/_admin_tool_card.html" with kind="gallery" item_id=item.pk aria_label="Select gallery video" title=item.title|default:"Untitled video" thumb_url=item.display_image_url preview_src=item.display_media_url preview_poster=item.display_image_url preview_type="video" preview_title=item.title|default:"" credit_user=item.uploaded_by status=item.status status_label=item.get_status_display only %}
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="admin-tool-empty">No gallery videos found.</p>
-            {% endif %}
-        </section>
-
-        {# —— Posts —— #}
-        <section class="admin-tool-section" aria-labelledby="admin-tool-posts-heading" data-admin-tool-section>
-            <div class="admin-tool-section__header">
-                <h2 id="admin-tool-posts-heading" class="admin-tool-section__title">
-                    Posts ({{ post_count }})
-                </h2>
-                <label class="admin-tool-select-all">
-                    <input
-                        type="checkbox"
-                        class="admin-tool-select-all__input"
-                        data-select-all-section
-                        aria-label="Select all posts"
-                    >
-                    <span class="admin-tool-select-all__label">Select all</span>
-                </label>
-            </div>
-
-            {% if posts %}
-            <div class="admin-tool-grid" role="list">
-                {% for post in posts %}
-                    {% with first_media=post.media.all.0 %}
-                    <article class="admin-tool-card" role="listitem">
-                        <label class="admin-tool-card__check">
-                            <input
-                                type="checkbox"
-                                class="admin-tool-check"
-                                data-kind="post"
-                                data-id="{{ post.pk }}"
-                                aria-label="Select post: {{ post.title }}"
-                            >
-                        </label>
-                        <a
-                            href="{% if post.status == 'approved' %}{% url 'community:post_detail' post.slug %}{% else %}{% url 'community:admin_post_preview' post.slug %}{% endif %}"
-                            class="admin-tool-card__trigger{% if first_media.media_type == 'video' and not post.cover_display_url %} admin-tool-card__trigger--video{% endif %}{% if not post.cover_display_url and not first_media %} admin-tool-card__trigger--text{% endif %}"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            <span class="admin-tool-card__media">
-                                {% if post.cover_display_url %}
-                                <img src="{{ post.cover_display_url }}" alt="" loading="lazy" class="admin-tool-card__image">
-                                {% elif first_media %}
-                                    {% if first_media.media_type == 'video' %}
-                                    <span class="admin-tool-card__fallback" aria-hidden="true"></span>
-                                    <span class="admin-tool-card__play" aria-hidden="true">
-                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                            <path d="M8 5v14l11-7z"/>
-                                        </svg>
-                                    </span>
-                                    {% else %}
-                                    <img src="{{ first_media.display_url }}" alt="" loading="lazy" class="admin-tool-card__image">
-                                    {% endif %}
-                                {% else %}
-                                <span class="admin-tool-card__fallback" aria-hidden="true"></span>
-                                <span class="admin-tool-card__excerpt">{{ post.body|truncatewords:24 }}</span>
-                                {% endif %}
-                            </span>
-                            <span class="admin-tool-card__meta">
-                                <span class="admin-tool-card__title">{{ post.title }}</span>
-                                <span class="admin-tool-card__author">
-                                    {% include "accounts/partials/user_author_chip.html" with credit_user=post.author %}
-                                </span>
-                                <span class="community-status community-status--{{ post.status }} admin-tool-card__status">
-                                    {{ post.get_status_display }}
-                                </span>
-                            </span>
-                        </a>
-                    </article>
-                    {% endwith %}
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="admin-tool-empty">No posts found.</p>
-            {% endif %}
-        </section>
-
-        {# —— Comments —— #}
-        <section class="admin-tool-section" aria-labelledby="admin-tool-comments-heading" data-admin-tool-section>
-            <div class="admin-tool-section__header">
-                <h2 id="admin-tool-comments-heading" class="admin-tool-section__title">
-                    Comments ({{ comment_count }})
-                </h2>
-                <label class="admin-tool-select-all">
-                    <input
-                        type="checkbox"
-                        class="admin-tool-select-all__input"
-                        data-select-all-section
-                        aria-label="Select all comments"
-                    >
-                    <span class="admin-tool-select-all__label">Select all</span>
-                </label>
-            </div>
-
-            {% if comments %}
-            <div class="admin-tool-grid" role="list">
-                {% for comment in comments %}
-                    {% with first_media=comment.media.all.0 %}
-                    <article class="admin-tool-card" role="listitem">
-                        <label class="admin-tool-card__check">
-                            <input
-                                type="checkbox"
-                                class="admin-tool-check"
-                                data-kind="comment"
-                                data-id="{{ comment.pk }}"
-                                aria-label="Select comment"
-                            >
-                        </label>
-                        {% if comment.post.status == "approved" and comment.status == "approved" %}
-                        <a
-                            href="{% url 'community:post_detail' comment.post.slug %}#comment-{{ comment.pk }}"
-                            class="admin-tool-card__trigger{% if first_media.media_type == 'video' %} admin-tool-card__trigger--video{% endif %}{% if not first_media %} admin-tool-card__trigger--text{% endif %}"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                        {% elif comment.post.status != "approved" %}
-                        <a
-                            href="{% url 'community:admin_post_preview' comment.post.slug %}#comment-{{ comment.pk }}"
-                            class="admin-tool-card__trigger{% if first_media.media_type == 'video' %} admin-tool-card__trigger--video{% endif %}{% if not first_media %} admin-tool-card__trigger--text{% endif %}"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                        {% else %}
-                        <a
-                            href="{% url 'community:admin_comment_preview' comment.pk %}"
-                            class="admin-tool-card__trigger{% if first_media.media_type == 'video' %} admin-tool-card__trigger--video{% endif %}{% if not first_media %} admin-tool-card__trigger--text{% endif %}"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                        {% endif %}
-                            <span class="admin-tool-card__media">
-                                {% if first_media %}
-                                    {% if first_media.media_type == 'video' %}
-                                    <span class="admin-tool-card__fallback" aria-hidden="true"></span>
-                                    <span class="admin-tool-card__play" aria-hidden="true">
-                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                            <path d="M8 5v14l11-7z"/>
-                                        </svg>
-                                    </span>
-                                    {% else %}
-                                    <img src="{{ first_media.display_url }}" alt="" loading="lazy" class="admin-tool-card__image">
-                                    {% endif %}
-                                {% else %}
-                                <span class="admin-tool-card__fallback" aria-hidden="true"></span>
-                                <span class="admin-tool-card__excerpt">{{ comment.body|truncatewords:28 }}</span>
-                                {% endif %}
-                            </span>
-                            <span class="admin-tool-card__meta">
-                                {% if first_media %}
-                                <span class="admin-tool-card__title">{{ comment.body|truncatewords:12 }}</span>
-                                {% endif %}
-                                <span class="admin-tool-card__author">
-                                    {% include "accounts/partials/user_author_chip.html" with credit_user=comment.author %}
-                                </span>
-                                <span class="community-status community-status--{{ comment.status }} admin-tool-card__status">
-                                    {{ comment.get_status_display }}
-                                </span>
-                            </span>
-                        </a>
-                    </article>
-                    {% endwith %}
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="admin-tool-empty">No comments found.</p>
-            {% endif %}
-        </section>
+        {% if active_tab == "review" %}
+            {% include "community/_admin_tool_review.html" %}
+        {% elif active_tab == "gallery" %}
+            {% include "community/_admin_tool_gallery.html" %}
+        {% else %}
+            {% include "community/_admin_tool_community.html" %}
+        {% endif %}
 
         <form
             id="admin-tool-bulk-form"
@@ -268,7 +87,25 @@
             data-confirm-message="Delete selected items? This cannot be undone."
         >
             {% csrf_token %}
+            <input type="hidden" name="next_tab" value="{{ active_tab }}">
+            {% if status_filter %}
+            <input type="hidden" name="next_status" value="{{ status_filter }}">
+            {% else %}
+            <input type="hidden" name="next_status" value="all">
+            {% endif %}
             <div id="admin-tool-bulk-fields"></div>
+        </form>
+
+        <form
+            id="admin-tool-bulk-moderate-form"
+            method="post"
+            action="{% url 'community:admin_tool_bulk_moderate' %}"
+        >
+            {% csrf_token %}
+            <input type="hidden" name="next_tab" value="review">
+            <input type="hidden" name="action" value="" id="admin-tool-bulk-moderate-action">
+            <input type="hidden" name="reason" value="" id="admin-tool-bulk-moderate-reason">
+            <div id="admin-tool-bulk-moderate-fields"></div>
         </form>
 
         <div

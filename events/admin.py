@@ -57,7 +57,7 @@ class EventAdmin(ModelAdmin):
             _("Visibility & registrations"),
             {
                 "classes": ["tab"],
-                "fields": ("is_active", "registrations_open"),
+                "fields": ("is_active", "registrations_open", "capacity"),
             },
         ),
         (
