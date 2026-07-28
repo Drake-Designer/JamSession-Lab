@@ -10,6 +10,9 @@ Disallow: /accounts/password-reset/
 Disallow: /accounts/welcome/
 Disallow: /accounts/verify-email/
 Disallow: /accounts/settings/
+{# $ = end of URL so only the /accounts/profile/ shortcut is blocked, #}
+{# not public profiles like /accounts/profile/username/. #}
+Disallow: /accounts/profile/$
 Disallow: /accounts/profile/edit/
 Disallow: /accounts/profile/picture/
 Disallow: /accounts/profile/delete/

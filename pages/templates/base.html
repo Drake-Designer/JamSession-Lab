@@ -97,7 +97,7 @@
             {# Mobile profile shortcut — centred between logo and hamburger #}
             {% if user.is_authenticated %}
             <a
-                href="{% url 'accounts:profile' %}"
+                href="{% url 'accounts:profile_detail' user.username %}"
                 class="navbar-profile-icon"
                 aria-label="My profile"
                 title="My profile"
@@ -112,7 +112,7 @@
             <div class="hidden items-center gap-3 md:flex">
                 {% if user.is_authenticated %}
                 <a
-                    href="{% url 'accounts:profile' %}"
+                    href="{% url 'accounts:profile_detail' user.username %}"
                     class="relative cursor-pointer px-1 py-2 text-sm font-semibold text-jam-white transition-all duration-200 after:absolute after:inset-x-1 after:bottom-1 after:h-0.5 after:origin-left after:scale-x-0 after:rounded-full after:bg-jam-red after:transition-transform after:duration-200 after:content-[''] hover:scale-105 hover:text-jam-red hover:after:scale-x-100"
                 >{{ user.display_name|default:user.username }}</a>
                 <form method="post" action="{% url 'accounts:logout' %}">
@@ -167,7 +167,7 @@
                     <div class="flex flex-col gap-2">
                         {% if user.is_authenticated %}
                         <a
-                            href="{% url 'accounts:profile' %}"
+                            href="{% url 'accounts:profile_detail' user.username %}"
                             class="navbar-mobile-profile"
                             data-x-on:click="closeMobile()"
                         >

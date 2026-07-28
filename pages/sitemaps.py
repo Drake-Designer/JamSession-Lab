@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sitemaps import Sitemap
+from django.db.models import Q
+from django.db.models.functions import Trim
 from django.urls import reverse
 
 from community.models import CommunityPost
@@ -83,16 +85,29 @@ class CommunityPostSitemap(SiteUrlSitemap):
 
 
 class ProfileSitemap(SiteUrlSitemap):
-    """Public member profiles (verified, active accounts only)."""
+    """
+    Substantial public member profiles only.
+
+    Excludes staff/superusers, known test usernames, and thin profiles that
+    have neither a bio nor a profile picture.
+    """
 
     changefreq = "monthly"
     priority = 0.5
 
     def items(self):
         return (
-            User.objects.filter(is_active=True, is_email_verified=True)
+            User.objects.filter(
+                is_active=True,
+                is_email_verified=True,
+                is_staff=False,
+                is_superuser=False,
+            )
+            .exclude(username__iexact="test")
+            .exclude(username__istartswith="test_")
+            .annotate(_bio_trimmed=Trim("bio"))
+            .filter(Q(_bio_trimmed__gt="") | ~Q(profile_picture=""))
             .order_by("username")
-            .only("username", "date_joined")
         )
 
     def lastmod(self, obj):

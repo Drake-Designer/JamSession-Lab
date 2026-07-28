@@ -297,6 +297,7 @@ class SeoReadinessTests(TestCase):
         self.assertEqual(response["Content-Type"], "text/plain; charset=utf-8")
         body = response.content.decode()
         self.assertIn("Disallow: /admin/", body)
+        self.assertIn("Disallow: /accounts/profile/$", body)
         self.assertIn("Sitemap: https://jamsessionlab.ie/sitemap.xml", body)
 
     def test_sitemap_xml_includes_public_pages(self):
@@ -335,3 +336,49 @@ class SeoReadinessTests(TestCase):
             body,
         )
         self.assertNotIn("pending-story", body)
+
+    def test_sitemap_excludes_staff_test_and_thin_profiles(self):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+
+        substantial = User.objects.create_user(
+            username="rich_member",
+            email="rich@example.com",
+            password="test-pass-123",
+            is_email_verified=True,
+            bio="Drummer based in Dublin.",
+        )
+        User.objects.create_user(
+            username="thin_member",
+            email="thin@example.com",
+            password="test-pass-123",
+            is_email_verified=True,
+            bio="",
+        )
+        User.objects.create_user(
+            username="staff_member",
+            email="staff@example.com",
+            password="test-pass-123",
+            is_email_verified=True,
+            is_staff=True,
+            bio="Staff bio that should still be excluded.",
+        )
+        User.objects.create_user(
+            username="test",
+            email="test@example.com",
+            password="test-pass-123",
+            is_email_verified=True,
+            bio="Test account bio.",
+        )
+
+        response = self.client.get(reverse("sitemap"))
+        body = response.content.decode()
+
+        self.assertIn(
+            f"https://jamsessionlab.ie{substantial.get_absolute_url()}",
+            body,
+        )
+        self.assertNotIn("/accounts/profile/thin_member/", body)
+        self.assertNotIn("/accounts/profile/staff_member/", body)
+        self.assertNotIn("/accounts/profile/test/", body)
