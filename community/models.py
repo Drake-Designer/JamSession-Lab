@@ -100,6 +100,11 @@ class CommunityPost(ModeratedContent):
             self.slug = generate_unique_post_slug(self.title)
         super().save(*args, **kwargs)
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse("community:post_detail", kwargs={"slug": self.slug})
+
     def upload_options(self):
         """Cloudinary folder for the optional cover_image field."""
         if self.author_id and self.author:

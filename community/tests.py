@@ -439,10 +439,10 @@ class CommunityPostListViewTests(TestCase):
         response = self.client.get(reverse("community:list"))
 
         self.assertContains(response, "A Great Session")
-        # Anonymous visitors are sent through login with next= detail URL.
         detail_url = reverse("community:post_detail", args=[post.slug])
         self.assertContains(response, detail_url)
-        self.assertContains(response, "Log in to read")
+        self.assertContains(response, "Read more")
+        self.assertNotContains(response, "Log in to read")
         self.assertContains(response, "community-layout--solo")
         self.assertNotContains(response, "members-sidebar")
 
@@ -496,13 +496,18 @@ class CommunityPostDetailViewTests(TestCase):
         self.author = _make_user("detail_author")
         self.other = _make_user("detail_other")
 
-    def test_approved_post_requires_login(self):
+    def test_approved_post_is_public_for_anonymous(self):
         post = _make_post(self.author, status=ApprovalStatus.APPROVED)
         detail_url = reverse("community:post_detail", args=[post.slug])
 
         response = self.client.get(detail_url)
 
-        self.assertRedirects(response, f"/accounts/login/?next={detail_url}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'content="index, follow"', html=False)
+        self.assertFalse(response.context["is_pending_preview"])
+        self.assertIsNone(response.context["comment_form"])
+        self.assertFalse(response.context["can_manage_post"])
+        self.assertFalse(response.context["user_has_liked"])
 
     def test_approved_post_is_readable_by_members(self):
         post = _make_post(self.author, status=ApprovalStatus.APPROVED)
@@ -514,6 +519,18 @@ class CommunityPostDetailViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context["is_pending_preview"])
+        self.assertContains(response, 'content="index, follow"', html=False)
+
+    def test_pending_preview_is_noindex(self):
+        post = _make_post(self.author, status=ApprovalStatus.PENDING)
+        self.client.force_login(self.author)
+
+        response = self.client.get(
+            reverse("community:post_detail", args=[post.slug])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'content="noindex, nofollow"', html=False)
 
     def test_detail_shows_cover_image_url_when_present(self):
         post = _make_post(self.author, status=ApprovalStatus.APPROVED)
@@ -569,7 +586,7 @@ class CommunityPostDetailViewTests(TestCase):
 
         response = self.client.get(detail_url)
 
-        self.assertRedirects(response, f"/accounts/login/?next={detail_url}")
+        self.assertEqual(response.status_code, 404)
 
     def test_author_cannot_open_own_rejected_post(self):
         post = _make_post(self.author, status=ApprovalStatus.REJECTED)
@@ -597,7 +614,7 @@ class CommunityPostDetailViewTests(TestCase):
 
         response = self.client.get(detail_url)
 
-        self.assertRedirects(response, f"/accounts/login/?next={detail_url}")
+        self.assertEqual(response.status_code, 404)
 
     def test_pending_badge_is_shown_to_the_author_previewing_their_own_post(self):
         post = _make_post(self.author, status=ApprovalStatus.PENDING)

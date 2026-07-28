@@ -300,6 +300,29 @@ class SeoReadinessTests(TestCase):
         self.assertIn("Sitemap: https://jamsessionlab.ie/sitemap.xml", body)
 
     def test_sitemap_xml_includes_public_pages(self):
+        from django.contrib.auth import get_user_model
+
+        from community.models import CommunityPost
+        from jamsession.moderation import ApprovalStatus
+
+        user = get_user_model().objects.create_user(
+            username="sitemap_author",
+            email="sitemap@example.com",
+            password="test-pass-123",
+        )
+        post = CommunityPost.objects.create(
+            author=user,
+            title="Public jam story",
+            body="A public community post for the sitemap.",
+            status=ApprovalStatus.APPROVED,
+        )
+        CommunityPost.objects.create(
+            author=user,
+            title="Pending story",
+            body="Should not appear in the sitemap.",
+            status=ApprovalStatus.PENDING,
+        )
+
         response = self.client.get(reverse("sitemap"))
         self.assertEqual(response.status_code, 200)
         body = response.content.decode()
@@ -307,3 +330,8 @@ class SeoReadinessTests(TestCase):
         self.assertIn("https://jamsessionlab.ie/", body)
         self.assertIn("https://jamsessionlab.ie/about/", body)
         self.assertIn("https://jamsessionlab.ie/events/", body)
+        self.assertIn(
+            f"https://jamsessionlab.ie{post.get_absolute_url()}",
+            body,
+        )
+        self.assertNotIn("pending-story", body)

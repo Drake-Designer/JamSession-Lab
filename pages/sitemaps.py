@@ -7,7 +7,9 @@ from django.contrib.auth import get_user_model
 from django.contrib.sitemaps import Sitemap
 from django.urls import reverse
 
+from community.models import CommunityPost
 from events.models import Event
+from jamsession.moderation import ApprovalStatus
 
 User = get_user_model()
 
@@ -65,6 +67,21 @@ class EventSitemap(SiteUrlSitemap):
         return obj.updated_at
 
 
+class CommunityPostSitemap(SiteUrlSitemap):
+    """Approved community posts (public and indexable)."""
+
+    changefreq = "weekly"
+    priority = 0.7
+
+    def items(self):
+        return CommunityPost.objects.filter(
+            status=ApprovalStatus.APPROVED
+        ).order_by("-updated_at")
+
+    def lastmod(self, obj):
+        return obj.updated_at
+
+
 class ProfileSitemap(SiteUrlSitemap):
     """Public member profiles (verified, active accounts only)."""
 
@@ -85,5 +102,6 @@ class ProfileSitemap(SiteUrlSitemap):
 sitemaps = {
     "static": StaticViewSitemap,
     "events": EventSitemap,
+    "community": CommunityPostSitemap,
     "profiles": ProfileSitemap,
 }

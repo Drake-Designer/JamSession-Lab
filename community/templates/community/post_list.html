@@ -30,7 +30,7 @@
                 {% else %}
                 <div class="page-header__actions page-header__actions--visitor">
                     <p class="community-visitor-hint">
-                        Log in or register to read full posts and see members.
+                        Log in or register to comment, like posts, and see members.
                     </p>
                     <div class="community-visitor-actions">
                         <a
@@ -79,11 +79,7 @@
                                 </div>
 
                                 <h2 class="community-card__title">
-                                    {% if user.is_authenticated %}
                                     <a href="{% url 'community:post_detail' post.slug %}">{{ post.title }}</a>
-                                    {% else %}
-                                    <a href="{% url 'accounts:login' %}?next={% url 'community:post_detail' post.slug %}">{{ post.title }}</a>
-                                    {% endif %}
                                 </h2>
 
                                 <p class="community-card__excerpt">{{ post.body|truncatewords:40 }}</p>
@@ -101,11 +97,7 @@
                                         </svg>
                                         {{ post.likes.count }}
                                     </span>
-                                    {% if user.is_authenticated %}
                                     <a href="{% url 'community:post_detail' post.slug %}" class="community-card__readmore">Read more &rarr;</a>
-                                    {% else %}
-                                    <a href="{% url 'accounts:login' %}?next={% url 'community:post_detail' post.slug %}" class="community-card__readmore">Log in to read &rarr;</a>
-                                    {% endif %}
                                 </div>
                             </div>
                         </article>

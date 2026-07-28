@@ -159,14 +159,13 @@ def post_list(request):
     return render(request, "community/post_list.html", {"page_obj": page_obj})
 
 
-@login_required
 def post_detail(request, slug):
     """
-    Full post for logged-in members only.
+    Public post detail for approved posts (indexable by search engines).
 
-    Approved posts are readable by any authenticated user. The author may also
-    preview their own post while it is still pending approval (flagged for a
-    badge in the template). Anonymous visitors are redirected to login.
+    The author may also preview their own pending post (flagged in the
+    template). Rejected / other non-approved posts stay 404 for everyone.
+    Like, comment, and manage actions remain login-gated in their views.
     """
     post = _visible_post_or_404(request, slug)
 
@@ -175,18 +174,23 @@ def post_detail(request, slug):
     ).select_related("author")
 
     user = request.user
+    is_authenticated = user.is_authenticated
     context = {
         "post": post,
         "is_pending_preview": post.status == ApprovalStatus.PENDING,
         "comments": comments,
-        "comment_form": CommunityCommentForm(),
+        "comment_form": CommunityCommentForm() if is_authenticated else None,
         "like_count": post.likes.count(),
         # Display-only helpers: buttons are hidden accordingly in the
         # template, but post_edit/post_delete (and comment counterparts)
         # re-check permissions themselves — the template never is the
         # source of truth.
-        "user_has_liked": post.likes.filter(user=user).exists(),
-        "can_manage_post": _user_can_moderate_or_owns(user, post.author_id),
+        "user_has_liked": (
+            is_authenticated and post.likes.filter(user=user).exists()
+        ),
+        "can_manage_post": (
+            is_authenticated and _user_can_moderate_or_owns(user, post.author_id)
+        ),
     }
     return render(request, "community/post_detail.html", context)
 
