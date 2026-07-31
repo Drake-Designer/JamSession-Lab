@@ -16,10 +16,10 @@ from pathlib import Path
 
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
-from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
-
 from dotenv import load_dotenv
+
+from jamsession.admin_navigation import UNFOLD_SIDEBAR
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -98,120 +98,18 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
 
-def gallery_pending_admin_link(request):
-    from django.urls import reverse
-
-    return reverse("admin:gallery_galleryitem_changelist") + "?status__exact=pending"
-
-
-def community_pending_admin_link(request):
-    from django.urls import reverse
-
-    return (
-        reverse("admin:community_communitypost_changelist") + "?status__exact=pending"
-    )
-
-
 UNFOLD = {
     "SITE_TITLE": "JamSession Lab Admin",
     "SITE_HEADER": "JamSession Lab",
+    "SITE_SUBHEADER": _("Administration"),
     "SITE_SYMBOL": "music_note",
-    "SIDEBAR": {
-        "show_search": True,
-        "show_all_applications": False,
-        "navigation": [
-            {
-                "title": _("Home"),
-                "separator": True,
-                "items": [
-                    {
-                        "title": _("Carousel slides"),
-                        "icon": "view_carousel",
-                        "link": reverse_lazy(
-                            "admin:pages_homecarouselslide_changelist"
-                        ),
-                    },
-                    {
-                        "title": _("Organisers"),
-                        "icon": "groups",
-                        "link": reverse_lazy(
-                            "admin:pages_aboutorganiser_changelist"
-                        ),
-                    },
-                ],
-            },
-            {
-                "title": _("Gallery"),
-                "separator": True,
-                "items": [
-                    {
-                        "title": _("All media"),
-                        "icon": "photo_library",
-                        "link": reverse_lazy("admin:gallery_galleryitem_changelist"),
-                    },
-                    {
-                        "title": _("Pending approval"),
-                        "icon": "pending",
-                        "link": gallery_pending_admin_link,
-                    },
-                ],
-            },
-            {
-                "title": _("Community"),
-                "separator": True,
-                "items": [
-                    {
-                        "title": _("All posts"),
-                        "icon": "forum",
-                        "link": reverse_lazy(
-                            "admin:community_communitypost_changelist"
-                        ),
-                    },
-                    {
-                        "title": _("Pending approval"),
-                        "icon": "pending",
-                        "link": community_pending_admin_link,
-                    },
-                    {
-                        "title": _("All comments"),
-                        "icon": "chat",
-                        "link": reverse_lazy(
-                            "admin:community_communitycomment_changelist"
-                        ),
-                    },
-                ],
-            },
-            {
-                "title": _("Events"),
-                "separator": True,
-                "items": [
-                    {
-                        "title": _("All events"),
-                        "icon": "event",
-                        "link": reverse_lazy("admin:events_event_changelist"),
-                    },
-                    {
-                        "title": _("Registrations"),
-                        "icon": "how_to_reg",
-                        "link": reverse_lazy(
-                            "admin:registrations_eventregistration_changelist"
-                        ),
-                    },
-                ],
-            },
-            {
-                "title": _("Users"),
-                "separator": True,
-                "items": [
-                    {
-                        "title": _("Users"),
-                        "icon": "people",
-                        "link": reverse_lazy("admin:accounts_user_changelist"),
-                    },
-                ],
-            },
-        ],
+    "SITE_URL": "/",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": True,
+    "COMMAND": {
+        "search_models": True,
     },
+    "SIDEBAR": UNFOLD_SIDEBAR,
 }
 
 MIDDLEWARE = [

@@ -1,6 +1,8 @@
 from django import forms
 from django.contrib import admin
+from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.models import Group
 from django.utils.translation import gettext_lazy as _
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
@@ -15,6 +17,15 @@ from .validators import (
     validate_years_of_experience_against_age,
 )
 from .widgets import ProfilePictureInput
+
+
+# Default Django Group admin is plain; wrap it in Unfold for a consistent UI.
+admin.site.unregister(Group)
+
+
+@admin.register(Group)
+class GroupAdmin(BaseGroupAdmin, ModelAdmin):
+    pass
 
 
 class UserCommunityLikeInline(TabularInline):
