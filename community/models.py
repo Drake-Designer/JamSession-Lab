@@ -301,6 +301,7 @@ class CommunityLike(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             models.UniqueConstraint(
                 fields=["post", "user"], name="unique_community_like_per_user"
@@ -310,4 +311,5 @@ class CommunityLike(models.Model):
         verbose_name_plural = _("community likes")
 
     def __str__(self):
-        return f"@{self.user.username} likes post {self.post_id}"
+        post_title = self.post.title if self.post_id else self.post_id
+        return f'@{self.user.username} likes "{post_title}"'

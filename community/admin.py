@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django.db.models import Count
 from django.utils.html import format_html, format_html_join
 from django.utils.text import Truncator
 from django.utils.translation import gettext_lazy as _
@@ -194,13 +195,32 @@ class CommunityCommentMediaInline(TabularInline):
         return _media_preview(obj, width=220, height=160)
 
 
+class CommunityLikeInline(TabularInline):
+    """Read-only list of who liked a post (existing likes included)."""
+
+    model = CommunityLike
+    extra = 0
+    can_delete = True
+    fields = ("user", "created_at")
+    readonly_fields = ("user", "created_at")
+    ordering = ("-created_at",)
+    show_change_link = True
+    verbose_name = _("like")
+    verbose_name_plural = _("Likes")
+    tab = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(CommunityPost)
 class CommunityPostAdmin(ModelAdmin):
-    inlines = [CommunityPostMediaInline]
+    inlines = [CommunityPostMediaInline, CommunityLikeInline]
     list_display = (
         "title",
         "display_author",
         "display_status",
+        "display_like_count",
         "display_attachment_count",
         "created_at",
     )
@@ -279,6 +299,14 @@ class CommunityPostAdmin(ModelAdmin):
     def display_status(self, obj):
         return obj.status
 
+    @display(description=_("Likes"), ordering="like_count")
+    def display_like_count(self, obj):
+        # Prefer annotation from get_queryset; fall back for change-form use.
+        count = getattr(obj, "like_count", None)
+        if count is None:
+            count = obj.likes.count()
+        return count
+
     @display(description=_("Attachments"))
     def display_attachment_count(self, obj):
         return obj.media.count()
@@ -288,6 +316,10 @@ class CommunityPostAdmin(ModelAdmin):
         if not obj.pk:
             return "-"
         return _media_gallery_preview(obj.media.all(), width=300, height=300)
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        return queryset.annotate(like_count=Count("likes", distinct=True))
 
 
 @admin.register(CommunityComment)
@@ -391,12 +423,35 @@ class CommunityCommentAdmin(ModelAdmin):
 
 @admin.register(CommunityLike)
 class CommunityLikeAdmin(ModelAdmin):
-    """Read-only listing for debugging; likes are not moderated."""
+    """
+    Admin-only archive of every community like, including historical ones.
 
-    list_display = ("post", "user", "created_at")
+    Likes are created by members on the public site; staff can inspect and
+    remove them here but cannot invent new likes from the admin.
+    """
+
+    list_display = ("display_user", "display_post", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("post__title", "user__username")
+    search_fields = (
+        "user__username",
+        "user__email",
+        "user__display_name",
+        "post__title",
+        "post__slug",
+    )
     readonly_fields = ("post", "user", "created_at")
+    fields = ("user", "post", "created_at")
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    list_select_related = ("user", "post", "post__author")
 
     def has_add_permission(self, request):
         return False
+
+    @display(description=_("Member"), ordering="user__username")
+    def display_user(self, obj):
+        return obj.user.username
+
+    @display(description=_("Post"), ordering="post__title")
+    def display_post(self, obj):
+        return obj.post.title

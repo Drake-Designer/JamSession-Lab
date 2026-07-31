@@ -6,6 +6,8 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
+from community.models import CommunityLike
+
 from .constants import Instrument, MusicGenre
 from .models import SocialLink, User
 from .validators import (
@@ -13,6 +15,25 @@ from .validators import (
     validate_years_of_experience_against_age,
 )
 from .widgets import ProfilePictureInput
+
+
+class UserCommunityLikeInline(TabularInline):
+    """Read-only: every community like this member has given."""
+
+    model = CommunityLike
+    fk_name = "user"
+    extra = 0
+    can_delete = True
+    fields = ("post", "created_at")
+    readonly_fields = ("post", "created_at")
+    ordering = ("-created_at",)
+    show_change_link = True
+    tab = True
+    verbose_name = _("community like")
+    verbose_name_plural = _("Community likes")
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 class AdminUserChangeForm(UserChangeForm):
@@ -87,7 +108,7 @@ class CustomUserAdmin(ModelAdmin, UserAdmin):
     form = AdminUserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
-    inlines = [SocialLinkInline]
+    inlines = [SocialLinkInline, UserCommunityLikeInline]
 
     fieldsets = (
         (
